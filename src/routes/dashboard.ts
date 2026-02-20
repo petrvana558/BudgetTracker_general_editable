@@ -14,7 +14,8 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     const totalActual    = items.reduce((s, i) => s + (i.actualPrice ?? 0), 0)
     const totalCapex     = items.filter(i => i.capexNeeded).reduce((s, i) => s + (i.totalEstCost ?? 0), 0)
 
-    const totalLabor = laborCosts.reduce((s, lc) => s + laborAmount(lc), 0)
+    const totalLabor      = laborCosts.reduce((s, lc) => s + laborAmount(lc), 0)
+    const totalLaborSpent = laborCosts.reduce((s, lc) => s + (lc.spent ?? 0), 0)
     const grandTotal = totalEstimated + totalLabor
 
     // ── Status breakdown ─────────────────────────────────────────
@@ -108,6 +109,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         totalActual,
         totalCapex,
         totalLabor,
+        totalLaborSpent,
         grandTotal,
         totalItems:     items.length,
         remaining:      totalEstimated - totalActual,

@@ -94,14 +94,34 @@ model AuditLog {
 }
 
 model LaborCost {
-  id         Int      @id @default(autoincrement())
+  id         Int              @id @default(autoincrement())
   role       String
   personName String?
-  mdRate     Float    @default(0)
-  mdDays     Float    @default(0)
-  costType   String   @default("Project")
+  mdRate     Float            @default(0)
+  mdDays     Float            @default(0)
+  costType   String           @default("Project")
   department String?
   notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  spent      Float?
+  entries    LaborRoleEntry[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+model LaborRoleEntry {
+  id          Int       @id @default(autoincrement())
+  laborCostId Int
+  laborCost   LaborCost @relation(fields: [laborCostId], references: [id], onDelete: Cascade)
+  date        DateTime
+  amount      Float
+  note        String?
+  createdAt   DateTime  @default(now())
+}
+
+model LaborSpentLog {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  amount    Float
+  note      String?
+  createdAt DateTime @default(now())
 }

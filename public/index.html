@@ -275,6 +275,9 @@
           </button>
         </template>
         <!-- Currency toggle -->
+        <span class="text-xs text-gray-400" style="white-space:nowrap"
+          :style="currency !== 'EUR' ? 'visibility:hidden' : ''"
+          x-text="'@ ' + eurRate + ' CZK'"></span>
         <button
           @click="currency = currency === 'CZK' ? 'EUR' : 'CZK'"
           style="height:32px;padding:0 14px;border:1px solid #ddd;border-radius:16px;cursor:pointer;font-size:12px;font-weight:700;background:white;color:#333;display:flex;align-items:center;gap:6px;white-space:nowrap">
@@ -282,7 +285,6 @@
           <span style="color:#bbb;font-size:14px;line-height:1">⇄</span>
           <span style="color:#aaa" x-text="currency === 'CZK' ? 'EUR' : 'CZK'"></span>
         </button>
-        <div x-show="currency === 'EUR'" class="text-xs text-gray-400" x-text="'@ ' + eurRate + ' CZK'"></div>
       </div>
     </div>
 
@@ -314,8 +316,8 @@
         </div>
         <div class="kpi-card" style="--accent:#0ea5e9">
           <div class="kpi-label" style="color:var(--dhl-grey)">Utraceno — Lidé</div>
-          <div class="kpi-value" style="color:#0ea5e9" x-text="fmtMoney(dash.summary?.totalLabor)"></div>
-          <div class="kpi-sub">Závazky / committed</div>
+          <div class="kpi-value" style="color:#0ea5e9" x-text="(dash.summary?.totalLaborSpent ?? 0) > 0 ? fmtMoney(dash.summary?.totalLaborSpent) : '—'"></div>
+          <div class="kpi-sub">Skutečně utraceno za role</div>
         </div>
         <div class="kpi-card" :class="(dash.summary?.remaining ?? 0) < 0 ? 'red' : ''">
           <div class="kpi-label">Zbývá (assets)</div>
@@ -634,7 +636,7 @@
     <div x-show="view === 'labor'" class="p-6 space-y-6">
 
       <!-- Summary cards -->
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-4 gap-4">
         <div class="kpi-card blue">
           <div class="kpi-label">Celkem PM / Lidé</div>
           <div class="kpi-value" x-text="fmtMoney(laborTotal())"></div>
@@ -649,6 +651,11 @@
           <div class="kpi-label">Annual + One-off</div>
           <div class="kpi-value" x-text="(currency, fmtMoney(laborByType('Annual') + laborByType('One-off')))"></div>
           <div class="kpi-sub" x-text="labor.filter(l => l.costType !== 'Project').length + ' rolí'"></div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Utraceno (lidé)</div>
+          <div class="kpi-value" x-text="labor.some(l => l.spent > 0) ? fmtMoney(labor.reduce((s,l) => s + (l.spent||0), 0)) : '—'"></div>
+          <div class="kpi-sub" x-text="labor.filter(l => l.spent > 0).length + ' rolí s vyplněným utraceno'"></div>
         </div>
       </div>
 
@@ -671,8 +678,8 @@
                   <th class="text-right" x-text="'Sazba / MD (' + currency + ')'"></th>
                   <th class="text-right">Počet MD</th>
                   <th class="text-right">Celkem</th>
+                  <th class="text-right">Utraceno</th>
                   <th>Poznámka</th>
-                  <th style="width:70px">Akce</th>
                 </tr>
               </thead>
               <tbody>
@@ -682,8 +689,8 @@
                   </td></tr>
                 </template>
                 <template x-for="lc in labor" :key="lc.id">
-                  <tr>
-                    <td class="font-semibold" x-text="lc.role"></td>
+                  <tr :class="laborDetail.lc?.id === lc.id ? 'bg-yellow-50' : ''" style="cursor:pointer" @click="openLaborDetail(lc)">
+                    <td class="font-semibold" style="color:var(--dhl-red)" x-text="lc.role"></td>
                     <td x-text="lc.personName || '—'"></td>
                     <td x-text="lc.department || '—'"></td>
                     <td>
@@ -694,25 +701,89 @@
                     <td class="font-mono text-right" x-text="(currency, fmtMoney(lc.mdRate))"></td>
                     <td class="text-right font-semibold" x-text="lc.mdDays + ' MD'"></td>
                     <td class="font-mono text-right font-bold" x-text="(currency, fmtMoney(laborAmount(lc)))"></td>
+                    <td class="font-mono text-right font-semibold"
+                      :style="lc.spent > laborAmount(lc) ? 'color:#dc2626' : lc.spent > laborAmount(lc) * (laborWarningPct/100) ? 'color:#f97316' : lc.spent > 0 ? 'color:#16a34a' : 'color:#ccc'"
+                      x-text="lc.spent > 0 ? fmtMoney(lc.spent) : '—'"></td>
                     <td class="text-gray-400 text-xs" x-text="lc.notes || '—'"></td>
-                    <td>
-                      <div class="flex gap-1">
-                        <button class="btn-icon" @click="openLaborForm(lc)">✏️</button>
-                        <button class="btn-icon" @click="deleteLabor(lc.id)">🗑️</button>
-                      </div>
-                    </td>
                   </tr>
                 </template>
               </tbody>
               <tfoot x-show="labor.length">
                 <tr style="background:#f9f9f9;font-weight:700;border-top:2px solid #e0e0e0">
-                  <td colspan="5" class="px-3 py-2 text-sm">Celkem</td>
+                  <td colspan="4" class="px-3 py-2 text-sm">Celkem</td>
                   <td class="text-right px-3 py-2 text-gray-400 text-xs" x-text="labor.reduce((s,l)=>s+l.mdDays,0).toFixed(1) + ' MD'"></td>
                   <td class="font-mono text-right px-3 py-2" x-text="fmtMoney(laborTotal())"></td>
-                  <td colspan="2"></td>
+                  <td class="font-mono text-right px-3 py-2 text-green-700" x-text="labor.some(l=>l.spent>0) ? fmtMoney(labor.reduce((s,l)=>s+(l.spent||0),0)) : '—'"></td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div class="chart-card" x-show="laborDetail.open && !laborForm.open">
+          <div class="chart-header">
+            <div>
+              <div class="font-bold" x-text="laborDetail.lc?.role"></div>
+              <div class="text-xs text-gray-400 mt-0.5" x-text="[laborDetail.lc?.personName, laborDetail.lc?.department, laborDetail.lc?.costType].filter(Boolean).join(' · ')"></div>
+            </div>
+            <button class="btn-ghost btn-sm" @click="laborDetail = { open: false, lc: null }; $nextTick(() => renderLaborChart())">✕</button>
+          </div>
+          <div class="p-4 space-y-4">
+            <!-- Sazba / MD / Celkem souhrn -->
+            <div class="grid grid-cols-3 gap-2 text-center" style="background:#f9f9f9;border-radius:6px;padding:10px">
+              <div>
+                <div class="text-xs text-gray-500 font-bold uppercase">Sazba / MD</div>
+                <div class="font-mono font-bold text-sm mt-1" x-text="fmtMoney(laborDetail.lc?.mdRate)"></div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500 font-bold uppercase">Počet MD</div>
+                <div class="font-bold text-sm mt-1" x-text="(laborDetail.lc?.mdDays || 0) + ' MD'"></div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500 font-bold uppercase">Celkem plán</div>
+                <div class="font-mono font-bold text-sm mt-1" x-text="fmtMoney(laborAmount(laborDetail.lc || {}))"></div>
+              </div>
+            </div>
+            <!-- Utraceno – záznamy -->
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6b6b6b;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span>Utraceno za tuto roli</span>
+                <span x-show="laborFormEntries.length > 0" class="font-mono normal-case"
+                  :class="laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{}) ? 'text-red-600' : laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{})*(laborWarningPct/100) ? 'text-yellow-500' : 'text-green-700'"
+                  x-text="fmtMoney(laborFormEntries.reduce((s,e)=>s+e.amount,0))"></span>
+              </div>
+              <template x-for="entry in laborFormEntries" :key="entry.id">
+                <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
+                  <span style="color:#888;min-width:70px;flex-shrink:0" x-text="new Date(entry.date).toLocaleDateString('cs-CZ',{month:'short',year:'numeric'})"></span>
+                  <span class="font-mono font-semibold flex-1"
+                    :class="laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{}) ? 'text-red-600' : laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{})*(laborWarningPct/100) ? 'text-yellow-500' : 'text-green-700'"
+                    x-text="fmtMoney(entry.amount)"></span>
+                  <span class="text-gray-400" style="font-size:11px;flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="entry.note || ''"></span>
+                  <button class="btn-icon" style="padding:2px 5px;color:#ccc;flex-shrink:0" @click="deleteLaborEntry(entry.id)" title="Smazat">✕</button>
+                </div>
+              </template>
+              <p x-show="!laborFormEntries.length" class="text-xs text-gray-400 py-2">Zatím žádné záznamy.</p>
+              <!-- Přidat záznam -->
+              <div style="margin-top:8px;display:flex;gap:6px;align-items:flex-end">
+                <div>
+                  <label class="form-label" style="font-size:10px">Měsíc</label>
+                  <input class="form-input" type="month" x-model="laborEntryForm.month" style="width:122px;font-size:12px;padding:4px 8px">
+                </div>
+                <div style="flex:1">
+                  <label class="form-label" style="font-size:10px" x-text="'Částka (' + currency + ')'"></label>
+                  <input class="form-input" type="number" x-model="laborEntryForm.amount" min="0" step="1" style="font-size:12px;padding:4px 8px" placeholder="0">
+                </div>
+                <button class="btn-primary btn-sm" @click="addLaborEntry()" :disabled="!laborEntryForm.amount">＋</button>
+              </div>
+              <input class="form-input mt-1" type="text" x-model="laborEntryForm.note" style="font-size:12px;padding:4px 8px" placeholder="Faktura, výplatní páska...">
+            </div>
+            <!-- Akce -->
+            <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid #f0f0f0">
+              <button class="btn-ghost" style="flex:1;font-size:12px" @click="openLaborForm(laborDetail.lc)">✏️ Upravit roli</button>
+              <button class="btn-danger btn-sm" style="font-size:12px" @click="deleteLabor(laborDetail.lc?.id); laborDetail = { open: false, lc: null }">🗑️ Smazat</button>
+            </div>
           </div>
         </div>
 
@@ -780,8 +851,8 @@
           </div>
         </div>
 
-        <!-- Placeholder when form closed -->
-        <div class="chart-card" x-show="!laborForm.open">
+        <!-- Chart — when nothing is open -->
+        <div class="chart-card" x-show="!laborForm.open && !laborDetail.open">
           <div class="chart-header">Struktura nákladů</div>
           <div style="padding:16px;height:260px;display:flex;align-items:center;justify-content:center">
             <canvas id="laborChart"></canvas>
@@ -921,7 +992,15 @@
             <label class="form-label">Aktuální uživatel (autor změn v logu)</label>
             <input class="form-input" type="text" x-model="settingsForm.currentUser" placeholder="Vaše jméno">
           </div>
-          <button class="btn-primary" @click="saveEurRate()">Uložit nastavení</button>
+          <div class="form-group">
+        <label class="form-label">Práh varování utraceno — lidé (%)</label>
+        <div class="flex gap-2 items-center">
+          <input class="form-input" type="number" min="1" max="100" x-model="settingsForm.laborWarningPct" style="width:100px">
+          <span class="text-sm text-gray-500">% z celkového plánovaného rozpočtu role</span>
+        </div>
+        <div class="text-xs text-gray-400 mt-1">Při překročení tohoto prahu se utraceno zobrazí žlutě, nad 100 % červeně.</div>
+      </div>
+      <button class="btn-primary" @click="saveEurRate()">Uložit nastavení</button>
           <div x-show="settingsSaved" class="text-green-600 text-sm font-semibold">✓ Uloženo</div>
           <div class="mt-4 p-3 rounded" style="background:#f9f9f9;border:1px solid #e0e0e0">
             <div class="text-xs text-gray-500 mb-2 font-bold uppercase tracking-wide">Aktuální přepočet</div>
@@ -1494,6 +1573,7 @@ function app() {
     priorities: [],
     departments: [],
     labor: [],
+    laborSpent: [],
     dash: {},
 
     // Filters
@@ -1510,8 +1590,12 @@ function app() {
     categoryForm: { open: false, id: null, name: '', subcatText: '' },
     priorityForm: { open: false, id: null, name: '', color: '#FFCC00', rank: 0 },
     laborForm: { open: false, id: null, role: '', personName: '', department: '', costType: 'Project', mdRate: '', mdDays: '', notes: '' },
+    laborDetail: { open: false, lc: null },
+    laborFormEntries: [],
+    laborEntryForm: { month: new Date().toISOString().slice(0, 7), amount: '', note: '' },
+    laborWarningPct: 80,
     departmentForm: { name: '' },
-    settingsForm: { eurRate: '25', currentUser: 'Admin', projectName: '' },
+    settingsForm: { eurRate: '25', currentUser: 'Admin', projectName: '', laborWarningPct: '80' },
     projectName: '',
     settingsSaved: false,
 
@@ -1585,22 +1669,28 @@ function app() {
       const r = await fetch(`${API}/api/settings`)
       const s = await r.json()
       const rate = parseFloat(s.eurRate || '25')
-      this.eurRate = rate
-      this.settingsForm.eurRate = String(rate)
+      this.eurRate = isNaN(rate) || rate <= 0 ? 25 : rate
+      this.settingsForm.eurRate = String(this.eurRate)
       this.currentUser = s.currentUser || 'Admin'
       this.settingsForm.currentUser = this.currentUser
       this.projectName = s.projectName || ''
       this.settingsForm.projectName = this.projectName
+      const warnPct = parseInt(s.laborWarningPct || '80')
+      this.laborWarningPct = isNaN(warnPct) ? 80 : warnPct
+      this.settingsForm.laborWarningPct = String(this.laborWarningPct)
       try { this.departments = JSON.parse(s.departments || '[]') } catch { this.departments = [] }
     },
 
     async saveEurRate() {
       const rate = parseFloat(this.settingsForm.eurRate)
       if (!rate || rate <= 0) return alert('Zadejte platný kurz')
+      const warnPct = parseInt(this.settingsForm.laborWarningPct) || 80
       await this.apiFetch('PUT', '/api/settings/eurRate', { value: String(rate) })
       await this.apiFetch('PUT', '/api/settings/currentUser', { value: this.settingsForm.currentUser || 'Admin' })
       await this.apiFetch('PUT', '/api/settings/projectName', { value: this.settingsForm.projectName || '' })
+      await this.apiFetch('PUT', '/api/settings/laborWarningPct', { value: String(warnPct) })
       this.eurRate = rate
+      this.laborWarningPct = warnPct
       this.currentUser = this.settingsForm.currentUser || 'Admin'
       this.projectName = this.settingsForm.projectName || ''
       this.settingsSaved = true
@@ -1634,8 +1724,57 @@ function app() {
     },
 
     async loadLabor() {
-      const r = await fetch(`${API}/api/labor`)
-      this.labor = await r.json()
+      const [lr, sr] = await Promise.all([
+        fetch(`${API}/api/labor`),
+        fetch(`${API}/api/labor-spent`),
+      ])
+      this.labor = await lr.json()
+      this.laborSpent = await sr.json()
+    },
+
+    async addLaborEntry() {
+      const roleId = this.laborDetail.lc?.id
+      if (!this.laborEntryForm.amount || !roleId) return
+      const amountCzk = this.currency === 'EUR' && this.eurRate > 0
+        ? parseFloat(this.laborEntryForm.amount) * this.eurRate
+        : parseFloat(this.laborEntryForm.amount)
+      await this.apiFetch('POST', `/api/labor/${roleId}/entries`, {
+        date:   this.laborEntryForm.month + '-01',
+        amount: amountCzk,
+        note:   this.laborEntryForm.note || null,
+      })
+      this.laborEntryForm = { month: new Date().toISOString().slice(0, 7), amount: '', note: '' }
+      await this.loadLabor()
+      const updated = this.labor.find(l => l.id === roleId)
+      if (updated) { this.laborDetail.lc = updated; this.laborFormEntries = updated.entries || [] }
+    },
+
+    async deleteLaborEntry(entryId) {
+      if (!confirm('Smazat tento záznam?')) return
+      const roleId = this.laborDetail.lc?.id
+      await this.apiFetch('DELETE', `/api/labor-entries/${entryId}`)
+      await this.loadLabor()
+      const updated = this.labor.find(l => l.id === roleId)
+      if (updated) { this.laborDetail.lc = updated; this.laborFormEntries = updated.entries || [] }
+    },
+
+    async addLaborSpent() {
+      if (!this.laborSpentForm.amount) return
+      await this.apiFetch('POST', '/api/labor-spent', {
+        date:   this.laborSpentForm.date,
+        amount: parseFloat(this.laborSpentForm.amount),
+        note:   this.laborSpentForm.note || null,
+      })
+      this.laborSpentForm = { date: new Date().toISOString().slice(0, 10), amount: '', note: '' }
+      const r = await fetch(`${API}/api/labor-spent`)
+      this.laborSpent = await r.json()
+    },
+
+    async deleteLaborSpent(id) {
+      if (!confirm('Smazat tento záznam?')) return
+      await this.apiFetch('DELETE', `/api/labor-spent/${id}`)
+      const r = await fetch(`${API}/api/labor-spent`)
+      this.laborSpent = await r.json()
     },
 
     async loadDashboard() {
@@ -1840,6 +1979,13 @@ function app() {
     },
 
     // --- Labor CRUD ---
+    openLaborDetail(lc) {
+      this.laborDetail = { open: true, lc }
+      this.laborFormEntries = lc.entries || []
+      this.laborEntryForm = { month: new Date().toISOString().slice(0, 7), amount: '', note: '' }
+      this.laborForm.open = false
+    },
+
     openLaborForm(lc = null) {
       const rateInCzk = lc?.mdRate ?? ''
       const displayRate = rateInCzk !== '' && this.currency === 'EUR' && this.eurRate > 0
@@ -1856,6 +2002,9 @@ function app() {
         mdDays: lc?.mdDays ?? '',
         notes: lc?.notes ?? '',
       }
+      // Načti existující záznamy utraceno
+      this.laborFormEntries = lc?.entries ?? []
+      this.laborEntryForm = { month: new Date().toISOString().slice(0, 7), amount: '', note: '' }
     },
 
     async saveLabor() {
@@ -1878,6 +2027,11 @@ function app() {
       await this.apiFetch(method, path, payload)
       this.laborForm.open = false
       await this.loadLabor()
+      // Obnovíme laborDetail.lc pokud je otevřený
+      if (this.laborDetail.open) {
+        const updated = this.labor.find(l => l.id === (this.laborForm.id || this.laborDetail.lc?.id))
+        if (updated) { this.laborDetail.lc = updated; this.laborFormEntries = updated.entries || [] }
+      }
       this.$nextTick(() => this.renderLaborChart())
       this.loadDashboard()
     },
@@ -2102,7 +2256,7 @@ function app() {
         { l: 'PM / Lidé',         v: fmt(s.totalLabor),     sub: (d.laborCosts?.length ?? 0) + ' rolí',               c: '#3b82f6' },
         { l: 'Grand Total',       v: fmt(s.grandTotal),     sub: 'Assets + Lidé',                                     c: '#7c3aed' },
         { l: 'Utraceno — Assets', v: fmt(s.totalActual),    sub: (s.spentPct ?? 0) + '% z asset odhadu',              c: '#22c55e' },
-        { l: 'Utraceno — Lidé',   v: fmt(s.totalLabor),     sub: 'Závazky / committed',                               c: '#0ea5e9' },
+        { l: 'Utraceno — Lidé',   v: (s.totalLaborSpent ?? 0) > 0 ? fmt(s.totalLaborSpent) : '—', sub: 'Skutečně utraceno za role', c: '#0ea5e9' },
         { l: 'Zbývá (assets)',    v: fmt(s.remaining),      sub: 'Odhad − Skutečnost',                                c: (s.remaining ?? 0) < 0 ? '#D40511' : '#22c55e' },
       ]
       const kpiHtml = kpis.map((k, i) => `
