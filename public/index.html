@@ -1,0 +1,2664 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --dhl-yellow: #FFCC00;
+      --dhl-red: #D40511;
+      --dhl-dark: #1A1A1A;
+      --dhl-mid: #2C2C2C;
+      --dhl-grey: #6B6B6B;
+      --dhl-light: #F4F4F4;
+      --dhl-white: #FFFFFF;
+      --dhl-border: #E0E0E0;
+    }
+    [x-cloak] { display: none !important; }
+
+    body { background: var(--dhl-light); font-family: 'Segoe UI', Arial, sans-serif; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: var(--dhl-dark); min-height: 100vh; flex-shrink: 0; }
+    .sidebar-logo { background: var(--dhl-yellow); padding: 14px 20px; display: flex; flex-direction: column; gap: 4px; }
+    .sidebar-logo img { width: 96px; display: block; }
+    .sidebar-logo .logo-sub { font-weight: 900; font-size: 15px; color: var(--dhl-dark); letter-spacing: 0.3px; line-height: 1.2; margin-top: 2px; }
+    .sidebar-logo .logo-date { font-size: 10px; color: #555; font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: #aaa; cursor: pointer; transition: all 0.15s; font-size: 14px; font-weight: 500; border-left: 3px solid transparent; }
+    .nav-item:hover { background: rgba(255,204,0,0.08); color: #fff; }
+    .nav-item.active { background: rgba(255,204,0,0.12); color: var(--dhl-yellow); border-left-color: var(--dhl-yellow); }
+    .nav-icon { width: 18px; text-align: center; font-size: 16px; }
+    .nav-section { padding: 14px 20px 6px; font-size: 10px; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
+
+    /* Header */
+    .topbar { background: var(--dhl-white); border-bottom: 2px solid var(--dhl-border); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar h1 { font-size: 20px; font-weight: 700; color: var(--dhl-dark); }
+    .topbar .subtitle { font-size: 12px; color: var(--dhl-grey); margin-top: 1px; }
+
+    /* KPI Cards */
+    .kpi-card { background: var(--dhl-white); border-radius: 6px; padding: 18px 22px; border: 1px solid var(--dhl-border); position: relative; overflow: hidden; }
+    .kpi-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--dhl-yellow); }
+    .kpi-card.red::before { background: var(--dhl-red); }
+    .kpi-card.green::before { background: #22c55e; }
+    .kpi-card.blue::before { background: #3b82f6; }
+    .kpi-label { font-size: 11px; font-weight: 700; color: var(--dhl-grey); text-transform: uppercase; letter-spacing: 0.8px; }
+    .kpi-value { font-size: 26px; font-weight: 800; color: var(--dhl-dark); margin-top: 4px; line-height: 1; }
+    .kpi-sub { font-size: 12px; color: var(--dhl-grey); margin-top: 6px; }
+
+    /* Charts */
+    .chart-card { background: var(--dhl-white); border-radius: 6px; border: 1px solid var(--dhl-border); }
+    .chart-header { padding: 14px 18px; border-bottom: 1px solid var(--dhl-border); font-size: 13px; font-weight: 700; color: var(--dhl-dark); display: flex; align-items: center; justify-content: space-between; }
+
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .data-table th { background: var(--dhl-dark); color: var(--dhl-yellow); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 10; }
+    .data-table td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: var(--dhl-dark); vertical-align: middle; overflow: hidden; }
+    .data-table tr:hover td { background: #fffbea; }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 3px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+    .badge-yellow { background: #fff3cd; color: #856404; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-grey { background: #f3f4f6; color: #4b5563; }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+
+    /* Inline select (looks like a badge with a dropdown arrow) */
+    .inline-select {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 2px 20px 2px 7px; border-radius: 3px; border: none;
+      appearance: none; -webkit-appearance: none; cursor: pointer; outline: none;
+      min-width: 90px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23888' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 6px center; background-size: 7px;
+    }
+    .inline-select:focus { outline: 2px solid var(--dhl-yellow); outline-offset: 1px; }
+    .inline-select:hover { filter: brightness(0.94); }
+    .inline-date {
+      border: 1px solid transparent; border-radius: 3px; background: transparent;
+      font-size: 12px; color: inherit; cursor: pointer; padding: 2px 4px; width: 106px;
+      font-family: inherit;
+    }
+    .inline-date:hover { background: #f0f0f0; border-color: #e5e7eb; }
+    .inline-date:focus { outline: 2px solid var(--dhl-yellow); background: white; border-color: transparent; }
+
+    /* Buttons */
+    .btn-primary { background: var(--dhl-yellow); color: var(--dhl-dark); font-weight: 700; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; transition: opacity 0.1s; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-danger { background: var(--dhl-red); color: white; font-weight: 700; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .btn-danger:hover { opacity: 0.88; }
+    .btn-ghost { background: transparent; color: var(--dhl-grey); border: 1px solid var(--dhl-border); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .btn-ghost:hover { background: var(--dhl-light); }
+    .btn-sm { padding: 4px 10px; font-size: 11px; }
+    .btn-icon { background: none; border: none; cursor: pointer; color: var(--dhl-grey); padding: 4px 6px; border-radius: 3px; }
+    .btn-icon:hover { background: var(--dhl-light); color: var(--dhl-dark); }
+
+    /* Forms */
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 11px; font-weight: 700; color: var(--dhl-grey); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .form-input { width: 100%; padding: 8px 10px; border: 1px solid var(--dhl-border); border-radius: 4px; font-size: 13px; color: var(--dhl-dark); background: white; outline: none; transition: border-color 0.15s; }
+    .form-input:focus { border-color: var(--dhl-yellow); box-shadow: 0 0 0 2px rgba(255,204,0,0.2); }
+    .form-select { width: 100%; padding: 8px 10px; border: 1px solid var(--dhl-border); border-radius: 4px; font-size: 13px; color: var(--dhl-dark); background: white; outline: none; cursor: pointer; }
+    .form-select:focus { border-color: var(--dhl-yellow); }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+    .modal { background: white; border-radius: 8px; width: 900px; max-width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+    .modal-header { background: var(--dhl-dark); color: white; padding: 16px 24px; border-radius: 8px 8px 0 0; display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h2 { font-size: 16px; font-weight: 700; }
+    .modal-header .accent { color: var(--dhl-yellow); }
+    .modal-body { padding: 24px; max-height: 70vh; overflow-y: auto; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--dhl-border); display: flex; gap: 10px; justify-content: flex-end; background: var(--dhl-light); border-radius: 0 0 8px 8px; }
+
+    /* Section divider in form */
+    .form-section { background: var(--dhl-light); padding: 8px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--dhl-grey); letter-spacing: 0.8px; margin: 16px 0 12px; border-left: 3px solid var(--dhl-yellow); }
+
+    /* Filter bar */
+    .filter-bar { background: var(--dhl-white); border-bottom: 1px solid var(--dhl-border); padding: 12px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .filter-bar input, .filter-bar select { padding: 6px 10px; border: 1px solid var(--dhl-border); border-radius: 4px; font-size: 12px; color: var(--dhl-dark); background: var(--dhl-light); }
+    .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--dhl-yellow); }
+
+    /* Settings tabs */
+    .settings-tab { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--dhl-grey); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.15s; }
+    .settings-tab.active { color: var(--dhl-dark); border-bottom-color: var(--dhl-yellow); }
+    .settings-tab:hover { color: var(--dhl-dark); }
+
+    /* Gantt */
+    .gantt-container { overflow-x: auto; }
+    .gantt-row { display: flex; align-items: center; height: 36px; border-bottom: 1px solid #f0f0f0; }
+    .gantt-label { width: 220px; flex-shrink: 0; padding: 0 12px; font-size: 12px; color: var(--dhl-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid var(--dhl-border); }
+    .gantt-timeline { flex: 1; position: relative; height: 100%; }
+    .gantt-bar { position: absolute; height: 14px; top: 50%; transform: translateY(-50%); border-radius: 2px; }
+    .gantt-bar-tender { background: #3b82f6; opacity: 0.85; }
+    .gantt-bar-delivery { background: #22c55e; opacity: 0.85; }
+    .gantt-header-row { display: flex; background: var(--dhl-dark); }
+    .gantt-header-label { width: 220px; flex-shrink: 0; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--dhl-yellow); text-transform: uppercase; border-right: 1px solid #333; }
+    .gantt-month { flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 700; color: var(--dhl-yellow); text-align: center; border-right: 1px solid #333; }
+
+    /* Progress bar */
+    .progress-bar { height: 8px; background: var(--dhl-border); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--dhl-yellow); border-radius: 4px; transition: width 0.3s; }
+    .progress-fill.over { background: var(--dhl-red); }
+
+    /* Scrollable table wrapper */
+    .table-scroll { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 230px); }
+
+    /* Deadline badge color */
+    .deadline-urgent { color: var(--dhl-red); font-weight: 700; }
+    .deadline-soon { color: #d97706; font-weight: 600; }
+
+    /* Column resize handle */
+    .data-table th { position: relative; user-select: none; }
+    .col-resize-handle {
+      position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
+      cursor: col-resize; z-index: 5; background: transparent;
+    }
+    .col-resize-handle:hover { background: rgba(255,204,0,0.6); }
+    .col-resize-handle.resizing { background: var(--dhl-yellow); }
+
+    /* Clickable item name */
+    .item-name-link { cursor: pointer; text-decoration: none; }
+    .item-name-link:hover { color: var(--dhl-red); text-decoration: underline; }
+
+    /* Detail panel */
+    .detail-panel {
+      position: fixed; right: 0; top: 0; bottom: 0; width: 500px; max-width: 94vw;
+      background: white; box-shadow: -6px 0 32px rgba(0,0,0,0.18); z-index: 900;
+      display: flex; flex-direction: column; transform: translateX(100%);
+      transition: transform 0.24s cubic-bezier(0.4,0,0.2,1);
+    }
+    .detail-panel.is-open { transform: translateX(0); }
+    .detail-panel-header { background: var(--dhl-dark); color: white; padding: 16px 20px; flex-shrink: 0; }
+    .detail-panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+    .detail-panel-footer { padding: 14px 20px; border-top: 1px solid var(--dhl-border); background: var(--dhl-light); flex-shrink: 0; display: flex; gap: 10px; }
+
+    /* Detail info grid */
+    .detail-field { margin-bottom: 10px; }
+    .detail-field-label { font-size: 10px; font-weight: 700; color: var(--dhl-grey); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
+    .detail-field-value { font-size: 13px; color: var(--dhl-dark); }
+
+    /* Comments */
+    .comments-section { margin-top: 16px; }
+    .comment-bubble { background: #f8f8f8; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid var(--dhl-yellow); }
+    .comment-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .comment-author { font-size: 11px; font-weight: 700; color: var(--dhl-dark); }
+    .comment-time { font-size: 10px; color: #aaa; }
+    .comment-del { margin-left: auto; background: none; border: none; cursor: pointer; color: #ccc; font-size: 15px; line-height: 1; padding: 0; }
+    .comment-del:hover { color: var(--dhl-red); }
+    .comment-text { font-size: 13px; color: #333; line-height: 1.4; white-space: pre-wrap; }
+    .comment-add { display: flex; gap: 6px; margin-top: 10px; align-items: flex-end; }
+    .comment-add textarea { flex: 1; padding: 7px 10px; border: 1px solid var(--dhl-border); border-radius: 4px; font-size: 12px; font-family: inherit; resize: none; outline: none; min-height: 52px; }
+    .comment-add textarea:focus { border-color: var(--dhl-yellow); }
+
+  </style>
+</head>
+<body x-data="app()" x-init="init()" x-cloak>
+
+<div class="flex">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="/dhl-logo.svg" alt="DHL">
+      <div class="logo-sub">Budget Tracker</div>
+      <div x-show="projectName" class="logo-date" style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px" x-text="projectName"></div>
+      <div class="logo-date" x-text="new Date().toLocaleDateString('cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
+    </div>
+
+    <div class="nav-section">Přehled</div>
+    <div class="nav-item" :class="{ active: view === 'dashboard' }" @click="view = 'dashboard'; loadDashboard()">
+      <span class="nav-icon">📊</span> Dashboard
+    </div>
+    <div class="nav-item" :class="{ active: view === 'gantt' }" @click="view = 'gantt'; renderGantt()">
+      <span class="nav-icon">📅</span> Gantt / Timeline
+    </div>
+
+    <div class="nav-section">Data</div>
+    <div class="nav-item" :class="{ active: view === 'assets' }" @click="view = 'assets'; loadItems(); $nextTick(() => restoreColWidths())">
+      <span class="nav-icon">📋</span> Asset List
+    </div>
+
+    <div class="nav-section">Projekt</div>
+    <div class="nav-item" :class="{ active: view === 'labor' }" @click="view = 'labor'; loadLabor().then(() => $nextTick(() => renderLaborChart()))">
+      <span class="nav-icon">👥</span> Lidé / PM náklady
+    </div>
+
+    <div class="nav-section">Konfigurace</div>
+    <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
+      <span class="nav-icon">⚙️</span> Nastavení
+    </div>
+
+    <div style="padding: 24px 20px; margin-top: auto;">
+      <div style="font-size: 10px; color: #444; line-height: 1.6;">
+        <span style="color: var(--dhl-yellow)">●</span> Budget Tracker v1.0<br>
+        Lokální instance
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="flex-1 flex flex-col min-h-screen" style="min-width: 0;">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div>
+        <h1 x-text="viewTitle()"></h1>
+        <div class="subtitle" x-text="viewSubtitle()"></div>
+      </div>
+      <div class="flex gap-2 items-center">
+        <template x-if="view === 'assets'">
+          <button class="btn-primary" @click="openNewItem()">
+            <span>＋</span> Přidat položku
+          </button>
+        </template>
+        <template x-if="view === 'dashboard'">
+          <div class="flex gap-2">
+            <button class="btn-ghost btn-sm" @click="exportDashboardPDF()"
+              style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">
+              ⬇ Export PDF
+            </button>
+            <button class="btn-primary btn-sm" @click="exportAllPDF()"
+              style="display:flex;align-items:center;gap:4px">
+              ⬇ Export vše
+            </button>
+          </div>
+        </template>
+        <template x-if="view === 'gantt'">
+          <button class="btn-ghost btn-sm" @click="exportGanttPDF()"
+            style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">
+            ⬇ Export PDF
+          </button>
+        </template>
+        <!-- Currency toggle -->
+        <button
+          @click="currency = currency === 'CZK' ? 'EUR' : 'CZK'"
+          style="height:32px;padding:0 14px;border:1px solid #ddd;border-radius:16px;cursor:pointer;font-size:12px;font-weight:700;background:white;color:#333;display:flex;align-items:center;gap:6px;white-space:nowrap">
+          <span x-text="currency"></span>
+          <span style="color:#bbb;font-size:14px;line-height:1">⇄</span>
+          <span style="color:#aaa" x-text="currency === 'CZK' ? 'EUR' : 'CZK'"></span>
+        </button>
+        <div x-show="currency === 'EUR'" class="text-xs text-gray-400" x-text="'@ ' + eurRate + ' CZK'"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DASHBOARD VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'dashboard'" class="p-6 space-y-6">
+      <!-- KPI Row -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="kpi-card">
+          <div class="kpi-label">Asset odhad</div>
+          <div class="kpi-value" x-text="fmtMoney(dash.summary?.totalEstimated)"></div>
+          <div class="kpi-sub" x-text="(dash.summary?.totalItems ?? 0) + ' pol. · CAPEX: ' + fmtMoney(dash.summary?.totalCapex)"></div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">PM / Lidé</div>
+          <div class="kpi-value" x-text="fmtMoney(dash.summary?.totalLabor)"></div>
+          <div class="kpi-sub" x-text="(dash.laborCosts?.length ?? 0) + ' rolí'"></div>
+        </div>
+        <div class="kpi-card" style="--accent:#7c3aed">
+          <div class="kpi-label" style="color:var(--dhl-grey)">Grand Total</div>
+          <div class="kpi-value" style="color:#7c3aed" x-text="fmtMoney(dash.summary?.grandTotal)"></div>
+          <div class="kpi-sub">Assets + Lidé</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Utraceno — Assets</div>
+          <div class="kpi-value" x-text="fmtMoney(dash.summary?.totalActual)"></div>
+          <div class="kpi-sub" x-text="(dash.summary?.spentPct ?? 0) + '% z asset odhadu'"></div>
+        </div>
+        <div class="kpi-card" style="--accent:#0ea5e9">
+          <div class="kpi-label" style="color:var(--dhl-grey)">Utraceno — Lidé</div>
+          <div class="kpi-value" style="color:#0ea5e9" x-text="fmtMoney(dash.summary?.totalLabor)"></div>
+          <div class="kpi-sub">Závazky / committed</div>
+        </div>
+        <div class="kpi-card" :class="(dash.summary?.remaining ?? 0) < 0 ? 'red' : ''">
+          <div class="kpi-label">Zbývá (assets)</div>
+          <div class="kpi-value" :class="(dash.summary?.remaining ?? 0) < 0 ? 'text-red-600' : 'text-green-600'"
+            x-text="fmtMoney(dash.summary?.remaining)"></div>
+          <div class="kpi-sub">Odhad − Skutečnost</div>
+        </div>
+      </div>
+
+      <!-- Budget progress (actual vs estimated) -->
+      <template x-if="(dash.summary?.totalEstimated ?? 0) > 0">
+        <div class="chart-card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-bold text-sm">Čerpání — skutečnost vs. odhad (assets)</span>
+            <span class="text-sm font-bold" :class="(dash.summary.spentPct??0) > 100 ? 'text-red-600' : 'text-green-600'"
+              x-text="(dash.summary.spentPct ?? 0) + '%'"></span>
+          </div>
+          <div class="progress-bar" style="height:12px">
+            <div class="progress-fill" :class="{ over: (dash.summary.spentPct??0) > 100 }"
+              :style="'width:' + Math.min(dash.summary.spentPct ?? 0, 100) + '%'"></div>
+          </div>
+          <div class="flex justify-between text-xs text-gray-400 mt-1">
+            <span>Utraceno: <b x-text="fmtMoney(dash.summary.totalActual)"></b></span>
+            <span>Zbývá do odhadu: <b x-text="fmtMoney(dash.summary.remaining)"></b></span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Charts row 1 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="chart-card lg:col-span-2">
+          <div class="chart-header">
+            <span>Náklady podle kategorie</span>
+            <span class="text-xs text-gray-400">Odhad vs. Skutečnost &nbsp;·&nbsp; 🔍 kliknutím filtrovat</span>
+          </div>
+          <div style="padding:16px;height:260px">
+            <canvas id="catChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><span>Tender status</span><span class="text-xs text-gray-400">🔍 kliknutím filtrovat</span></div>
+          <div style="padding:16px;height:260px;display:flex;align-items:center;justify-content:center">
+            <canvas id="statusChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="chart-card">
+          <div class="chart-header">
+            <span>Workload — zodpovědné osoby</span>
+            <span class="text-xs text-gray-400">Počet položek &nbsp;·&nbsp; 🔍 kliknutím filtrovat</span>
+          </div>
+          <div style="padding:16px;height:220px">
+            <canvas id="personChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><span>Priority</span><span class="text-xs text-gray-400">🔍 kliknutím filtrovat</span></div>
+          <div style="padding:16px;height:220px;display:flex;align-items:center;justify-content:center">
+            <canvas id="priorityChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upcoming deadlines -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <span>Blížící se termíny (90 dní)</span>
+          <span class="text-xs text-gray-400" x-text="(dash.upcomingDeadlines?.length ?? 0) + ' položek'"></span>
+        </div>
+        <template x-if="!dash.upcomingDeadlines?.length">
+          <div class="p-8 text-center text-gray-400 text-sm">Žádné blížící se termíny</div>
+        </template>
+        <template x-if="dash.upcomingDeadlines?.length">
+          <div class="table-scroll" style="max-height:280px">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Popis</th>
+                  <th>Kategorie</th>
+                  <th>Deadline tenderu</th>
+                  <th>Dodání</th>
+                  <th>Status</th>
+                  <th>Zodpovědný</th>
+                  <th>Odhad</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="d in dash.upcomingDeadlines" :key="d.id">
+                  <tr>
+                    <td class="font-medium" x-text="d.description"></td>
+                    <td x-text="d.category ?? '—'"></td>
+                    <td :class="deadlineClass(d.tenderDeadline)" x-text="fmtDate(d.tenderDeadline)"></td>
+                    <td x-text="fmtDate(d.deliveryDate)"></td>
+                    <td><span class="badge" :class="statusBadge(d.tenderStatus)" x-text="d.tenderStatus ?? '—'"></span></td>
+                    <td x-text="d.responsible ?? '—'"></td>
+                    <td x-text="fmtMoney(d.totalEstCost)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ASSET LIST VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'assets'" class="flex flex-col" style="height: calc(100vh - 64px)">
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <input type="text" placeholder="🔍 Hledat..." x-model="filters.search" @input.debounce.300ms="loadItems()" style="width:200px">
+        <select x-model="filters.category" @change="loadItems()">
+          <option value="">Všechny kategorie</option>
+          <template x-for="c in categories" :key="c.id">
+            <option :value="c.name" x-text="c.name"></option>
+          </template>
+        </select>
+        <select x-model="filters.tenderStatus" @change="loadItems()">
+          <option value="">Všechny statusy</option>
+          <template x-for="s in TENDER_STATUSES" :key="s">
+            <option :value="s" x-text="s"></option>
+          </template>
+        </select>
+        <select x-model="filters.responsibleId" @change="loadItems()">
+          <option value="">Všechny osoby</option>
+          <template x-for="p in people" :key="p.id">
+            <option :value="p.id" x-text="p.name"></option>
+          </template>
+        </select>
+        <select x-model="filters.priorityId" @change="loadItems()">
+          <option value="">Všechny priority</option>
+          <template x-for="p in priorities" :key="p.id">
+            <option :value="p.id" x-text="p.name"></option>
+          </template>
+        </select>
+        <label class="flex items-center gap-1 text-xs font-semibold cursor-pointer">
+          <input type="checkbox" x-model="filters.capexOnly" @change="loadItems()"> Jen CAPEX
+        </label>
+        <button class="btn-ghost btn-sm" @click="clearFilters()">✕ Resetovat</button>
+        <span class="text-xs text-gray-400 ml-2" x-text="items.length + ' položek'"></span>
+        <div style="flex:1"></div>
+        <button class="btn-ghost btn-sm" @click="exportPDF()" title="Exportovat do PDF"
+          style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:5px">
+          ⬇ Export PDF
+        </button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-scroll flex-1">
+        <table class="data-table" id="assetTable" style="table-layout:fixed">
+          <thead>
+            <tr>
+              <th style="width:210px">Popis<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:110px">Kategorie<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:110px">Podkategorie<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:80px">Typ<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:92px">Odhad<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:92px">Skutečnost<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:82px">Rozdíl<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:56px">CAPEX<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:130px">Status<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:96px">Priorita<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:120px">Zodpovědný<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:116px">Deadline tenderu<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:106px">Dodání<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:120px">Schválení<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:120px">Dodavatel<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:180px">Poslední komentář<div class="col-resize-handle" @mousedown.prevent="startColResize($event, $el)"></div></th>
+              <th style="width:52px">Akce</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="!items.length">
+              <tr><td colspan="16" class="text-center py-10 text-gray-400">
+                Žádné položky. Přidejte první pomocí tlačítka "Přidat položku".
+              </td></tr>
+            </template>
+            <template x-for="item in items" :key="item.id">
+              <tr>
+                <td>
+                  <div class="item-name-link font-semibold" style="width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" :title="item.description" x-text="item.description" @click="openDetail(item)"></div>
+                  <div x-show="item.bottleneck" class="text-xs text-red-500" style="width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="'⚠ ' + item.bottleneck"></div>
+                </td>
+                <td x-text="item.category ?? '—'"></td>
+                <td x-text="item.subcategory ?? '—'"></td>
+                <td x-text="item.itemType ?? '—'"></td>
+                <td class="font-mono text-right" x-text="fmtMoney(item.totalEstCost)"></td>
+                <td class="font-mono text-right" :class="{'text-red-600 font-bold': item.actualPrice > item.totalEstCost}" x-text="fmtMoney(item.actualPrice)"></td>
+                <td class="font-mono text-right text-xs">
+                  <template x-if="item.actualPrice != null && item.totalEstCost != null">
+                    <span :class="(item.actualPrice - item.totalEstCost) > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-semibold'">
+                      <span x-text="(item.actualPrice - item.totalEstCost) > 0 ? '▲' : '▼'"></span>
+                      <span x-text="fmtMoney(Math.abs(item.actualPrice - item.totalEstCost))"></span>
+                    </span>
+                  </template>
+                  <template x-if="item.actualPrice == null || item.totalEstCost == null">
+                    <span class="text-gray-300">—</span>
+                  </template>
+                </td>
+                <td class="text-center">
+                  <span x-show="item.capexNeeded" class="badge badge-red">CAPEX</span>
+                </td>
+                <td>
+                  <select class="inline-select" :style="statusStyle(item.tenderStatus)"
+                    @change="quickPatch(item.id, 'tenderStatus', $event.target.value || null)">
+                    <option value="" :selected="!item.tenderStatus">— Status —</option>
+                    <template x-for="s in TENDER_STATUSES" :key="s">
+                      <option :value="s" :selected="item.tenderStatus === s" x-text="s"></option>
+                    </template>
+                  </select>
+                </td>
+                <td>
+                  <select class="inline-select"
+                    :style="item.priority ? 'background:' + item.priority.color + '20;color:' + item.priority.color : 'background:#f3f4f6;color:#9ca3af'"
+                    @change="quickPatch(item.id, 'priorityId', $event.target.value ? parseInt($event.target.value) : null)">
+                    <option value="" :selected="!item.priorityId">— Priorita —</option>
+                    <template x-for="p in priorities" :key="p.id">
+                      <option :value="p.id" :selected="item.priorityId === p.id" x-text="p.name"></option>
+                    </template>
+                  </select>
+                </td>
+                <td>
+                  <select class="inline-select" style="background:#f3f4f6;color:#1a1a1a;min-width:110px"
+                    @change="quickPatch(item.id, 'responsibleId', $event.target.value ? parseInt($event.target.value) : null)">
+                    <option value="" :selected="!item.responsibleId">— Nepřiřazeno —</option>
+                    <template x-for="p in people" :key="p.id">
+                      <option :value="p.id" :selected="item.responsibleId === p.id" x-text="p.name"></option>
+                    </template>
+                  </select>
+                </td>
+                <td>
+                  <input type="date" class="inline-date" :class="deadlineClass(item.tenderDeadline)"
+                    :value="isoDate(item.tenderDeadline)"
+                    @change="quickPatch(item.id, 'tenderDeadline', $event.target.value || null)">
+                </td>
+                <td>
+                  <input type="date" class="inline-date"
+                    :value="isoDate(item.deliveryDate)"
+                    @change="quickPatch(item.id, 'deliveryDate', $event.target.value || null)">
+                </td>
+                <td>
+                  <select class="inline-select" :style="approvalStyle(item.approval)"
+                    @change="quickPatch(item.id, 'approval', $event.target.value || null)">
+                    <option value="" :selected="!item.approval">— Schválení —</option>
+                    <option :selected="item.approval === 'Approved'">Approved</option>
+                    <option :selected="item.approval === 'Pending'">Pending</option>
+                    <option :selected="item.approval === 'Rejected'">Rejected</option>
+                    <option :selected="item.approval === 'Not Required'">Not Required</option>
+                  </select>
+                </td>
+                <td style="max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="item.chosenSupplier ?? '—'"></td>
+                <td style="max-width:180px">
+                  <template x-if="item.comments && item.comments[0]">
+                    <div>
+                      <div style="font-size:10px;font-weight:700;color:var(--dhl-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="item.comments[0].author"></div>
+                      <div style="font-size:11px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="item.comments[0].text"></div>
+                    </div>
+                  </template>
+                  <template x-if="!item.comments || !item.comments[0]">
+                    <span class="text-gray-300 text-xs">—</span>
+                  </template>
+                </td>
+                <td>
+                  <button class="btn-icon" title="Smazat" @click="deleteItem(item.id)">🗑️</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+          <tfoot x-show="items.length">
+            <tr style="background:#f9f9f9;font-weight:700;border-top:2px solid #e0e0e0;font-size:12px">
+              <td colspan="4" class="px-3 py-2">Celkem (<span x-text="items.length"></span> položek)</td>
+              <td class="font-mono text-right px-3 py-2" x-text="fmtMoney(items.reduce((s,i)=>s+(i.totalEstCost??0),0))"></td>
+              <td class="font-mono text-right px-3 py-2" x-text="fmtMoney(items.reduce((s,i)=>s+(i.actualPrice??0),0))"></td>
+              <td class="font-mono text-right px-3 py-2">
+                <span :class="items.reduce((s,i)=>s+((i.actualPrice??0)-(i.totalEstCost??0)),0) > 0 ? 'text-red-600' : 'text-green-600'"
+                  x-text="(items.reduce((s,i)=>s+((i.actualPrice??0)-(i.totalEstCost??0)),0) > 0 ? '▲ ' : '▼ ') + fmtMoney(Math.abs(items.reduce((s,i)=>s+((i.actualPrice??0)-(i.totalEstCost??0)),0)))">
+                </span>
+              </td>
+              <td colspan="10"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- GANTT VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'gantt'" class="p-6">
+      <div class="chart-card">
+        <div class="chart-header">
+          <span>Timeline — Tender & Dodávky</span>
+          <div class="flex gap-4 text-xs items-center">
+            <span class="flex items-center gap-1"><span style="display:inline-block;width:16px;height:10px;background:#3b82f6;border-radius:2px"></span> Tender (start→deadline)</span>
+            <span class="flex items-center gap-1"><span style="display:inline-block;width:16px;height:10px;background:#22c55e;border-radius:2px"></span> Objednávka→Dodání</span>
+            <select x-model="ganttFilter" @change="renderGantt()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+              <option value="all">Vše</option>
+              <option value="tender">Jen tender</option>
+              <option value="delivery">Jen dodávky</option>
+            </select>
+          </div>
+        </div>
+        <div id="ganttArea" class="gantt-container" style="min-height:200px">
+          <div class="text-center text-gray-400 py-12 text-sm">Načítám Gantt...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- LABOR / PM VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'labor'" class="p-6 space-y-6">
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="kpi-card blue">
+          <div class="kpi-label">Celkem PM / Lidé</div>
+          <div class="kpi-value" x-text="fmtMoney(laborTotal())"></div>
+          <div class="kpi-sub" x-text="labor.length + ' rolí'"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Project role</div>
+          <div class="kpi-value" x-text="(currency, fmtMoney(laborByType('Project')))"></div>
+          <div class="kpi-sub" x-text="labor.filter(l => l.costType === 'Project').length + ' rolí'"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Annual + One-off</div>
+          <div class="kpi-value" x-text="(currency, fmtMoney(laborByType('Annual') + laborByType('One-off')))"></div>
+          <div class="kpi-sub" x-text="labor.filter(l => l.costType !== 'Project').length + ' rolí'"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Table -->
+        <div class="chart-card lg:col-span-2">
+          <div class="chart-header">
+            <span>Role & náklady</span>
+            <button class="btn-primary btn-sm" @click="openLaborForm()">＋ Přidat roli</button>
+          </div>
+          <div class="table-scroll" style="max-height:520px">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Jméno / FTE</th>
+                  <th>Oddělení</th>
+                  <th>Typ</th>
+                  <th class="text-right" x-text="'Sazba / MD (' + currency + ')'"></th>
+                  <th class="text-right">Počet MD</th>
+                  <th class="text-right">Celkem</th>
+                  <th>Poznámka</th>
+                  <th style="width:70px">Akce</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!labor.length">
+                  <tr><td colspan="9" class="text-center py-10 text-gray-400">
+                    Zatím žádné záznamy. Přidejte první roli.
+                  </td></tr>
+                </template>
+                <template x-for="lc in labor" :key="lc.id">
+                  <tr>
+                    <td class="font-semibold" x-text="lc.role"></td>
+                    <td x-text="lc.personName || '—'"></td>
+                    <td x-text="lc.department || '—'"></td>
+                    <td>
+                      <span class="badge"
+                        :class="{ 'badge-blue': lc.costType === 'Project', 'badge-yellow': lc.costType === 'Annual', 'badge-grey': lc.costType === 'One-off' }"
+                        x-text="lc.costType"></span>
+                    </td>
+                    <td class="font-mono text-right" x-text="(currency, fmtMoney(lc.mdRate))"></td>
+                    <td class="text-right font-semibold" x-text="lc.mdDays + ' MD'"></td>
+                    <td class="font-mono text-right font-bold" x-text="(currency, fmtMoney(laborAmount(lc)))"></td>
+                    <td class="text-gray-400 text-xs" x-text="lc.notes || '—'"></td>
+                    <td>
+                      <div class="flex gap-1">
+                        <button class="btn-icon" @click="openLaborForm(lc)">✏️</button>
+                        <button class="btn-icon" @click="deleteLabor(lc.id)">🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+              <tfoot x-show="labor.length">
+                <tr style="background:#f9f9f9;font-weight:700;border-top:2px solid #e0e0e0">
+                  <td colspan="5" class="px-3 py-2 text-sm">Celkem</td>
+                  <td class="text-right px-3 py-2 text-gray-400 text-xs" x-text="labor.reduce((s,l)=>s+l.mdDays,0).toFixed(1) + ' MD'"></td>
+                  <td class="font-mono text-right px-3 py-2" x-text="fmtMoney(laborTotal())"></td>
+                  <td colspan="2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <div class="chart-card" x-show="laborForm.open">
+          <div class="chart-header">
+            <span x-text="laborForm.id ? 'Upravit roli' : 'Nová role'"></span>
+            <button class="btn-ghost btn-sm" @click="laborForm.open = false; $nextTick(() => renderLaborChart())">✕</button>
+          </div>
+          <div class="p-4 space-y-3">
+            <div class="form-group">
+              <label class="form-label">Název role *</label>
+              <input class="form-input" type="text" x-model="laborForm.role"
+                placeholder="Project Manager, IT PM, IM...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jméno / FTE (nepovinné)</label>
+              <input class="form-input" type="text" x-model="laborForm.personName"
+                placeholder="Jan Novák nebo 2.5 FTE">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Oddělení</label>
+              <select class="form-select" x-model="laborForm.department">
+                <option value="">— Nepřiřazeno —</option>
+                <template x-for="dept in departments" :key="dept">
+                  <option :value="dept" x-text="dept"></option>
+                </template>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Typ</label>
+              <select class="form-select" x-model="laborForm.costType">
+                <option>Project</option>
+                <option>Annual</option>
+                <option>One-off</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="form-group">
+                <label class="form-label" x-text="'Sazba / MD (' + currency + ')'"></label>
+                <input class="form-input" type="number" x-model="laborForm.mdRate" min="0" :placeholder="currency === 'EUR' ? '200' : '5000'">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Počet MD</label>
+                <input class="form-input" type="number" x-model="laborForm.mdDays" min="0" step="0.5" placeholder="100">
+              </div>
+            </div>
+            <div x-show="laborForm.mdRate > 0 && laborForm.mdDays > 0"
+                 class="rounded p-2 text-sm font-bold text-center"
+                 style="background:#fff3cd;color:#856404;border:1px solid #ffc107">
+              Celkem:
+              <span x-text="currency === 'EUR'
+                ? new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(laborForm.mdRate * laborForm.mdDays)
+                : new Intl.NumberFormat('cs-CZ',{style:'currency',currency:'CZK',maximumFractionDigits:0}).format(laborForm.mdRate * laborForm.mdDays)">
+              </span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Poznámka</label>
+              <input class="form-input" type="text" x-model="laborForm.notes"
+                placeholder="Sdílená role, % alokace...">
+            </div>
+            <button class="btn-primary w-full" @click="saveLabor()">
+              <span x-text="laborForm.id ? '✓ Uložit změny' : '＋ Přidat roli'"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Placeholder when form closed -->
+        <div class="chart-card" x-show="!laborForm.open">
+          <div class="chart-header">Struktura nákladů</div>
+          <div style="padding:16px;height:260px;display:flex;align-items:center;justify-content:center">
+            <canvas id="laborChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SETTINGS VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'settings'" class="p-6">
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-200 mb-6">
+        <div class="settings-tab" :class="{ active: settingsTab === 'people' }" @click="settingsTab = 'people'">👤 Osoby</div>
+        <div class="settings-tab" :class="{ active: settingsTab === 'categories' }" @click="settingsTab = 'categories'">🗂 Kategorie</div>
+        <div class="settings-tab" :class="{ active: settingsTab === 'priorities' }" @click="settingsTab = 'priorities'">🎯 Priority</div>
+        <div class="settings-tab" :class="{ active: settingsTab === 'departments' }" @click="settingsTab = 'departments'">🏢 Oddělení</div>
+        <div class="settings-tab" :class="{ active: settingsTab === 'currency' }" @click="settingsTab = 'currency'">💱 Měna / Kurz</div>
+        <div class="settings-tab" :class="{ active: settingsTab === 'log' }" @click="settingsTab = 'log'; loadAuditLog()">📋 Log změn</div>
+      </div>
+
+      <!-- Departments settings -->
+      <div x-show="settingsTab === 'departments'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="chart-card">
+            <div class="chart-header">
+              <span>Oddělení</span>
+            </div>
+            <div class="p-4 space-y-2">
+              <template x-if="!departments.length">
+                <div class="text-gray-400 text-sm py-4 text-center">Žádná oddělení. Přidejte první.</div>
+              </template>
+              <template x-for="dept in departments" :key="dept">
+                <div class="flex items-center justify-between p-3 rounded border border-gray-100 hover:border-yellow-300 transition-colors">
+                  <div class="font-semibold text-sm" x-text="dept"></div>
+                  <button class="btn-icon" @click="deleteDepartment(dept)" title="Smazat">🗑️</button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">Přidat oddělení</div>
+            <div class="p-4 space-y-3">
+              <div class="form-group">
+                <label class="form-label">Název oddělení *</label>
+                <input class="form-input" type="text" x-model="departmentForm.name"
+                  placeholder="IT, Operations, Finance, HR..."
+                  @keydown.enter="addDepartment()">
+              </div>
+              <button class="btn-primary" @click="addDepartment()">＋ Přidat oddělení</button>
+              <div class="mt-4 p-3 rounded text-xs text-gray-500" style="background:#f9f9f9;border:1px solid #e0e0e0">
+                Oddělení se zobrazí jako výběr v kartě osoby a v PM nákladech. Lze tak filtrovat a seskupovat záznamy.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log view -->
+      <div x-show="settingsTab === 'log'">
+        <div class="chart-card">
+          <div class="chart-header">
+            <span>Log změn</span>
+            <div class="flex gap-2 items-center">
+              <select x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">Vše</option>
+                <option value="Item">Položky</option>
+                <option value="Labor">Role/Lidé</option>
+                <option value="Osoba">Osoby</option>
+                <option value="Kategorie">Kategorie</option>
+                <option value="Priorita">Priority</option>
+              </select>
+              <button class="btn-ghost btn-sm" @click="loadAuditLog()" title="Obnovit log"
+                style="font-size:15px;padding:4px 8px;line-height:1">↻</button>
+              <button class="btn-ghost btn-sm" @click="if(confirm('Smazat celý log?')) clearAuditLog()">🗑 Smazat log</button>
+            </div>
+          </div>
+          <div class="table-scroll" style="max-height:600px">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width:160px">Čas</th>
+                  <th style="width:120px">Uživatel</th>
+                  <th style="width:80px">Entita</th>
+                  <th style="width:70px">Akce</th>
+                  <th>Popis</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!auditLog.length">
+                  <tr><td colspan="5" class="text-center py-10 text-gray-400">Žádné záznamy v logu.</td></tr>
+                </template>
+                <template x-for="entry in auditLog" :key="entry.id">
+                  <tr>
+                    <td class="text-xs text-gray-500 font-mono" x-text="fmtDateTime(entry.timestamp)"></td>
+                    <td class="font-semibold text-xs" x-text="entry.user"></td>
+                    <td>
+                      <span class="badge badge-grey text-xs" x-text="entry.entity"></span>
+                    </td>
+                    <td>
+                      <span class="badge text-xs"
+                        :class="{ 'badge-green': entry.action === 'CREATE', 'badge-yellow': entry.action === 'UPDATE', 'badge-red': entry.action === 'DELETE' }"
+                        x-text="entry.action"></span>
+                    </td>
+                    <td class="text-xs" x-text="entry.summary"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Currency settings -->
+      <div x-show="settingsTab === 'currency'" class="max-w-sm">
+        <div class="chart-card p-6 space-y-4">
+          <h3 class="font-bold text-base">Nastavení projektu</h3>
+          <div class="form-group">
+            <label class="form-label">Název projektu</label>
+            <input class="form-input" type="text" x-model="settingsForm.projectName"
+              placeholder="např. Projekt DHL Štěrboholy 2026">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Kurz EUR → CZK</label>
+            <div class="flex gap-2 items-center">
+              <span class="text-sm text-gray-500">1 EUR =</span>
+              <input class="form-input" type="number" step="0.01" min="1"
+                x-model="settingsForm.eurRate" placeholder="25.00" style="width:120px">
+              <span class="text-sm text-gray-500">CZK</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-1">Používá se pro přepočet při přepínači CZK/EUR v hlavičce</div>
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label">Aktuální uživatel (autor změn v logu)</label>
+            <input class="form-input" type="text" x-model="settingsForm.currentUser" placeholder="Vaše jméno">
+          </div>
+          <button class="btn-primary" @click="saveEurRate()">Uložit nastavení</button>
+          <div x-show="settingsSaved" class="text-green-600 text-sm font-semibold">✓ Uloženo</div>
+          <div class="mt-4 p-3 rounded" style="background:#f9f9f9;border:1px solid #e0e0e0">
+            <div class="text-xs text-gray-500 mb-2 font-bold uppercase tracking-wide">Aktuální přepočet</div>
+            <div class="text-sm">1 000 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(1000000/eurRate)"></b></div>
+            <div class="text-sm">100 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(100000/eurRate)"></b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- People settings -->
+      <div x-show="settingsTab === 'people'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="chart-card">
+            <div class="chart-header">
+              <span>Zodpovědné osoby</span>
+              <button class="btn-primary btn-sm" @click="openPersonForm()">＋ Přidat</button>
+            </div>
+            <div class="p-4 space-y-2">
+              <template x-if="!people.length">
+                <div class="text-gray-400 text-sm py-4 text-center">Žádné osoby. Přidejte první.</div>
+              </template>
+              <template x-for="p in people" :key="p.id">
+                <div class="flex items-center justify-between p-3 rounded border border-gray-100 hover:border-yellow-300 transition-colors">
+                  <div>
+                    <div class="font-semibold text-sm" x-text="p.name"></div>
+                    <div class="text-xs text-gray-400" x-text="[p.department, p.email].filter(Boolean).join(' · ')"></div>
+                  </div>
+                  <div class="flex gap-1">
+                    <button class="btn-icon" @click="openPersonForm(p)">✏️</button>
+                    <button class="btn-icon" @click="deletePerson(p.id)">🗑️</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Person form -->
+          <div class="chart-card" x-show="personForm.open">
+            <div class="chart-header">
+              <span x-text="personForm.id ? 'Upravit osobu' : 'Nová osoba'"></span>
+              <button class="btn-ghost btn-sm" @click="personForm.open = false">✕ Zavřít</button>
+            </div>
+            <div class="p-4 space-y-3">
+              <div class="form-group">
+                <label class="form-label">Jméno *</label>
+                <input class="form-input" type="text" x-model="personForm.name" placeholder="Jan Novák">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Oddělení</label>
+                <select class="form-select" x-model="personForm.department">
+                  <option value="">— Nepřiřazeno —</option>
+                  <template x-for="dept in departments" :key="dept">
+                    <option :value="dept" x-text="dept"></option>
+                  </template>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="form-input" type="email" x-model="personForm.email" placeholder="jan@firma.cz">
+              </div>
+              <button class="btn-primary" @click="savePerson()">Uložit osobu</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categories settings -->
+      <div x-show="settingsTab === 'categories'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="chart-card">
+            <div class="chart-header">
+              <span>Kategorie</span>
+              <button class="btn-primary btn-sm" @click="openCategoryForm()">＋ Přidat</button>
+            </div>
+            <div class="p-4 space-y-2">
+              <template x-if="!categories.length">
+                <div class="text-gray-400 text-sm py-4 text-center">Žádné kategorie.</div>
+              </template>
+              <template x-for="c in categories" :key="c.id">
+                <div class="flex items-center justify-between p-3 rounded border border-gray-100 hover:border-yellow-300 transition-colors">
+                  <div>
+                    <div class="font-semibold text-sm" x-text="c.name"></div>
+                    <div class="text-xs text-gray-400" x-text="(c.subcategories?.length ?? 0) + ' podkategorie: ' + (c.subcategories?.join(', ') || '—')"></div>
+                  </div>
+                  <div class="flex gap-1">
+                    <button class="btn-icon" @click="openCategoryForm(c)">✏️</button>
+                    <button class="btn-icon" @click="deleteCategory(c.id)">🗑️</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="chart-card" x-show="categoryForm.open">
+            <div class="chart-header">
+              <span x-text="categoryForm.id ? 'Upravit kategorii' : 'Nová kategorie'"></span>
+              <button class="btn-ghost btn-sm" @click="categoryForm.open = false">✕</button>
+            </div>
+            <div class="p-4 space-y-3">
+              <div class="form-group">
+                <label class="form-label">Název kategorie *</label>
+                <input class="form-input" type="text" x-model="categoryForm.name" placeholder="IT Equipment, Operations...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Podkategorie (čárkou oddělené)</label>
+                <input class="form-input" type="text" x-model="categoryForm.subcatText" placeholder="Hardware, Software, Licence">
+                <div class="text-xs text-gray-400 mt-1">Zadejte podkategorie oddělené čárkou</div>
+              </div>
+              <button class="btn-primary" @click="saveCategory()">Uložit kategorii</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Priorities settings -->
+      <div x-show="settingsTab === 'priorities'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="chart-card">
+            <div class="chart-header">
+              <span>Priority</span>
+              <button class="btn-primary btn-sm" @click="openPriorityForm()">＋ Přidat</button>
+            </div>
+            <div class="p-4 space-y-2">
+              <template x-if="!priorities.length">
+                <div class="text-gray-400 text-sm py-4 text-center">Žádné priority.</div>
+              </template>
+              <template x-for="p in priorities" :key="p.id">
+                <div class="flex items-center justify-between p-3 rounded border border-gray-100 hover:border-yellow-300 transition-colors">
+                  <div class="flex items-center gap-3">
+                    <div class="w-5 h-5 rounded" :style="'background:' + p.color"></div>
+                    <div>
+                      <div class="font-semibold text-sm" x-text="p.name"></div>
+                      <div class="text-xs text-gray-400">Pořadí: <span x-text="p.rank"></span></div>
+                    </div>
+                  </div>
+                  <div class="flex gap-1">
+                    <button class="btn-icon" @click="openPriorityForm(p)">✏️</button>
+                    <button class="btn-icon" @click="deletePriority(p.id)">🗑️</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="chart-card" x-show="priorityForm.open">
+            <div class="chart-header">
+              <span x-text="priorityForm.id ? 'Upravit prioritu' : 'Nová priorita'"></span>
+              <button class="btn-ghost btn-sm" @click="priorityForm.open = false">✕</button>
+            </div>
+            <div class="p-4 space-y-3">
+              <div class="form-group">
+                <label class="form-label">Název *</label>
+                <input class="form-input" type="text" x-model="priorityForm.name" placeholder="Kritická, Vysoká, Střední...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Barva</label>
+                <div class="flex gap-2 items-center">
+                  <input type="color" x-model="priorityForm.color" class="w-10 h-10 rounded cursor-pointer border border-gray-200">
+                  <input class="form-input" type="text" x-model="priorityForm.color" placeholder="#FFCC00">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Pořadí (nižší = vyšší priorita)</label>
+                <input class="form-input" type="number" x-model="priorityForm.rank" min="0">
+              </div>
+              <button class="btn-primary" @click="savePriority()">Uložit prioritu</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end main -->
+</div><!-- end flex -->
+
+<!-- ============================================================ -->
+<!-- ITEM MODAL -->
+<!-- ============================================================ -->
+<div class="modal-overlay" x-show="itemModal.open" @click.self="itemModal.open = false" x-transition>
+  <div class="modal" @click.stop>
+    <div class="modal-header">
+      <h2><span class="accent">DHL</span> / <span x-text="itemModal.id ? 'Upravit položku' : 'Nová položka'"></span></h2>
+      <button @click="itemModal.open = false" style="color:#aaa;font-size:20px;background:none;border:none;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid grid-cols-2 gap-x-6">
+
+        <!-- LEFT COLUMN -->
+        <div>
+          <div class="form-section">Základní informace</div>
+          <div class="form-group">
+            <label class="form-label">Popis / Název *</label>
+            <input class="form-input" type="text" x-model="itemForm.description" placeholder="Popis položky">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Kategorie</label>
+              <select class="form-select" x-model="itemForm.category" @change="itemForm.subcategory = ''">
+                <option value="">— Vybrat —</option>
+                <template x-for="c in categories" :key="c.id">
+                  <option :value="c.name" x-text="c.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Podkategorie</label>
+              <select class="form-select" x-model="itemForm.subcategory">
+                <option value="">— Vybrat —</option>
+                <template x-for="s in subcatsForSelected" :key="s">
+                  <option :value="s" x-text="s"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="form-group">
+              <label class="form-label">Typ</label>
+              <select class="form-select" x-model="itemForm.itemType">
+                <option value="">—</option>
+                <option>One-off</option><option>Lease</option><option>Subscription</option>
+                <option>Service</option><option>CAPEX</option><option>OPEX</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jednotka</label>
+              <input class="form-input" type="text" x-model="itemForm.unit" placeholder="ks, m², h">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Množství</label>
+              <input class="form-input" type="number" x-model="itemForm.quantity" min="0">
+            </div>
+          </div>
+
+          <div class="form-section">Finanční</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Celkový odhad (CZK)</label>
+              <input class="form-input" type="number" x-model="itemForm.totalEstCost" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dodatečné náklady</label>
+              <input class="form-input" type="number" x-model="itemForm.additionalCostRevision" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Odhad po revizi</label>
+              <input class="form-input" type="number" x-model="itemForm.totalCostAfterRevision" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Skutečná cena (CZK)</label>
+              <input class="form-input" type="number" x-model="itemForm.actualPrice" placeholder="0">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Odpisy (měsíce)</label>
+              <input class="form-input" type="number" x-model="itemForm.depreciationMonths" placeholder="36">
+            </div>
+            <div class="form-group flex items-end pb-1">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" x-model="itemForm.capexNeeded" class="w-4 h-4">
+                <span class="form-label mb-0">CAPEX položka</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div>
+          <div class="form-section">Tender / Nákupní proces</div>
+          <div class="form-group">
+            <label class="form-label">Status tenderu</label>
+            <select class="form-select" x-model="itemForm.tenderStatus">
+              <option value="">— Nevybráno —</option>
+              <template x-for="s in TENDER_STATUSES" :key="s">
+                <option :value="s" x-text="s"></option>
+              </template>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Start tenderu</label>
+              <input class="form-input" type="date" x-model="itemForm.tenderStartDate">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Deadline tenderu</label>
+              <input class="form-input" type="date" x-model="itemForm.tenderDeadline">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Datum objednání</label>
+              <input class="form-input" type="date" x-model="itemForm.orderPlaceDate">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Datum dodání</label>
+              <input class="form-input" type="date" x-model="itemForm.deliveryDate">
+            </div>
+          </div>
+
+          <div class="form-section">Zodpovědnost & Priority</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Zodpovědná osoba</label>
+              <select class="form-select" x-model="itemForm.responsibleId">
+                <option :value="null">— Nepřiřazeno —</option>
+                <template x-for="p in people" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Priorita</label>
+              <select class="form-select" x-model="itemForm.priorityId">
+                <option :value="null">— Nevybráno —</option>
+                <template x-for="p in priorities" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Schválení</label>
+              <select class="form-select" x-model="itemForm.approval">
+                <option value="">— Nevybráno —</option>
+                <option>Approved</option>
+                <option>Pending</option>
+                <option>Rejected</option>
+                <option>Not Required</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Zvolený dodavatel</label>
+              <input class="form-input" type="text" x-model="itemForm.chosenSupplier" placeholder="Název dodavatele">
+            </div>
+          </div>
+
+          <div class="form-section">Poznámky</div>
+          <div class="form-group">
+            <label class="form-label">Bottleneck / Supply rizika</label>
+            <input class="form-input" type="text" x-model="itemForm.bottleneck" placeholder="Zpoždění dodavatele, długý výrobní čas...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Poznámky</label>
+            <textarea class="form-input" x-model="itemForm.notes" rows="3" placeholder="Doplňující informace..."></textarea>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" @click="itemModal.open = false">Zrušit</button>
+      <button class="btn-primary" @click="saveItem()">
+        <span x-text="itemModal.id ? '✓ Uložit změny' : '＋ Vytvořit položku'"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- DETAIL PANEL OVERLAY -->
+<!-- ============================================================ -->
+<div x-show="detailPanel.open" x-cloak
+     style="position:fixed;inset:0;background:rgba(0,0,0,0.18);z-index:899"
+     @click="closeDetail()"
+     x-transition:enter="transition-opacity duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition-opacity duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+</div>
+
+<div class="detail-panel" :class="{ 'is-open': detailPanel.open }" x-cloak @click.stop>
+  <template x-if="detailPanel.item">
+    <div style="display:contents">
+
+      <!-- Panel header -->
+      <div class="detail-panel-header">
+        <div class="flex items-start justify-between gap-3">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Detail položky</div>
+            <div style="font-size:16px;font-weight:700;color:white;line-height:1.3;word-break:break-word" x-text="detailPanel.item.description"></div>
+            <div style="margin-top:5px;font-size:11px;color:#aaa" x-text="[detailPanel.item.category, detailPanel.item.subcategory, detailPanel.item.itemType].filter(Boolean).join(' · ') || 'Bez kategorie'"></div>
+          </div>
+          <button @click="closeDetail()" style="background:none;border:none;color:#888;font-size:22px;cursor:pointer;flex-shrink:0;line-height:1;margin-top:-2px">✕</button>
+        </div>
+        <!-- Status + priority badges -->
+        <div class="flex gap-2 flex-wrap mt-3">
+          <span x-show="detailPanel.item.tenderStatus" class="badge" :class="statusBadge(detailPanel.item.tenderStatus)" x-text="detailPanel.item.tenderStatus"></span>
+          <span x-show="detailPanel.item.priority" class="badge" :style="'background:' + (detailPanel.item.priority?.color ?? '#ccc') + '22;color:' + (detailPanel.item.priority?.color ?? '#666')" x-text="detailPanel.item.priority?.name"></span>
+          <span x-show="detailPanel.item.approval" class="badge" :class="approvalBadge(detailPanel.item.approval)" x-text="detailPanel.item.approval"></span>
+          <span x-show="detailPanel.item.capexNeeded" class="badge badge-red">CAPEX</span>
+        </div>
+      </div>
+
+      <!-- Panel body -->
+      <div class="detail-panel-body">
+
+        <!-- Financial -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--dhl-grey);margin-bottom:8px;border-left:3px solid var(--dhl-yellow);padding-left:8px">Financování</div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="detail-field">
+              <div class="detail-field-label">Odhad</div>
+              <div class="detail-field-value font-mono font-bold" x-text="fmtMoney(detailPanel.item.totalEstCost) || '—'"></div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Skutečnost</div>
+              <div class="detail-field-value font-mono font-bold"
+                :class="detailPanel.item.actualPrice > detailPanel.item.totalEstCost ? 'text-red-600' : 'text-green-600'"
+                x-text="fmtMoney(detailPanel.item.actualPrice) || '—'"></div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Rozdíl</div>
+              <template x-if="detailPanel.item.actualPrice != null && detailPanel.item.totalEstCost != null">
+                <div class="detail-field-value font-mono font-bold"
+                  :class="(detailPanel.item.actualPrice - detailPanel.item.totalEstCost) > 0 ? 'text-red-600' : 'text-green-600'">
+                  <span x-text="(detailPanel.item.actualPrice - detailPanel.item.totalEstCost) > 0 ? '▲ ' : '▼ '"></span>
+                  <span x-text="fmtMoney(Math.abs(detailPanel.item.actualPrice - detailPanel.item.totalEstCost))"></span>
+                </div>
+              </template>
+              <template x-if="detailPanel.item.actualPrice == null || detailPanel.item.totalEstCost == null">
+                <div class="detail-field-value text-gray-400">—</div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dates + people -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--dhl-grey);margin-bottom:8px;border-left:3px solid var(--dhl-yellow);padding-left:8px">Termíny & Zodpovědnost</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="detail-field">
+              <div class="detail-field-label">Zodpovědný</div>
+              <div class="detail-field-value" x-text="detailPanel.item.responsible?.name || '—'"></div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Dodavatel</div>
+              <div class="detail-field-value" x-text="detailPanel.item.chosenSupplier || '—'"></div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Deadline tenderu</div>
+              <div class="detail-field-value" :class="deadlineClass(detailPanel.item.tenderDeadline)" x-text="fmtDate(detailPanel.item.tenderDeadline)"></div>
+            </div>
+            <div class="detail-field">
+              <div class="detail-field-label">Datum dodání</div>
+              <div class="detail-field-value" x-text="fmtDate(detailPanel.item.deliveryDate)"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes / bottleneck -->
+        <div x-show="detailPanel.item.notes || detailPanel.item.bottleneck" style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--dhl-grey);margin-bottom:8px;border-left:3px solid var(--dhl-yellow);padding-left:8px">Poznámky</div>
+          <div x-show="detailPanel.item.bottleneck" class="text-xs font-semibold text-red-600 mb-1" x-text="'⚠ ' + detailPanel.item.bottleneck"></div>
+          <div x-show="detailPanel.item.notes" class="text-sm text-gray-600" x-text="detailPanel.item.notes"></div>
+        </div>
+
+        <!-- Comments / conversation -->
+        <div class="comments-section">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--dhl-grey);margin-bottom:10px;border-left:3px solid var(--dhl-yellow);padding-left:8px">
+            Konverzace
+            <span x-show="comments.length" style="font-weight:400;color:#aaa;text-transform:none;letter-spacing:0" x-text="'(' + comments.length + ')'"></span>
+          </div>
+
+          <div x-show="!comments.length" class="text-xs text-gray-400 text-center py-2">Zatím žádné komentáře</div>
+
+          <template x-for="c in comments" :key="c.id">
+            <div class="comment-bubble">
+              <div class="comment-meta">
+                <span class="comment-author" x-text="c.author"></span>
+                <span class="comment-time" x-text="fmtDateTime(c.createdAt)"></span>
+                <button class="comment-del" @click="deleteComment(c.id)" title="Smazat komentář">×</button>
+              </div>
+              <div class="comment-text" x-text="c.text"></div>
+            </div>
+          </template>
+
+          <div class="comment-add">
+            <textarea x-model="commentInput" placeholder="Napište komentář… (Ctrl+Enter odešle)" rows="2"
+              @keydown.ctrl.enter.prevent="addComment()"></textarea>
+            <button class="btn-primary btn-sm" @click="addComment()">Odeslat</button>
+          </div>
+        </div>
+
+      </div><!-- end panel body -->
+
+      <!-- Panel footer -->
+      <div class="detail-panel-footer">
+        <button class="btn-primary" @click="openEditItem(detailPanel.item)">✏️ Upravit položku</button>
+        <button class="btn-ghost" @click="closeDetail()">Zavřít</button>
+        <div style="flex:1"></div>
+        <button class="btn-danger btn-sm" @click="deleteItem(detailPanel.item.id); closeDetail()">🗑 Smazat</button>
+      </div>
+
+    </div>
+  </template>
+</div>
+
+<script>
+const API = ''
+// Chart instances stored OUTSIDE Alpine reactivity — Alpine's Proxy corrupts Chart.js internal state
+const _charts = {}
+
+// Column resize — module level to avoid Alpine proxy
+const COL_WIDTHS_KEY = 'bt-col-widths'
+let _rTh = null, _rX0 = 0, _rW0 = 0, _rHandle = null
+
+function startColResize(e, handle) {
+  _rTh = handle.closest('th')
+  _rX0 = e.clientX
+  _rW0 = _rTh.offsetWidth
+  _rHandle = handle
+  handle.classList.add('resizing')
+  e.preventDefault()
+}
+
+function saveColWidths() {
+  const table = document.getElementById('assetTable')
+  if (!table) return
+  const widths = Array.from(table.querySelectorAll('thead th')).map(th => th.offsetWidth)
+  localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(widths))
+}
+
+function restoreColWidths() {
+  try {
+    const saved = localStorage.getItem(COL_WIDTHS_KEY)
+    if (!saved) return
+    const widths = JSON.parse(saved)
+    const table = document.getElementById('assetTable')
+    if (!table) return
+    table.querySelectorAll('thead th').forEach((th, i) => {
+      if (widths[i] > 0) {
+        th.style.width = widths[i] + 'px'
+        th.style.minWidth = widths[i] + 'px'
+      }
+    })
+  } catch {}
+}
+
+document.addEventListener('mousemove', e => {
+  if (!_rTh) return
+  const w = Math.max(50, _rW0 + e.clientX - _rX0)
+  _rTh.style.width = w + 'px'
+  _rTh.style.minWidth = w + 'px'
+})
+document.addEventListener('mouseup', () => {
+  if (_rHandle) _rHandle.classList.remove('resizing')
+  if (_rTh) saveColWidths()
+  _rTh = null; _rHandle = null
+})
+
+const TENDER_STATUSES = [
+  'Not Tender Needed',
+  'Tender Planned',
+  'Tender Closed',
+  'Implementation',
+  'Approved',
+  'Complete',
+]
+
+function app() {
+  return {
+    view: 'dashboard',
+    settingsTab: 'people',
+
+    // Data
+    items: [],
+    people: [],
+    categories: [],
+    priorities: [],
+    departments: [],
+    labor: [],
+    dash: {},
+
+    // Filters
+    filters: { search: '', category: '', tenderStatus: '', responsibleId: '', priorityId: '', capexOnly: false },
+
+    // Detail panel
+    detailPanel: { open: false, item: null },
+    comments: [],
+    commentInput: '',
+    // Forms
+    itemModal: { open: false, id: null },
+    itemForm: {},
+    personForm: { open: false, id: null, name: '', email: '', department: '' },
+    categoryForm: { open: false, id: null, name: '', subcatText: '' },
+    priorityForm: { open: false, id: null, name: '', color: '#FFCC00', rank: 0 },
+    laborForm: { open: false, id: null, role: '', personName: '', department: '', costType: 'Project', mdRate: '', mdDays: '', notes: '' },
+    departmentForm: { name: '' },
+    settingsForm: { eurRate: '25', currentUser: 'Admin', projectName: '' },
+    projectName: '',
+    settingsSaved: false,
+
+    // Currency
+    currency: 'CZK',
+    eurRate: 25,
+
+    // Current user (for audit log)
+    currentUser: 'Admin',
+
+    // Audit log
+    auditLog: [],
+    auditFilter: '',
+
+    ganttFilter: 'all',
+
+    TENDER_STATUSES,
+
+
+    async init() {
+      await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
+      this.loadDashboard()
+      this.$nextTick(() => restoreColWidths())
+    },
+
+    viewTitle() {
+      return { dashboard: 'Dashboard', assets: 'Asset List', gantt: 'Gantt / Timeline', labor: 'Lidé / PM náklady', settings: 'Nastavení' }[this.view] ?? ''
+    },
+    viewSubtitle() {
+      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému' }[this.view] ?? ''
+    },
+
+    async loadItems() {
+      const params = new URLSearchParams()
+      if (this.filters.search) params.set('search', this.filters.search)
+      if (this.filters.category) params.set('category', this.filters.category)
+      if (this.filters.tenderStatus) params.set('tenderStatus', this.filters.tenderStatus)
+      if (this.filters.responsibleId) params.set('responsibleId', this.filters.responsibleId)
+      if (this.filters.priorityId) params.set('priorityId', this.filters.priorityId)
+      if (this.filters.capexOnly) params.set('capexNeeded', 'true')
+      const r = await fetch(`${API}/api/items?` + params)
+      this.items = await r.json()
+    },
+
+    async loadPeople() {
+      const r = await fetch(`${API}/api/people`)
+      this.people = await r.json()
+    },
+
+    async loadCategories() {
+      const r = await fetch(`${API}/api/categories`)
+      this.categories = await r.json()
+    },
+
+    async loadPriorities() {
+      const r = await fetch(`${API}/api/priorities`)
+      this.priorities = await r.json()
+    },
+
+    // --- Generic fetch helper (adds X-User header on mutations) ---
+    apiFetch(method, path, body = null, extraHeaders = {}) {
+      const opts = {
+        method,
+        headers: { 'Content-Type': 'application/json', 'X-User': this.currentUser || 'Admin', ...extraHeaders },
+      }
+      if (body !== null) opts.body = JSON.stringify(body)
+      return fetch(`${API}${path}`, opts)
+    },
+
+    async loadSettings() {
+      const r = await fetch(`${API}/api/settings`)
+      const s = await r.json()
+      const rate = parseFloat(s.eurRate || '25')
+      this.eurRate = rate
+      this.settingsForm.eurRate = String(rate)
+      this.currentUser = s.currentUser || 'Admin'
+      this.settingsForm.currentUser = this.currentUser
+      this.projectName = s.projectName || ''
+      this.settingsForm.projectName = this.projectName
+      try { this.departments = JSON.parse(s.departments || '[]') } catch { this.departments = [] }
+    },
+
+    async saveEurRate() {
+      const rate = parseFloat(this.settingsForm.eurRate)
+      if (!rate || rate <= 0) return alert('Zadejte platný kurz')
+      await this.apiFetch('PUT', '/api/settings/eurRate', { value: String(rate) })
+      await this.apiFetch('PUT', '/api/settings/currentUser', { value: this.settingsForm.currentUser || 'Admin' })
+      await this.apiFetch('PUT', '/api/settings/projectName', { value: this.settingsForm.projectName || '' })
+      this.eurRate = rate
+      this.currentUser = this.settingsForm.currentUser || 'Admin'
+      this.projectName = this.settingsForm.projectName || ''
+      this.settingsSaved = true
+      setTimeout(() => this.settingsSaved = false, 2000)
+    },
+
+    async addDepartment() {
+      const name = this.departmentForm.name.trim()
+      if (!name) return alert('Vyplňte název oddělení')
+      if (this.departments.includes(name)) return alert('Oddělení již existuje')
+      this.departments = [...this.departments, name].sort((a, b) => a.localeCompare(b, 'cs'))
+      await this.apiFetch('PUT', '/api/settings/departments', { value: JSON.stringify(this.departments) })
+      this.departmentForm.name = ''
+    },
+
+    async deleteDepartment(name) {
+      if (!confirm(`Smazat oddělení "${name}"?`)) return
+      this.departments = this.departments.filter(d => d !== name)
+      await this.apiFetch('PUT', '/api/settings/departments', { value: JSON.stringify(this.departments) })
+    },
+
+    async loadAuditLog() {
+      const params = this.auditFilter ? `?entity=${encodeURIComponent(this.auditFilter)}` : ''
+      const r = await fetch(`${API}/api/audit${params}`)
+      this.auditLog = await r.json()
+    },
+
+    async clearAuditLog() {
+      await this.apiFetch('DELETE', '/api/audit')
+      this.auditLog = []
+    },
+
+    async loadLabor() {
+      const r = await fetch(`${API}/api/labor`)
+      this.labor = await r.json()
+    },
+
+    async loadDashboard() {
+      const r = await fetch(`${API}/api/dashboard`)
+      this.dash = await r.json()
+      this.$nextTick(() => this.renderCharts())
+    },
+
+    clearFilters() {
+      this.filters = { search: '', category: '', tenderStatus: '', responsibleId: '', priorityId: '', capexOnly: false }
+      this.loadItems()
+    },
+
+    get subcatsForSelected() {
+      const cat = this.categories.find(c => c.name === this.itemForm.category)
+      return cat?.subcategories ?? []
+    },
+
+    // --- Item CRUD ---
+    openNewItem() {
+      this.itemForm = {
+        description: '', category: '', subcategory: '', itemType: '', unit: '', quantity: 1,
+        depreciationMonths: null, totalEstCost: null, additionalCostRevision: null,
+        totalCostAfterRevision: null, actualPrice: null, capexNeeded: false,
+        tenderStatus: '', tenderStartDate: '', tenderDeadline: '',
+        orderPlaceDate: '', deliveryDate: '', approval: '',
+        chosenSupplier: '', bottleneck: '', notes: '',
+        responsibleId: null, priorityId: null,
+      }
+      this.itemModal = { open: true, id: null }
+    },
+
+    openEditItem(item) {
+      this.itemForm = {
+        description: item.description ?? '',
+        category: item.category ?? '',
+        subcategory: item.subcategory ?? '',
+        itemType: item.itemType ?? '',
+        unit: item.unit ?? '',
+        quantity: item.quantity ?? 1,
+        depreciationMonths: item.depreciationMonths ?? null,
+        totalEstCost: item.totalEstCost ?? null,
+        additionalCostRevision: item.additionalCostRevision ?? null,
+        totalCostAfterRevision: item.totalCostAfterRevision ?? null,
+        actualPrice: item.actualPrice ?? null,
+        capexNeeded: item.capexNeeded ?? false,
+        tenderStatus: item.tenderStatus ?? '',
+        tenderStartDate: item.tenderStartDate ? item.tenderStartDate.slice(0, 10) : '',
+        tenderDeadline: item.tenderDeadline ? item.tenderDeadline.slice(0, 10) : '',
+        orderPlaceDate: item.orderPlaceDate ? item.orderPlaceDate.slice(0, 10) : '',
+        deliveryDate: item.deliveryDate ? item.deliveryDate.slice(0, 10) : '',
+        approval: item.approval ?? '',
+        chosenSupplier: item.chosenSupplier ?? '',
+        bottleneck: item.bottleneck ?? '',
+        notes: item.notes ?? '',
+        responsibleId: item.responsibleId ?? null,
+        priorityId: item.priorityId ?? null,
+      }
+      this.itemModal = { open: true, id: item.id }
+    },
+
+    async saveItem() {
+      if (!this.itemForm.description?.trim()) return alert('Vyplňte popis položky')
+      const payload = {
+        ...this.itemForm,
+        quantity: parseInt(this.itemForm.quantity) || 1,
+        depreciationMonths: this.itemForm.depreciationMonths ? parseInt(this.itemForm.depreciationMonths) : null,
+        totalEstCost: this.itemForm.totalEstCost ? parseFloat(this.itemForm.totalEstCost) : null,
+        additionalCostRevision: this.itemForm.additionalCostRevision ? parseFloat(this.itemForm.additionalCostRevision) : null,
+        totalCostAfterRevision: this.itemForm.totalCostAfterRevision ? parseFloat(this.itemForm.totalCostAfterRevision) : null,
+        actualPrice: this.itemForm.actualPrice ? parseFloat(this.itemForm.actualPrice) : null,
+        responsibleId: this.itemForm.responsibleId ? parseInt(this.itemForm.responsibleId) : null,
+        priorityId: this.itemForm.priorityId ? parseInt(this.itemForm.priorityId) : null,
+        tenderStartDate: this.itemForm.tenderStartDate || null,
+        tenderDeadline: this.itemForm.tenderDeadline || null,
+        orderPlaceDate: this.itemForm.orderPlaceDate || null,
+        deliveryDate: this.itemForm.deliveryDate || null,
+      }
+      const path = this.itemModal.id ? `/api/items/${this.itemModal.id}` : `/api/items`
+      const method = this.itemModal.id ? 'PUT' : 'POST'
+      await this.apiFetch(method, path, payload)
+      this.itemModal.open = false
+      await this.loadItems()
+      this.loadDashboard()
+      // Refresh detail panel with updated item data
+      if (this.detailPanel.open && this.detailPanel.item) {
+        const updated = this.items.find(i => i.id === this.detailPanel.item.id)
+        if (updated) {
+          this.detailPanel.item = updated
+        }
+      }
+    },
+
+    async deleteItem(id) {
+      if (!confirm('Opravdu smazat tuto položku?')) return
+      await this.apiFetch('DELETE', `/api/items/${id}`)
+      await this.loadItems()
+      this.loadDashboard()
+    },
+
+    // --- Detail panel ---
+    async openDetail(item) {
+      const [freshRes, commentsRes] = await Promise.all([
+        fetch(`${API}/api/items/${item.id}`),
+        fetch(`${API}/api/items/${item.id}/comments`),
+      ])
+      this.detailPanel = { open: true, item: await freshRes.json() }
+      this.comments = await commentsRes.json()
+      this.commentInput = ''
+    },
+
+    closeDetail() {
+      this.detailPanel = { open: false, item: null }
+      this.comments = []
+      this.commentInput = ''
+    },
+
+    async addComment() {
+      const text = this.commentInput.trim()
+      if (!text || !this.detailPanel.item) return
+      const id = this.detailPanel.item.id
+      await this.apiFetch('POST', `/api/items/${id}/comments`, { text })
+      this.commentInput = ''
+      const r = await fetch(`${API}/api/items/${id}/comments`)
+      this.comments = await r.json()
+      // Refresh item in list so "Poslední komentář" column updates
+      await this.loadItems()
+      const updated = this.items.find(i => i.id === id)
+      if (updated) this.detailPanel.item = updated
+    },
+
+    async deleteComment(commentId) {
+      if (!confirm('Smazat tento komentář?')) return
+      await this.apiFetch('DELETE', `/api/comments/${commentId}`)
+      const id = this.detailPanel.item.id
+      const r = await fetch(`${API}/api/items/${id}/comments`)
+      this.comments = await r.json()
+      await this.loadItems()
+      const updated = this.items.find(i => i.id === id)
+      if (updated) this.detailPanel.item = updated
+    },
+
+    // --- People CRUD ---
+    openPersonForm(p = null) {
+      this.personForm = { open: true, id: p?.id ?? null, name: p?.name ?? '', email: p?.email ?? '', department: p?.department ?? '' }
+    },
+
+    async savePerson() {
+      if (!this.personForm.name.trim()) return alert('Vyplňte jméno')
+      const path = this.personForm.id ? `/api/people/${this.personForm.id}` : `/api/people`
+      const method = this.personForm.id ? 'PUT' : 'POST'
+      await this.apiFetch(method, path, { name: this.personForm.name, email: this.personForm.email || null, department: this.personForm.department || null })
+      this.personForm.open = false
+      await this.loadPeople()
+    },
+
+    async deletePerson(id) {
+      if (!confirm('Smazat tuto osobu? Přiřazené položky budou odřazeny.')) return
+      await this.apiFetch('DELETE', `/api/people/${id}`)
+      await this.loadPeople()
+    },
+
+    // --- Categories CRUD ---
+    openCategoryForm(c = null) {
+      this.categoryForm = { open: true, id: c?.id ?? null, name: c?.name ?? '', subcatText: c?.subcategories?.join(', ') ?? '' }
+    },
+
+    async saveCategory() {
+      if (!this.categoryForm.name.trim()) return alert('Vyplňte název kategorie')
+      const subcategories = this.categoryForm.subcatText.split(',').map(s => s.trim()).filter(Boolean)
+      const path = this.categoryForm.id ? `/api/categories/${this.categoryForm.id}` : `/api/categories`
+      const method = this.categoryForm.id ? 'PUT' : 'POST'
+      await this.apiFetch(method, path, { name: this.categoryForm.name, subcategories })
+      this.categoryForm.open = false
+      await this.loadCategories()
+    },
+
+    async deleteCategory(id) {
+      if (!confirm('Smazat kategorii?')) return
+      await this.apiFetch('DELETE', `/api/categories/${id}`)
+      await this.loadCategories()
+    },
+
+    // --- Priorities CRUD ---
+    openPriorityForm(p = null) {
+      this.priorityForm = { open: true, id: p?.id ?? null, name: p?.name ?? '', color: p?.color ?? '#FFCC00', rank: p?.rank ?? 0 }
+    },
+
+    async savePriority() {
+      if (!this.priorityForm.name.trim()) return alert('Vyplňte název priority')
+      const path = this.priorityForm.id ? `/api/priorities/${this.priorityForm.id}` : `/api/priorities`
+      const method = this.priorityForm.id ? 'PUT' : 'POST'
+      await this.apiFetch(method, path, { name: this.priorityForm.name, color: this.priorityForm.color, rank: parseInt(this.priorityForm.rank) || 0 })
+      this.priorityForm.open = false
+      await this.loadPriorities()
+    },
+
+    async deletePriority(id) {
+      if (!confirm('Smazat prioritu?')) return
+      await this.apiFetch('DELETE', `/api/priorities/${id}`)
+      await this.loadPriorities()
+    },
+
+    // --- Labor CRUD ---
+    openLaborForm(lc = null) {
+      const rateInCzk = lc?.mdRate ?? ''
+      const displayRate = rateInCzk !== '' && this.currency === 'EUR' && this.eurRate > 0
+        ? Math.round(rateInCzk / this.eurRate * 100) / 100
+        : rateInCzk
+      this.laborForm = {
+        open: true,
+        id: lc?.id ?? null,
+        role: lc?.role ?? '',
+        personName: lc?.personName ?? '',
+        department: lc?.department ?? '',
+        costType: lc?.costType ?? 'Project',
+        mdRate: displayRate,
+        mdDays: lc?.mdDays ?? '',
+        notes: lc?.notes ?? '',
+      }
+    },
+
+    async saveLabor() {
+      if (!this.laborForm.role.trim()) return alert('Vyplňte název role')
+      if (!this.laborForm.mdRate || parseFloat(this.laborForm.mdRate) <= 0) return alert('Vyplňte sazbu za MD')
+      if (!this.laborForm.mdDays || parseFloat(this.laborForm.mdDays) <= 0) return alert('Vyplňte počet MD')
+      const payload = {
+        role: this.laborForm.role,
+        personName: this.laborForm.personName || null,
+        department: this.laborForm.department || null,
+        costType: this.laborForm.costType,
+        mdRate: this.currency === 'EUR' && this.eurRate > 0
+          ? parseFloat(this.laborForm.mdRate) * this.eurRate
+          : parseFloat(this.laborForm.mdRate),
+        mdDays: parseFloat(this.laborForm.mdDays),
+        notes: this.laborForm.notes || null,
+      }
+      const path = this.laborForm.id ? `/api/labor/${this.laborForm.id}` : `/api/labor`
+      const method = this.laborForm.id ? 'PUT' : 'POST'
+      await this.apiFetch(method, path, payload)
+      this.laborForm.open = false
+      await this.loadLabor()
+      this.$nextTick(() => this.renderLaborChart())
+      this.loadDashboard()
+    },
+
+    async deleteLabor(id) {
+      if (!confirm('Smazat tuto roli?')) return
+      await this.apiFetch('DELETE', `/api/labor/${id}`)
+      await this.loadLabor()
+      this.loadDashboard()
+    },
+
+    // Labor helpers
+    laborAmount(lc) {
+      return (lc.mdRate ?? 0) * (lc.mdDays ?? 0)
+    },
+    laborTotal() {
+      return this.labor.reduce((s, lc) => s + this.laborAmount(lc), 0)
+    },
+    laborByType(type) {
+      return this.labor.filter(lc => lc.costType === type).reduce((s, lc) => s + this.laborAmount(lc), 0)
+    },
+
+    renderLaborChart() {
+      // canvas is inside x-show — give the browser one frame to apply display
+      setTimeout(() => {
+        this.destroyChart('labor')
+        const ctx = document.getElementById('laborChart')
+        if (!ctx || !this.labor.length) return
+        _charts.labor = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: this.labor.map(lc => lc.role),
+          datasets: [{
+            data: this.labor.map(lc => this.laborAmount(lc)),
+            backgroundColor: ['#FFCC00','#D40511','#3b82f6','#22c55e','#8b5cf6','#f59e0b','#06b6d4','#ec4899','#14b8a6','#f97316'],
+            borderWidth: 2,
+          }],
+        },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } } },
+        })
+      }, 0)
+    },
+
+    // --- PDF Export ---
+    exportPDF() {
+      const currency = this.currency
+      const eurRate = this.eurRate
+      const fmt = (v) => {
+        if (v == null || v === 0) return '—'
+        if (currency === 'EUR' && eurRate > 0)
+          return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / eurRate)
+        return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
+      }
+      const fmtD = (d) => d ? new Date(d).toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+      const esc = (s) => (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      const hasFilter = this.filters.search || this.filters.category || this.filters.tenderStatus ||
+        this.filters.responsibleId || this.filters.priorityId || this.filters.capexOnly
+
+      const totalEst = this.items.reduce((s, i) => s + (i.totalEstCost ?? 0), 0)
+      const totalAct = this.items.reduce((s, i) => s + (i.actualPrice ?? 0), 0)
+      const diff = totalAct - totalEst
+
+      const rows = this.items.map(item => {
+        const lastC = item.comments?.[0]
+        return `<tr>
+          <td>${esc(item.description)}</td>
+          <td>${esc(item.category)}</td>
+          <td>${esc(item.itemType)}</td>
+          <td class="r">${fmt(item.totalEstCost)}</td>
+          <td class="r ${item.actualPrice > item.totalEstCost ? 'red' : ''}">${fmt(item.actualPrice)}</td>
+          <td>${esc(item.tenderStatus)}</td>
+          <td>${esc(item.priority?.name)}</td>
+          <td>${esc(item.responsible?.name)}</td>
+          <td class="${item.tenderDeadline && new Date(item.tenderDeadline) < new Date() && item.tenderStatus !== 'Complete' ? 'red' : ''}">${fmtD(item.tenderDeadline)}</td>
+          <td>${fmtD(item.deliveryDate)}</td>
+          <td>${esc(item.approval)}</td>
+          <td>${esc(item.chosenSupplier)}</td>
+          <td class="comment-cell">${lastC ? '<b>' + esc(lastC.author) + ':</b> ' + esc(lastC.text) : '—'}</td>
+        </tr>`
+      }).join('')
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${esc(this.projectName || 'Budget Tracker')} — Export položek</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm 8mm; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #1a1a1a; margin: 0; }
+  .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 7px; border-bottom: 3pt solid #FFCC00; margin-bottom: 10px; }
+  .brand { font-size: 15pt; font-weight: 700; color: #D40511; line-height: 1; }
+  .proj  { font-size: 10pt; font-weight: 700; margin-top: 2px; }
+  .meta  { font-size: 7.5pt; color: #555; text-align: right; }
+  .warn  { color: #D40511; font-weight: 700; margin-top: 2px; }
+  table  { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
+  th { background: #FFCC00; color: #1a1a1a; padding: 4px 5px; text-align: left; font-weight: 700; white-space: nowrap; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  td { padding: 3px 5px; border-bottom: 0.5pt solid #e8e8e8; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  tfoot td { border-top: 1.5pt solid #333; font-weight: 700; background: #f2f2f2; }
+  .r { text-align: right; font-family: monospace; }
+  .red { color: #D40511; }
+  .comment-cell { font-size: 7pt; color: #555; max-width: 120px; }
+  .comment-cell b { color: #1a1a1a; }
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div class="brand">DHL Supply Chain</div>
+    <div class="proj">${esc(this.projectName || 'Budget Tracker')}</div>
+  </div>
+  <div class="meta">
+    <div>Exportováno: ${new Date().toLocaleDateString('cs-CZ', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+    <div>Počet položek: ${this.items.length}</div>
+    ${hasFilter ? '<div class="warn">⚠ Aktivní filtr — zobrazena část dat</div>' : ''}
+  </div>
+</div>
+<table>
+  <thead><tr>
+    <th>Popis</th><th>Kategorie</th><th>Typ</th>
+    <th>Odhad</th><th>Skutečnost</th>
+    <th>Status</th><th>Priorita</th><th>Zodpovědný</th>
+    <th>Deadline tenderu</th><th>Dodání</th>
+    <th>Schválení</th><th>Dodavatel</th><th>Poslední komentář</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr>
+    <td colspan="3">Celkem (${this.items.length} položek)</td>
+    <td class="r">${fmt(totalEst)}</td>
+    <td class="r ${diff > 0 ? 'red' : ''}">${fmt(totalAct)}</td>
+    <td colspan="8"></td>
+  </tr></tfoot>
+</table>
+<script>window.onload = function(){ window.print() }<\/script>
+</body></html>`
+
+      const w = window.open('', '_blank')
+      w.document.write(html)
+      w.document.close()
+    },
+
+    // shared helpers for PDF exports
+    _pdfFmt() {
+      const currency = this.currency, eurRate = this.eurRate
+      return {
+        fmt: (v) => {
+          if (v == null || v === 0) return '—'
+          if (currency === 'EUR' && eurRate > 0)
+            return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / eurRate)
+          return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
+        },
+        fmtD: (d) => d ? new Date(d).toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—',
+        esc:  (s) => (s ?? '—').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
+        currency,
+      }
+    },
+
+    _pdfBaseCss() {
+      return `
+        @page { size: A4 landscape; margin: 12mm 8mm; }
+        * { print-color-adjust: exact; -webkit-print-color-adjust: exact; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #1a1a1a; margin: 0; }
+        .hdr { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 7px; border-bottom: 3pt solid #FFCC00; margin-bottom: 12px; }
+        .brand { font-size: 14pt; font-weight: 700; color: #D40511; line-height: 1; }
+        .proj  { font-size: 10pt; font-weight: 700; margin-top: 2px; }
+        .meta  { font-size: 7.5pt; color: #555; text-align: right; }
+        h2 { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #555; margin: 12px 0 5px; border-left: 3pt solid #FFCC00; padding-left: 7px; }
+        table.data { width: 100%; border-collapse: collapse; font-size: 7.5pt; margin-bottom: 8px; }
+        table.data th { background: #FFCC00; color: #1a1a1a; padding: 4px 5px; text-align: left; font-weight: 700; white-space: nowrap; }
+        table.data td { padding: 3px 5px; border-bottom: 0.5pt solid #e8e8e8; vertical-align: top; }
+        table.data tr:nth-child(even) td { background: #fafafa; }
+        table.data tfoot td { border-top: 1.5pt solid #333; font-weight: 700; background: #f2f2f2; }
+        .r { text-align: right; font-family: monospace; }
+        .red { color: #D40511; }
+        .green { color: #16a34a; }
+        /* KPI row — float-based, reliable in print */
+        .kpi-grid { overflow: hidden; margin-bottom: 12px; }
+        .kpi { float: left; width: 20%; padding: 7px 9px; border: 1px solid #e0e0e0; border-radius: 4px; margin-right: 0.5%; }
+        .kpi:last-child { margin-right: 0; }
+        .kpi-l { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #777; }
+        .kpi-v { font-size: 14pt; font-weight: 800; line-height: 1.2; margin: 3px 0; }
+        .kpi-s { font-size: 6pt; color: #999; }
+        .progress-wrap { background: #eee; border-radius: 3px; height: 8px; margin: 4px 0 2px; }
+        .progress-bar  { background: #22c55e; border-radius: 3px; height: 100%; }
+        .progress-bar.over { background: #D40511; }
+        /* 2-col float layout — reliable in print, no CSS grid */
+        .col-wrap { overflow: hidden; margin-bottom: 10px; }
+        .col-left  { float: left;  width: 58%; padding-right: 12px; }
+        .col-right { float: left;  width: 42%; page-break-inside: avoid; }
+        .clearfix { clear: both; }
+        .page-break { page-break-before: always; }
+        tr { page-break-inside: avoid; }
+      `
+    },
+
+    _pdfHeader(subtitle = '') {
+      const { esc } = this._pdfFmt()
+      return `
+        <div class="hdr">
+          <div>
+            <div class="brand">DHL Supply Chain</div>
+            <div class="proj">${esc(this.projectName || 'Budget Tracker')}</div>
+            ${subtitle ? `<div style="font-size:8pt;color:#888;margin-top:2px">${subtitle}</div>` : ''}
+          </div>
+          <div class="meta">
+            <div>Exportováno: ${new Date().toLocaleDateString('cs-CZ', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+          </div>
+        </div>`
+    },
+
+    _captureCharts() {
+      const imgs = {}
+      for (const id of ['catChart', 'statusChart', 'personChart', 'priorityChart']) {
+        const c = document.getElementById(id)
+        if (c && c.width > 0) { try { imgs[id] = c.toDataURL('image/png') } catch(e) {} }
+      }
+      return imgs
+    },
+
+    _buildDashboardSection(d, chartImgs = {}) {
+      const { fmt, esc } = this._pdfFmt()
+      const s = d.summary
+
+      // 6 KPI cards matching the screen exactly
+      const kpis = [
+        { l: 'Asset odhad',       v: fmt(s.totalEstimated), sub: s.totalItems + ' pol. · CAPEX: ' + fmt(s.totalCapex), c: '#FFCC00' },
+        { l: 'PM / Lidé',         v: fmt(s.totalLabor),     sub: (d.laborCosts?.length ?? 0) + ' rolí',               c: '#3b82f6' },
+        { l: 'Grand Total',       v: fmt(s.grandTotal),     sub: 'Assets + Lidé',                                     c: '#7c3aed' },
+        { l: 'Utraceno — Assets', v: fmt(s.totalActual),    sub: (s.spentPct ?? 0) + '% z asset odhadu',              c: '#22c55e' },
+        { l: 'Utraceno — Lidé',   v: fmt(s.totalLabor),     sub: 'Závazky / committed',                               c: '#0ea5e9' },
+        { l: 'Zbývá (assets)',    v: fmt(s.remaining),      sub: 'Odhad − Skutečnost',                                c: (s.remaining ?? 0) < 0 ? '#D40511' : '#22c55e' },
+      ]
+      const kpiHtml = kpis.map((k, i) => `
+        <div style="float:left;width:16%;margin-right:${i < 5 ? '0.4%' : '0'};padding:7px 9px;border:1pt solid #e0e0e0;border-left:3pt solid ${k.c};border-radius:4px;box-sizing:border-box">
+          <div style="font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#777">${k.l}</div>
+          <div style="font-size:12pt;font-weight:800;line-height:1.2;margin:3px 0;color:${k.c}">${k.v}</div>
+          <div style="font-size:6pt;color:#999">${k.sub}</div>
+        </div>`).join('')
+
+      const spentPct = Math.min(s.spentPct ?? 0, 100)
+      const progressHtml = s.totalEstimated > 0 ? `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:7pt;color:#666;margin-bottom:3px">
+            <span>Čerpání — skutečnost vs. odhad (assets)</span><span style="font-weight:700">${s.spentPct ?? 0}%</span>
+          </div>
+          <div style="background:#eee;border-radius:3px;height:8px;margin:4px 0 2px;print-color-adjust:exact;-webkit-print-color-adjust:exact">
+            <div style="background:#D40511;border-radius:3px;height:100%;width:${spentPct}%;print-color-adjust:exact;-webkit-print-color-adjust:exact"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:6.5pt;color:#aaa">
+            <span>Utraceno: ${fmt(s.totalActual)}</span><span>Zbývá do odhadu: ${fmt(s.remaining)}</span>
+          </div>
+        </div>` : ''
+
+      // 4 charts as images (2 per row), matching screen layout
+      const chartsHtml = `
+        <div style="overflow:hidden;margin-bottom:8px">
+          ${chartImgs.catChart    ? `<div style="float:left;width:63%;margin-right:1%"><img src="${chartImgs.catChart}" style="width:100%;max-height:175px;object-fit:contain;display:block"></div>` : ''}
+          ${chartImgs.statusChart ? `<div style="float:left;width:36%"><img src="${chartImgs.statusChart}" style="width:100%;max-height:175px;object-fit:contain;display:block"></div>` : ''}
+          <div style="clear:both"></div>
+        </div>
+        <div style="overflow:hidden">
+          ${chartImgs.personChart   ? `<div style="float:left;width:49%;margin-right:2%"><img src="${chartImgs.personChart}" style="width:100%;max-height:155px;object-fit:contain;display:block"></div>` : ''}
+          ${chartImgs.priorityChart ? `<div style="float:left;width:49%"><img src="${chartImgs.priorityChart}" style="width:100%;max-height:155px;object-fit:contain;display:block"></div>` : ''}
+          <div style="clear:both"></div>
+        </div>`
+
+      // Upcoming deadlines — max 5 rows to stay on page 1
+      const upcoming = (d.upcomingDeadlines || []).slice(0, 8)
+      const deadlineRows = upcoming.map(i => `<tr>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.description)}</td>
+        <td>${esc(i.category ?? '—')}</td>
+        <td style="white-space:nowrap;font-family:monospace">${i.tenderDeadline ? new Date(i.tenderDeadline).toLocaleDateString('cs-CZ') : '—'}</td>
+        <td>${esc(i.tenderStatus ?? '—')}</td>
+        <td>${esc(i.responsible ?? '—')}</td>
+      </tr>`).join('')
+      const deadlinesHtml = upcoming.length > 0 ? `
+        <h2 style="margin-top:8px">Blížící se termíny (příštích 90 dní)</h2>
+        <table class="data"><thead><tr>
+          <th>Popis</th><th>Kategorie</th><th>Tender deadline</th><th>Status</th><th>Odpovědná osoba</th>
+        </tr></thead><tbody>${deadlineRows}</tbody></table>` : ''
+
+      return `
+        <div style="overflow:hidden;margin-bottom:12px">${kpiHtml}<div style="clear:both"></div></div>
+        ${progressHtml}
+        ${chartsHtml}
+        ${deadlinesHtml}`
+    },
+
+    _buildAssetsSection(items) {
+      const { fmt, fmtD, esc } = this._pdfFmt()
+      const totalEst = items.reduce((s, i) => s + (i.totalEstCost ?? 0), 0)
+      const totalAct = items.reduce((s, i) => s + (i.actualPrice ?? 0), 0)
+      const rows = items.map(item => {
+        const lastC = item.comments?.[0]
+        return `<tr>
+          <td>${esc(item.description)}</td><td>${esc(item.category)}</td><td>${esc(item.itemType)}</td>
+          <td class="r">${fmt(item.totalEstCost)}</td>
+          <td class="r ${item.actualPrice > item.totalEstCost ? 'red' : ''}">${fmt(item.actualPrice)}</td>
+          <td>${esc(item.tenderStatus)}</td><td>${esc(item.priority?.name)}</td><td>${esc(item.responsible?.name)}</td>
+          <td>${fmtD(item.tenderDeadline)}</td><td>${fmtD(item.deliveryDate)}</td>
+          <td>${esc(item.approval)}</td><td>${esc(item.chosenSupplier)}</td>
+          <td style="font-size:6.5pt;color:#555">${lastC ? '<b>' + esc(lastC.author) + ':</b> ' + esc(lastC.text) : '—'}</td>
+        </tr>`
+      }).join('')
+      return `
+        <h2 style="margin-top:0">Asset list (${items.length} položek)</h2>
+        <table><thead><tr>
+          <th>Popis</th><th>Kategorie</th><th>Typ</th>
+          <th class="r">Odhad</th><th class="r">Skutečnost</th>
+          <th>Status</th><th>Priorita</th><th>Zodpovědný</th>
+          <th>Deadline</th><th>Dodání</th><th>Schválení</th><th>Dodavatel</th><th>Poslední komentář</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td colspan="3">Celkem (${items.length} položek)</td>
+          <td class="r">${fmt(totalEst)}</td>
+          <td class="r ${totalAct > totalEst ? 'red' : ''}">${fmt(totalAct)}</td>
+          <td colspan="8"></td>
+        </tr></tfoot></table>`
+    },
+
+    _buildGanttSection(items) {
+      const { esc } = this._pdfFmt()
+      const filtered = items.filter(i =>
+        i.tenderStartDate || i.tenderDeadline || i.orderPlaceDate || i.deliveryDate)
+      if (!filtered.length) return '<p style="color:#999;font-size:8pt">Žádné položky s daty pro Gantt.</p>'
+
+      const allDates = []
+      for (const i of filtered) {
+        if (i.tenderStartDate) allDates.push(new Date(i.tenderStartDate))
+        if (i.tenderDeadline)  allDates.push(new Date(i.tenderDeadline))
+        if (i.orderPlaceDate)  allDates.push(new Date(i.orderPlaceDate))
+        if (i.deliveryDate)    allDates.push(new Date(i.deliveryDate))
+      }
+      let minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
+      let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
+      minDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1)
+      maxDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 2, 0)
+      const totalMs = maxDate - minDate
+
+      const months = []
+      let cur = new Date(minDate)
+      while (cur <= maxDate) { months.push(new Date(cur)); cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1) }
+
+      const pct  = (d) => d ? ((new Date(d) - minDate) / totalMs) * 100 : null
+      const wPct = (s, e) => s && e ? Math.max(0, ((new Date(e) - new Date(s)) / totalMs) * 100) : 0
+      const todayPct = Math.max(0, Math.min(100, pct(new Date()) ?? 0))
+
+      const monthHdr = months.map(m => {
+        const w = (1 / months.length) * 100
+        return `<div style="flex:1;text-align:center;font-size:6pt;font-weight:700;color:#FFCC00;padding:3px;border-right:1px solid #444;min-width:0;overflow:hidden">${m.toLocaleDateString('cs-CZ',{month:'short',year:'2-digit'})}</div>`
+      }).join('')
+
+      const ganttRows = filtered.map(item => {
+        const ts = pct(item.tenderStartDate), td = pct(item.tenderDeadline)
+        const op = pct(item.orderPlaceDate),  dd = pct(item.deliveryDate)
+        let tBar = '', dBar = ''
+        const PC = 'print-color-adjust:exact;-webkit-print-color-adjust:exact'
+        if (ts !== null && td !== null)
+          tBar = `<div style="position:absolute;left:${ts}%;width:${Math.max(0.5,td-ts)}%;height:10px;top:50%;transform:translateY(-50%);background:#3b82f6;opacity:0.9;border-radius:2px;${PC}" title="Tender"></div>`
+        else if (td !== null)
+          tBar = `<div style="position:absolute;left:${Math.max(0,td-0.5)}%;width:10px;height:10px;top:50%;transform:translateY(-50%);background:#3b82f6;border-radius:50%;${PC}" title="Deadline"></div>`
+        if (op !== null && dd !== null)
+          dBar = `<div style="position:absolute;left:${op}%;width:${Math.max(0.5,dd-op)}%;height:10px;top:50%;transform:translateY(-50%);background:#22c55e;opacity:0.9;border-radius:2px;${PC}" title="Dodávka"></div>`
+        else if (dd !== null)
+          dBar = `<div style="position:absolute;left:${dd}%;width:10px;height:10px;top:50%;transform:translateY(-50%);background:#22c55e;border-radius:50%;${PC}" title="Dodání"></div>`
+        return `<div style="display:flex;height:28px;border-bottom:0.5pt solid #f0f0f0;align-items:center">
+          <div style="width:200px;flex-shrink:0;padding:0 8px;font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:1px solid #e0e0e0" title="${esc(item.description)}">${esc(item.description)}</div>
+          <div style="flex:1;position:relative;height:100%">
+            <div style="position:absolute;left:${todayPct}%;top:0;bottom:0;width:1.5px;background:#D40511;opacity:0.6;z-index:10;print-color-adjust:exact;-webkit-print-color-adjust:exact"></div>
+            ${tBar}${dBar}
+          </div>
+        </div>`
+      }).join('')
+
+      return `
+        <h2 style="margin-top:0">Gantt / Timeline</h2>
+        <div style="display:flex;flex-direction:column;border:1px solid #e0e0e0;border-radius:4px;overflow:hidden">
+          <div style="display:flex;background:#1a1a1a;print-color-adjust:exact;-webkit-print-color-adjust:exact">
+            <div style="width:200px;flex-shrink:0;padding:4px 8px;font-size:7pt;font-weight:700;color:#FFCC00;border-right:1px solid #444">Popis</div>
+            <div style="flex:1;display:flex">${monthHdr}</div>
+          </div>
+          ${ganttRows}
+        </div>
+        <div style="font-size:6.5pt;color:#888;margin-top:5px">
+          <span style="display:inline-block;width:12px;height:8px;background:#3b82f6;border-radius:2px;vertical-align:middle;print-color-adjust:exact;-webkit-print-color-adjust:exact"></span> Tender &nbsp;
+          <span style="display:inline-block;width:12px;height:8px;background:#22c55e;border-radius:2px;vertical-align:middle;print-color-adjust:exact;-webkit-print-color-adjust:exact"></span> Objednávka→Dodání &nbsp;
+          <span style="display:inline-block;width:12px;height:8px;background:#D40511;border-radius:2px;vertical-align:middle;print-color-adjust:exact;-webkit-print-color-adjust:exact"></span> Dnes
+        </div>`
+    },
+
+    _openPrintWindow(body, title = '') {
+      const w = window.open('', '_blank')
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title || this.projectName || 'Export'}</title>
+        <style>${this._pdfBaseCss()}</style></head><body>${body}
+        <script>window.onload=function(){window.print()}<\/script></body></html>`)
+      w.document.close()
+    },
+
+    exportDashboardPDF() {
+      if (!this.dash?.summary) return alert('Data dashboardu se ještě načítají.')
+      const chartImgs = this._captureCharts()
+      const { esc } = this._pdfFmt()
+      this._openPrintWindow(
+        this._pdfHeader('Dashboard — přehled projektu') + this._buildDashboardSection(this.dash, chartImgs),
+        esc(this.projectName) + ' — Dashboard'
+      )
+    },
+
+    async exportGanttPDF() {
+      const r = await fetch(`${API}/api/items`)
+      const items = await r.json()
+      const { esc } = this._pdfFmt()
+      this._openPrintWindow(
+        this._pdfHeader('Gantt / Timeline') + this._buildGanttSection(items),
+        esc(this.projectName) + ' — Gantt'
+      )
+    },
+
+    async exportAllPDF() {
+      if (!this.dash?.summary) await this.loadDashboard()
+      const chartImgs = this._captureCharts()
+      const r = await fetch(`${API}/api/items`)
+      const items = await r.json()
+      const { esc } = this._pdfFmt()
+      const body =
+        this._pdfHeader('Dashboard — přehled projektu') +
+        this._buildDashboardSection(this.dash, chartImgs) +
+        `<div class="page-break"></div>` +
+        this._pdfHeader('Asset list') +
+        this._buildAssetsSection(items) +
+        `<div class="page-break"></div>` +
+        this._pdfHeader('Gantt / Timeline') +
+        this._buildGanttSection(items)
+      this._openPrintWindow(body, esc(this.projectName) + ' — Export vše')
+    },
+
+    // --- Helpers ---
+    fmtMoney(v) {
+      if (v == null || v === 0) return '—'
+      if (this.currency === 'EUR' && this.eurRate > 0) {
+        return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / this.eurRate)
+      }
+      return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
+    },
+
+    fmtDate(d) {
+      if (!d) return '—'
+      return new Date(d).toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    },
+
+    fmtDateTime(d) {
+      if (!d) return ''
+      const dt = new Date(d)
+      return dt.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        + ' ' + dt.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+    },
+
+    isoDate(d) {
+      if (!d) return ''
+      return new Date(d).toISOString().slice(0, 10)
+    },
+
+    fmtDateTime(d) {
+      if (!d) return '—'
+      return new Date(d).toLocaleString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    },
+
+    deadlineClass(d) {
+      if (!d) return ''
+      const diff = (new Date(d) - new Date()) / (1000 * 60 * 60 * 24)
+      if (diff < 14) return 'deadline-urgent'
+      if (diff < 30) return 'deadline-soon'
+      return ''
+    },
+
+    statusBadge(s) {
+      const map = {
+        'Not Tender Needed': 'badge-grey',
+        'Tender Planned': 'badge-blue',
+        'Tender Closed': 'badge-purple',
+        'Implementation': 'badge-yellow',
+        'Approved': 'badge-green',
+        'Complete': 'badge-green',
+      }
+      return map[s] ?? 'badge-grey'
+    },
+
+    approvalBadge(a) {
+      return { 'Approved': 'badge-green', 'Pending': 'badge-yellow', 'Rejected': 'badge-red', 'Not Required': 'badge-grey' }[a] ?? 'badge-grey'
+    },
+
+    statusStyle(s) {
+      const m = {
+        'Not Tender Needed': 'background:#f3f4f6;color:#4b5563',
+        'Tender Planned':    'background:#dbeafe;color:#1e40af',
+        'Tender Closed':     'background:#ede9fe;color:#5b21b6',
+        'Implementation':    'background:#fff3cd;color:#856404',
+        'Approved':          'background:#d1fae5;color:#065f46',
+        'Complete':          'background:#d1fae5;color:#065f46',
+      }
+      return m[s] ?? 'background:#f3f4f6;color:#9ca3af'
+    },
+
+    approvalStyle(a) {
+      const m = {
+        'Approved':     'background:#d1fae5;color:#065f46',
+        'Pending':      'background:#fff3cd;color:#856404',
+        'Rejected':     'background:#fee2e2;color:#991b1b',
+        'Not Required': 'background:#f3f4f6;color:#4b5563',
+      }
+      return m[a] ?? 'background:#f3f4f6;color:#9ca3af'
+    },
+
+    gotoAssets(filterKey, filterValue) {
+      this.filters = { search: '', category: '', tenderStatus: '', responsibleId: '', priorityId: '', capexOnly: false }
+      this.filters[filterKey] = filterValue
+      this.view = 'assets'
+      this.loadItems()
+    },
+
+    async quickPatch(id, field, value) {
+      await this.apiFetch('PUT', `/api/items/${id}`, { [field]: value })
+      await this.loadItems()
+      this.loadDashboard()
+      if (this.detailPanel.open && this.detailPanel.item?.id === id) {
+        const updated = this.items.find(i => i.id === id)
+        if (updated) this.detailPanel.item = updated
+      }
+    },
+
+    // --- Charts ---
+    destroyChart(key) {
+      if (_charts[key]) { _charts[key].destroy(); delete _charts[key] }
+    },
+
+    renderCharts() {
+      const d = this.dash
+      if (!d.summary) return
+
+      const hoverCursor = (evt, els) => { evt.native.target.style.cursor = els.length ? 'pointer' : 'default' }
+
+      // Category chart
+      this.destroyChart('cat')
+      const catCtx = document.getElementById('catChart')
+      if (catCtx && d.byCategory?.length) {
+        const labels = d.byCategory.slice(0, 8).map(c => c.category)
+        _charts.cat = new Chart(catCtx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Odhad', data: d.byCategory.slice(0, 8).map(c => c.estimated), backgroundColor: '#FFCC00cc' },
+              { label: 'Skutečnost', data: d.byCategory.slice(0, 8).map(c => c.actual),
+                backgroundColor: d.byCategory.slice(0, 8).map(c => c.actual > c.estimated ? '#D40511cc' : '#22c55ecc') },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  afterBody: (items) => {
+                    const idx = items[0]?.dataIndex
+                    if (idx == null) return ''
+                    const cat = d.byCategory[idx]
+                    const diff = (cat.actual ?? 0) - (cat.estimated ?? 0)
+                    if (!diff) return ''
+                    const sign = diff > 0 ? '▲ přečerpáno' : '▼ úspora'
+                    return sign + ': ' + Math.abs(diff).toLocaleString('cs-CZ') + ' Kč'
+                  }
+                }
+              }
+            },
+            scales: { y: { ticks: { callback: v => v.toLocaleString('cs-CZ') + ' Kč' } } },
+            onHover: hoverCursor,
+            onClick: (evt, els) => {
+              if (!els.length) return
+              this.gotoAssets('category', labels[els[0].index])
+            },
+          },
+        })
+      }
+
+      // Status chart
+      this.destroyChart('status')
+      const statusCtx = document.getElementById('statusChart')
+      if (statusCtx && d.summary.byStatus) {
+        const statusColors = { 'Not Tender Needed': '#9ca3af', 'Tender Planned': '#3b82f6', 'Tender Closed': '#8b5cf6', 'Implementation': '#FFCC00', 'Approved': '#22c55e', 'Complete': '#16a34a', 'Unset': '#e5e7eb' }
+        const labels = Object.keys(d.summary.byStatus)
+        _charts.status = new Chart(statusCtx, {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [{ data: labels.map(l => d.summary.byStatus[l]), backgroundColor: labels.map(l => statusColors[l] ?? '#ccc'), borderWidth: 2 }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            onHover: hoverCursor,
+            onClick: (evt, els) => {
+              if (!els.length) return
+              this.gotoAssets('tenderStatus', labels[els[0].index])
+            },
+          },
+        })
+      }
+
+      // Person chart
+      this.destroyChart('person')
+      const personCtx = document.getElementById('personChart')
+      if (personCtx && d.byPerson?.length) {
+        const data = d.byPerson.slice(0, 8)
+        const totalItems = data.reduce((s, p) => s + p.count, 0)
+        const avg = totalItems / data.length
+        const overloadThreshold = Math.max(avg * 1.5, avg + 2)
+        const labels = data.map(p => p.count >= overloadThreshold ? '⚠ ' + p.name : p.name)
+        const colors = data.map(p => p.count >= overloadThreshold ? '#D40511cc' : '#1A1A1Acc')
+        _charts.person = new Chart(personCtx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{ label: 'Počet položek', data: data.map(p => p.count), backgroundColor: colors }],
+          },
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  afterLabel: (item) => data[item.dataIndex].count >= overloadThreshold ? '⚠ Možné přetížení!' : ''
+                }
+              }
+            },
+            scales: { x: { ticks: { stepSize: 1 } } },
+            onHover: hoverCursor,
+            onClick: (evt, els) => {
+              if (!els.length) return
+              const name = data[els[0].index].name
+              const person = this.people.find(p => p.name === name)
+              if (person) this.gotoAssets('responsibleId', String(person.id))
+            },
+          },
+        })
+      }
+
+      // Priority chart
+      this.destroyChart('priority')
+      const prioCtx = document.getElementById('priorityChart')
+      if (prioCtx && d.byPriority?.length) {
+        const prioData = d.byPriority
+        _charts.priority = new Chart(prioCtx, {
+          type: 'pie',
+          data: {
+            labels: prioData.map(p => p.name),
+            datasets: [{ data: prioData.map(p => p.count), backgroundColor: prioData.map(p => p.color), borderWidth: 2 }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            onHover: hoverCursor,
+            onClick: (evt, els) => {
+              if (!els.length) return
+              const name = prioData[els[0].index].name
+              const prio = this.priorities.find(p => p.name === name)
+              if (prio) this.gotoAssets('priorityId', String(prio.id))
+            },
+          },
+        })
+      }
+    },
+
+    // --- Gantt ---
+    async renderGantt() {
+      const r = await fetch(`${API}/api/items`)
+      const all = await r.json()
+
+      // Filter items with at least one date
+      const filtered = all.filter(i => {
+        if (this.ganttFilter === 'tender') return i.tenderStartDate || i.tenderDeadline
+        if (this.ganttFilter === 'delivery') return i.orderPlaceDate || i.deliveryDate
+        return i.tenderStartDate || i.tenderDeadline || i.orderPlaceDate || i.deliveryDate
+      })
+
+      const area = document.getElementById('ganttArea')
+      if (!filtered.length) {
+        area.innerHTML = '<div class="text-center text-gray-400 py-12 text-sm">Žádné položky s daty pro Gantt zobrazení.<br>Přidejte datum tenderu nebo dodání u položek.</div>'
+        return
+      }
+
+      // Determine date range
+      const allDates = []
+      for (const i of filtered) {
+        if (i.tenderStartDate) allDates.push(new Date(i.tenderStartDate))
+        if (i.tenderDeadline) allDates.push(new Date(i.tenderDeadline))
+        if (i.orderPlaceDate) allDates.push(new Date(i.orderPlaceDate))
+        if (i.deliveryDate) allDates.push(new Date(i.deliveryDate))
+      }
+
+      let minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
+      let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
+      // Extend by a bit
+      minDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1)
+      maxDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 2, 0)
+
+      const totalMs = maxDate - minDate
+
+      // Build month headers
+      const months = []
+      let cur = new Date(minDate)
+      while (cur <= maxDate) {
+        months.push(new Date(cur))
+        cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
+      }
+
+      const pct = (d) => {
+        if (!d) return null
+        return ((new Date(d) - minDate) / totalMs) * 100
+      }
+      const width = (s, e) => {
+        if (!s || !e) return 0
+        return Math.max(0, ((new Date(e) - new Date(s)) / totalMs) * 100)
+      }
+
+      // Today line
+      const todayPct = pct(new Date())
+
+      let html = `
+        <div class="gantt-header-row">
+          <div class="gantt-header-label">Popis</div>
+          <div style="flex:1;display:flex;position:relative">
+            ${months.map(m => {
+              const msPct = ((m - minDate) / totalMs) * 100
+              const label = m.toLocaleDateString('cs-CZ', { month: 'short', year: '2-digit' })
+              const mWidth = (1 / months.length) * 100
+              return `<div class="gantt-month" style="width:${mWidth}%">${label}</div>`
+            }).join('')}
+          </div>
+        </div>
+        <div style="position:relative">
+      `
+
+      // Today marker overlay
+      html += `<div style="position:absolute;left:calc(220px + ${Math.max(0, Math.min(100, todayPct ?? 0))}%);top:0;bottom:0;width:2px;background:#D40511;z-index:20;opacity:0.7" title="Dnes">
+        <div style="background:#D40511;color:white;font-size:9px;padding:1px 3px;white-space:nowrap;position:absolute;top:0;transform:translateX(-50%)">Dnes</div>
+      </div>`
+
+      for (const item of filtered) {
+        const ts = pct(item.tenderStartDate)
+        const td = pct(item.tenderDeadline)
+        const op = pct(item.orderPlaceDate)
+        const dd = pct(item.deliveryDate)
+
+        // Tender bar: from tenderStartDate to tenderDeadline
+        let tenderBar = ''
+        if (ts !== null && td !== null) {
+          tenderBar = `<div class="gantt-bar gantt-bar-tender" style="left:${ts}%;width:${td - ts}%" title="Tender: ${item.tenderStartDate?.slice(0,10)} → ${item.tenderDeadline?.slice(0,10)}"></div>`
+        } else if (td !== null) {
+          tenderBar = `<div class="gantt-bar gantt-bar-tender" style="left:${Math.max(0, td - 1)}%;width:1%;border-radius:50%;width:14px;height:14px" title="Deadline: ${item.tenderDeadline?.slice(0,10)}"></div>`
+        }
+
+        // Delivery bar: orderPlace to deliveryDate
+        let deliveryBar = ''
+        if (op !== null && dd !== null) {
+          deliveryBar = `<div class="gantt-bar gantt-bar-delivery" style="left:${op}%;width:${dd - op}%" title="Objednávka→Dodání: ${item.orderPlaceDate?.slice(0,10)} → ${item.deliveryDate?.slice(0,10)}"></div>`
+        } else if (dd !== null) {
+          deliveryBar = `<div class="gantt-bar gantt-bar-delivery" style="left:${dd}%;width:14px;height:14px;border-radius:50%" title="Dodání: ${item.deliveryDate?.slice(0,10)}"></div>`
+        }
+
+        html += `
+          <div class="gantt-row" style="position:relative">
+            <div class="gantt-label" title="${item.description}">${item.description}</div>
+            <div class="gantt-timeline" style="position:relative;flex:1">
+              ${this.ganttFilter !== 'delivery' ? tenderBar : ''}
+              ${this.ganttFilter !== 'tender' ? deliveryBar : ''}
+            </div>
+          </div>
+        `
+      }
+
+      html += '</div>'
+      area.innerHTML = html
+    },
+  }
+}
+</script>
+</body>
+</html>

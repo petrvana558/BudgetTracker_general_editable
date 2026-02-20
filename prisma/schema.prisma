@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model BudgetItem {
+  id                     Int       @id @default(autoincrement())
+  category               String?
+  subcategory            String?
+  description            String
+  itemType               String?
+  unit                   String?
+  quantity               Int       @default(1)
+  depreciationMonths     Int?
+
+  totalEstCost           Float?
+  additionalCostRevision Float?
+  totalCostAfterRevision Float?
+  actualPrice            Float?
+  capexNeeded            Boolean   @default(false)
+
+  tenderStatus           String?
+  tenderStartDate        DateTime?
+  tenderDeadline         DateTime?
+  orderPlaceDate         DateTime?
+  deliveryDate           DateTime?
+
+  approval               String?
+  chosenSupplier         String?
+  bottleneck             String?
+  notes                  String?
+  checklistJson          String    @default("[]")
+
+  responsibleId          Int?
+  responsible            Person?   @relation(fields: [responsibleId], references: [id])
+
+  priorityId             Int?
+  priority               Priority? @relation(fields: [priorityId], references: [id])
+
+  comments               Comment[]
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+model Comment {
+  id        Int        @id @default(autoincrement())
+  itemId    Int
+  item      BudgetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  author    String     @default("System")
+  text      String
+  createdAt DateTime   @default(now())
+}
+
+model Person {
+  id         Int          @id @default(autoincrement())
+  name       String
+  email      String?
+  department String?
+  items      BudgetItem[]
+}
+
+model Priority {
+  id    Int          @id @default(autoincrement())
+  name  String
+  color String       @default("#FFCC00")
+  rank  Int          @default(0)
+  items BudgetItem[]
+}
+
+model Category {
+  id            Int    @id @default(autoincrement())
+  name          String @unique
+  subcategories String @default("[]")
+}
+
+model Settings {
+  key   String @id
+  value String
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime @default(now())
+  user      String   @default("System")
+  entity    String
+  action    String
+  entityId  Int?
+  summary   String
+}
+
+model LaborCost {
+  id         Int      @id @default(autoincrement())
+  role       String
+  personName String?
+  mdRate     Float    @default(0)
+  mdDays     Float    @default(0)
+  costType   String   @default("Project")
+  department String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
