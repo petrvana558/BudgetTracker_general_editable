@@ -36,8 +36,8 @@ function parseDate(s: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-function user(req: { headers: Record<string, unknown> }) {
-  return (req.headers['x-user'] as string) || 'System'
+function user(req: { user?: string }) {
+  return req.user || 'System'
 }
 
 export async function itemRoutes(fastify: FastifyInstance) {

@@ -9,8 +9,8 @@ const PrioritySchema = z.object({
   rank:  z.number().int().default(0),
 })
 
-function user(req: { headers: Record<string, unknown> }) {
-  return (req.headers['x-user'] as string) || 'System'
+function user(req: { user?: string }) {
+  return req.user || 'System'
 }
 
 export async function priorityRoutes(fastify: FastifyInstance) {

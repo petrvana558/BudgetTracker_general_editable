@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="/msal-browser.min.js"></script>
   <style>
     :root {
       --dhl-yellow: #FFCC00;
@@ -146,6 +147,17 @@
     .progress-fill { height: 100%; background: var(--dhl-yellow); border-radius: 4px; transition: width 0.3s; }
     .progress-fill.over { background: var(--dhl-red); }
 
+    /* Login screen */
+    .login-screen { position: fixed; inset: 0; background: var(--dhl-dark); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    .login-card { background: white; border-radius: 10px; padding: 48px 56px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,0.5); }
+    .login-card img { width: 120px; margin: 0 auto 20px; display: block; }
+    .login-card h1 { font-size: 22px; font-weight: 800; color: var(--dhl-dark); margin-bottom: 6px; }
+    .login-card p { font-size: 13px; color: var(--dhl-grey); margin-bottom: 32px; }
+    .btn-microsoft { background: #0078d4; color: white; border: none; border-radius: 4px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; width: 100%; justify-content: center; transition: background 0.15s; }
+    .btn-microsoft:hover { background: #106ebe; }
+    .btn-microsoft:disabled { background: #ccc; cursor: not-allowed; }
+    .login-error { margin-top: 16px; padding: 10px 14px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600; }
+
     /* Scrollable table wrapper */
     .table-scroll { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 230px); }
 
@@ -200,7 +212,26 @@
 </head>
 <body x-data="app()" x-init="init()" x-cloak>
 
-<div class="flex">
+<!-- LOGIN SCREEN -->
+<div class="login-screen" x-show="!loggedIn" x-cloak>
+  <div class="login-card">
+    <img src="/dhl-logo.svg" alt="DHL">
+    <h1>Budget Tracker</h1>
+    <p>Přihlaste se firemním Microsoft účtem pro přístup k aplikaci.</p>
+    <button class="btn-microsoft" @click="login()" :disabled="authLoading">
+      <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      <span x-text="authLoading ? 'Načítám...' : 'Přihlásit se přes Microsoft'"></span>
+    </button>
+    <div class="login-error" x-show="authError" x-text="authError"></div>
+  </div>
+</div>
+
+<div class="flex" x-show="loggedIn">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo">
@@ -234,6 +265,12 @@
     </div>
 
     <div style="padding: 24px 20px; margin-top: auto;">
+      <div style="margin-bottom: 12px;">
+        <div style="font-size: 11px; color: #888; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" x-text="currentUser"></div>
+        <button @click="logout()" style="width:100%;background:rgba(212,5,17,0.15);color:#ff6b6b;border:1px solid rgba(212,5,17,0.3);border-radius:4px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
+          ⎋ Odhlásit se
+        </button>
+      </div>
       <div style="font-size: 10px; color: #444; line-height: 1.6;">
         <span style="color: var(--dhl-yellow)">●</span> Budget Tracker v1.0<br>
         Lokální instance
@@ -1501,6 +1538,54 @@
 
 <script>
 const API = ''
+
+// ── MSAL Auth ─────────────────────────────────────────────────────────────────
+let _msalApp = null
+
+async function initMsalApp() {
+  const res = await fetch('/api/config')
+  const { clientId, tenantId } = await res.json()
+  _msalApp = new msal.PublicClientApplication({
+    auth: {
+      clientId,
+      authority: `https://login.microsoftonline.com/${tenantId}`,
+      redirectUri: window.location.origin,
+    },
+    cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false },
+  })
+  await _msalApp.initialize()
+  return _msalApp
+}
+
+async function getToken() {
+  if (!_msalApp) return null
+  const accounts = _msalApp.getAllAccounts()
+  if (!accounts.length) return null
+  try {
+    const result = await _msalApp.acquireTokenSilent({
+      scopes: ['openid', 'profile', 'email'],
+      account: accounts[0],
+    })
+    return result.idToken
+  } catch {
+    return null
+  }
+}
+
+// Přidá Authorization header ke všem /api/ requestům (kromě /api/config)
+const _originalFetch = window.fetch.bind(window)
+window.fetch = async function (input, init = {}) {
+  const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input))
+  if (url.startsWith('/api/') && !url.startsWith('/api/config')) {
+    const token = await getToken()
+    if (token) {
+      init = { ...init, headers: { ...(init.headers || {}), 'Authorization': `Bearer ${token}` } }
+    }
+  }
+  return _originalFetch(input, init)
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Chart instances stored OUTSIDE Alpine reactivity — Alpine's Proxy corrupts Chart.js internal state
 const _charts = {}
 
@@ -1563,6 +1648,11 @@ const TENDER_STATUSES = [
 
 function app() {
   return {
+    // Auth
+    loggedIn: false,
+    authLoading: true,
+    authError: '',
+
     view: 'dashboard',
     settingsTab: 'people',
 
@@ -1616,9 +1706,61 @@ function app() {
 
 
     async init() {
-      await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
-      this.loadDashboard()
-      this.$nextTick(() => restoreColWidths())
+      await this.initAuth()
+      if (this.loggedIn) {
+        await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
+        this.loadDashboard()
+        this.$nextTick(() => restoreColWidths())
+      }
+    },
+
+    async initAuth() {
+      try {
+        await initMsalApp()
+
+        // Zpracuj redirect odpověď (návrat z Microsoft přihlášení)
+        const redirectResult = await _msalApp.handleRedirectPromise()
+        if (redirectResult) {
+          this.loggedIn = true
+          this.currentUser = redirectResult.account.username || redirectResult.account.name || 'Uživatel'
+          this.authLoading = false
+          return
+        }
+
+        // Zkontroluj existující session
+        const accounts = _msalApp.getAllAccounts()
+        if (accounts.length > 0) {
+          const token = await getToken()
+          if (token) {
+            this.loggedIn = true
+            this.currentUser = accounts[0].username || accounts[0].name || 'Uživatel'
+          }
+        }
+      } catch (e) {
+        this.authError = 'Chyba inicializace přihlášení: ' + (e.message || e)
+      }
+      this.authLoading = false
+    },
+
+    async login() {
+      this.authError = ''
+      this.authLoading = true
+      try {
+        if (!_msalApp) await initMsalApp()
+        // Redirect flow — přesměruje celou stránku na Microsoft, žádné popupy
+        await _msalApp.loginRedirect({ scopes: ['openid', 'profile', 'email'] })
+      } catch (e) {
+        this.authError = 'Přihlášení selhalo: ' + (e.message || e)
+        this.authLoading = false
+      }
+    },
+
+    async logout() {
+      try {
+        if (_msalApp) {
+          await _msalApp.logoutRedirect({ postLogoutRedirectUri: window.location.origin })
+        }
+      } catch { /* ignoruj chyby při odhlášení */ }
     },
 
     viewTitle() {

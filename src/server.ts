@@ -11,6 +11,7 @@ import { settingsRoutes } from './routes/settings'
 import { laborRoutes } from './routes/labor'
 import { auditRoutes } from './routes/audit'
 import { commentRoutes } from './routes/comments'
+import { authMiddleware } from './auth'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
 
@@ -26,6 +27,19 @@ async function main() {
   await fastify.register(staticFiles, {
     root: path.join(__dirname, '..', 'public'),
     prefix: '/',
+  })
+
+  // Veřejný endpoint s Azure AD konfigurací pro frontend (bez auth)
+  fastify.get('/api/config', async () => ({
+    clientId: process.env.AZURE_CLIENT_ID,
+    tenantId: process.env.AZURE_TENANT_ID,
+  }))
+
+  // Auth middleware pro všechny /api/* routy kromě /api/config
+  fastify.addHook('preHandler', async (req, reply) => {
+    if (req.url.startsWith('/api/') && !req.url.startsWith('/api/config')) {
+      await authMiddleware(req, reply)
+    }
   })
 
   await fastify.register(itemRoutes)

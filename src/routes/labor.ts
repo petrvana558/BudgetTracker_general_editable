@@ -18,8 +18,8 @@ export function laborAmount(lc: { mdRate: number; mdDays: number }): number {
   return lc.mdRate * lc.mdDays
 }
 
-function user(req: { headers: Record<string, unknown> }) {
-  return (req.headers['x-user'] as string) || 'System'
+function user(req: { user?: string }) {
+  return req.user || 'System'
 }
 
 export async function laborRoutes(fastify: FastifyInstance) {

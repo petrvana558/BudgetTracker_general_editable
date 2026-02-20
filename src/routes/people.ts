@@ -9,8 +9,8 @@ const PersonSchema = z.object({
   department: z.string().optional().nullable(),
 })
 
-function user(req: { headers: Record<string, unknown> }) {
-  return (req.headers['x-user'] as string) || 'System'
+function user(req: { user?: string }) {
+  return req.user || 'System'
 }
 
 export async function peopleRoutes(fastify: FastifyInstance) {

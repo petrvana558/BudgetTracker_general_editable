@@ -8,8 +8,8 @@ const CategorySchema = z.object({
   subcategories: z.array(z.string()).default([]),
 })
 
-function user(req: { headers: Record<string, unknown> }) {
-  return (req.headers['x-user'] as string) || 'System'
+function user(req: { user?: string }) {
+  return req.user || 'System'
 }
 
 export async function categoryRoutes(fastify: FastifyInstance) {
