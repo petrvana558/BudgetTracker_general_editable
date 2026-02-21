@@ -1,7 +1,7 @@
 {
-  "name": "budget-tracker",
+  "name": "BudgetTracker_general_editable",
   "version": "1.0.0",
-  "description": "DHL-themed budget tracker & asset list",
+  "description": "Budget Tracker - general editable version",
   "scripts": {
     "dev": "tsx src/server.ts",
     "postinstall": "node -e \"require('fs').copyFileSync('./node_modules/@azure/msal-browser/lib/msal-browser.min.js', './public/msal-browser.min.js')\"",
