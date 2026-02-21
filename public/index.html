@@ -26,7 +26,7 @@
     /* Sidebar */
     .sidebar { width: 220px; background: var(--dhl-dark); min-height: 100vh; flex-shrink: 0; }
     .sidebar-logo { background: var(--dhl-yellow); padding: 14px 20px; display: flex; flex-direction: column; gap: 4px; }
-    .sidebar-logo img { width: 96px; display: block; }
+    .sidebar-logo img { display: block; max-width: 100%; }
     .sidebar-logo .logo-sub { font-weight: 900; font-size: 15px; color: var(--dhl-dark); letter-spacing: 0.3px; line-height: 1.2; margin-top: 2px; }
     .sidebar-logo .logo-date { font-size: 10px; color: #555; font-weight: 500; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: #aaa; cursor: pointer; transition: all 0.15s; font-size: 14px; font-weight: 500; border-left: 3px solid transparent; }
@@ -234,8 +234,8 @@
 <div class="flex" x-show="loggedIn">
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo">
-      <img src="/dhl-logo.svg" alt="DHL">
+    <div class="sidebar-logo" :style="'background:' + logoBgColor">
+      <img :src="logoSrc" alt="Logo" :style="'width:' + logoWidth + 'px'">
       <div class="logo-sub">Budget Tracker</div>
       <div x-show="projectName" class="logo-date" style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px" x-text="projectName"></div>
       <div class="logo-date" x-text="new Date().toLocaleDateString('cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
@@ -910,6 +910,7 @@
         <div class="settings-tab" :class="{ active: settingsTab === 'priorities' }" @click="settingsTab = 'priorities'">🎯 Priority</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'departments' }" @click="settingsTab = 'departments'">🏢 Oddělení</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'currency' }" @click="settingsTab = 'currency'">💱 Měna / Kurz</div>
+        <div class="settings-tab" :class="{ active: settingsTab === 'branding' }" @click="settingsTab = 'branding'">🎨 Vzhled</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'log' }" @click="settingsTab = 'log'; loadAuditLog()">📋 Log změn</div>
       </div>
 
@@ -1044,6 +1045,59 @@
             <div class="text-sm">1 000 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(1000000/eurRate)"></b></div>
             <div class="text-sm">100 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(100000/eurRate)"></b></div>
           </div>
+        </div>
+      </div>
+
+      <!-- Branding settings -->
+      <div x-show="settingsTab === 'branding'" class="max-w-lg">
+        <div class="chart-card p-6 space-y-5">
+          <h3 class="font-bold text-base">Logo &amp; Vzhled sidebaru</h3>
+
+          <!-- Logo upload -->
+          <div class="form-group">
+            <label class="form-label">Nahrát logo (PNG, SVG, JPG)</label>
+            <input type="file" accept="image/*" @change="handleLogoUpload($event)"
+              style="display:block;width:100%;padding:6px 10px;border:1px solid #e0e0e0;border-radius:4px;font-size:13px;background:white;cursor:pointer">
+            <div class="text-xs text-gray-400 mt-1">Doporučeno: PNG nebo SVG s průhledným pozadím</div>
+          </div>
+
+          <!-- Live preview -->
+          <div class="form-group">
+            <label class="form-label">Náhled</label>
+            <div :style="'background:' + settingsForm.logoBgColor + '; padding:14px 20px; display:inline-block; border-radius:4px; border:1px solid #ddd'">
+              <img :src="logoSrc" :style="'width:' + settingsForm.logoWidth + 'px; display:block'">
+            </div>
+          </div>
+
+          <!-- Logo width -->
+          <div class="form-group">
+            <label class="form-label">Šířka loga</label>
+            <div class="flex gap-3 items-center">
+              <input type="range" min="40" max="180" x-model="settingsForm.logoWidth" style="flex:1;cursor:pointer">
+              <input type="number" min="40" max="180" x-model="settingsForm.logoWidth"
+                class="form-input" style="width:80px">
+              <span class="text-sm text-gray-500">px</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-1">Rozmezí 40–180 px (sidebar má šířku 220 px)</div>
+          </div>
+
+          <!-- Background color -->
+          <div class="form-group">
+            <label class="form-label">Barva pozadí za logem</label>
+            <div class="flex gap-3 items-center">
+              <input type="color" x-model="settingsForm.logoBgColor"
+                style="width:44px;height:36px;border:1px solid #ddd;border-radius:4px;cursor:pointer;padding:2px">
+              <input type="text" x-model="settingsForm.logoBgColor"
+                class="form-input" style="width:110px" placeholder="#FFCC00">
+              <div class="w-8 h-8 rounded border border-gray-200" :style="'background:' + settingsForm.logoBgColor"></div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 pt-2">
+            <button class="btn-primary" @click="saveBranding()">Uložit vzhled</button>
+            <button class="btn-ghost" @click="resetLogo()">Resetovat logo</button>
+          </div>
+          <div x-show="settingsSaved" class="text-green-600 text-sm font-semibold">✓ Uloženo</div>
         </div>
       </div>
 
@@ -1685,7 +1739,12 @@ function app() {
     laborEntryForm: { month: new Date().toISOString().slice(0, 7), amount: '', note: '' },
     laborWarningPct: 80,
     departmentForm: { name: '' },
-    settingsForm: { eurRate: '25', currentUser: 'Admin', projectName: '', laborWarningPct: '80' },
+    settingsForm: { eurRate: '25', currentUser: 'Admin', projectName: '', laborWarningPct: '80', logoWidth: '96', logoBgColor: '#FFCC00' },
+
+    // Logo & branding
+    logoSrc: '/dhl-logo.svg',
+    logoWidth: 96,
+    logoBgColor: '#FFCC00',
     projectName: '',
     settingsSaved: false,
 
@@ -1782,6 +1841,41 @@ function app() {
       this.items = await r.json()
     },
 
+    handleLogoUpload(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        this.logoSrc = e.target.result
+      }
+      reader.readAsDataURL(file)
+    },
+
+    async saveBranding() {
+      const width = Math.min(180, Math.max(40, parseInt(this.settingsForm.logoWidth) || 96))
+      const color = this.settingsForm.logoBgColor || '#FFCC00'
+      await this.apiFetch('PUT', '/api/settings/logoWidth', { value: String(width) })
+      await this.apiFetch('PUT', '/api/settings/logoBgColor', { value: color })
+      if (this.logoSrc && this.logoSrc !== '/dhl-logo.svg') {
+        await this.apiFetch('PUT', '/api/settings/logoData', { value: this.logoSrc })
+      }
+      this.logoWidth = width
+      this.logoBgColor = color
+      this.settingsSaved = true
+      setTimeout(() => this.settingsSaved = false, 2000)
+    },
+
+    async resetLogo() {
+      this.logoSrc = '/dhl-logo.svg'
+      this.logoWidth = 96
+      this.logoBgColor = '#FFCC00'
+      this.settingsForm.logoWidth = '96'
+      this.settingsForm.logoBgColor = '#FFCC00'
+      await this.apiFetch('PUT', '/api/settings/logoData', { value: '' })
+      await this.apiFetch('PUT', '/api/settings/logoWidth', { value: '96' })
+      await this.apiFetch('PUT', '/api/settings/logoBgColor', { value: '#FFCC00' })
+    },
+
     async loadPeople() {
       const r = await fetch(`${API}/api/people`)
       this.people = await r.json()
@@ -1821,6 +1915,12 @@ function app() {
       this.laborWarningPct = isNaN(warnPct) ? 80 : warnPct
       this.settingsForm.laborWarningPct = String(this.laborWarningPct)
       try { this.departments = JSON.parse(s.departments || '[]') } catch { this.departments = [] }
+      // Branding
+      this.logoWidth = Math.min(180, Math.max(40, parseInt(s.logoWidth || '96') || 96))
+      this.logoBgColor = s.logoBgColor || '#FFCC00'
+      this.logoSrc = s.logoData || '/dhl-logo.svg'
+      this.settingsForm.logoWidth = String(this.logoWidth)
+      this.settingsForm.logoBgColor = this.logoBgColor
     },
 
     async saveEurRate() {
