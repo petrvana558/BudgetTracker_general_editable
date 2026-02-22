@@ -11,6 +11,7 @@ import { settingsRoutes } from './routes/settings'
 import { laborRoutes } from './routes/labor'
 import { auditRoutes } from './routes/audit'
 import { commentRoutes } from './routes/comments'
+import { testingRoutes } from './routes/testing'
 import { authMiddleware } from './auth'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
@@ -51,6 +52,7 @@ async function main() {
   await fastify.register(laborRoutes)
   await fastify.register(auditRoutes)
   await fastify.register(commentRoutes)
+  await fastify.register(testingRoutes)
 
   await fastify.listen({ port: PORT, host: '0.0.0.0' })
   console.log(`Budget Tracker running on http://localhost:${PORT}`)

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "DHL-themed budget tracker & asset list",
   "scripts": {
-    "dev": "tsx src/server.ts",
+    "dev": "tsx --env-file .env src/server.ts",
     "postinstall": "node -e \"require('fs').copyFileSync('./node_modules/@azure/msal-browser/lib/msal-browser.min.js', './public/msal-browser.min.js')\"",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
