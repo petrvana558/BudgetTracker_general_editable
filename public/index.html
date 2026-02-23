@@ -243,7 +243,7 @@
     </div>
 
     <div class="nav-section">Testování</div>
-    <div class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; loadTestSets()">
+    <div class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; testingTab='stats'; loadTestSets().then(() => { loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() }) })">
       <span class="nav-icon">🧪</span> Test Management
     </div>
 
@@ -289,6 +289,12 @@
         </template>
         <template x-if="view === 'gantt'">
           <button class="btn-ghost btn-sm" @click="exportGanttPDF()"
+            style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">
+            ⬇ Export PDF
+          </button>
+        </template>
+        <template x-if="view === 'testing' && testingTab === 'stats'">
+          <button class="btn-ghost btn-sm" @click="exportTestingDashboardPDF()"
             style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">
             ⬇ Export PDF
           </button>
@@ -890,15 +896,15 @@
       <div class="flex items-center gap-3 flex-wrap">
         <!-- Tab switcher -->
         <div style="display:flex;border:1px solid var(--dhl-border);border-radius:5px;overflow:hidden">
-          <button @click="testingTab='sets'"
-            :style="testingTab==='sets'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
-            style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
-            Test Sety
-          </button>
           <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() })"
             :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
             style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
-            Statistiky
+            Dashboard
+          </button>
+          <button @click="testingTab='sets'"
+            :style="testingTab==='sets'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
+            style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
+            Test Management
           </button>
         </div>
 
@@ -2375,7 +2381,7 @@ function app() {
     // ── Testing ───────────────────────────────────────────────────────────────
     testSets: [],
     testStats: null,
-    testingTab: 'sets',          // 'sets' | 'stats'
+    testingTab: 'stats',         // 'stats' | 'sets'
     expandedSets: {},            // setId -> bool
     expandedCases: {},           // caseId -> bool
 
@@ -3289,6 +3295,102 @@ function app() {
         this._pdfHeader('Gantt / Timeline') +
         this._buildGanttSection(items)
       this._openPrintWindow(body, esc(this.projectName) + ' — Export vše')
+    },
+
+    exportTestingDashboardPDF() {
+      if (!this.testStats) return alert('Přejděte na záložku Dashboard a počkejte na načtení dat.')
+      const { esc } = this._pdfFmt()
+      const s = this.testStats
+      const totalCases = Object.values(s.cases).reduce((a, b) => a + b, 0)
+      const donePct = totalCases ? Math.round(((s.cases.PASS ?? 0) + (s.cases['N/A'] ?? 0)) / totalCases * 100) : 0
+
+      // Capture donut chart images
+      const pieImgs = {}
+      for (const ts of this.testSets) {
+        const c = document.getElementById('pie-ts-' + ts.id)
+        if (c && c.width > 0) { try { pieImgs[ts.id] = c.toDataURL('image/png') } catch(e) {} }
+      }
+
+      // Global KPI row
+      const kpiItems = [
+        { l: 'PASS',        v: s.cases.PASS ?? 0,            color: '#22c55e' },
+        { l: 'DEFECT',      v: s.cases.DEFECT ?? 0,          color: '#ef4444' },
+        { l: 'WIP',         v: s.cases.WIP ?? 0,             color: '#3b82f6' },
+        { l: 'N/A',         v: s.cases['N/A'] ?? 0,          color: '#9ca3af' },
+        { l: 'Not Started', v: s.cases['Not Started'] ?? 0,  color: '#d97706' },
+        { l: 'Hotovo',      v: donePct + '%',                 color: '#1a1a1a' },
+      ]
+      const kpiHtml = kpiItems.map((k, i) =>
+        `<div style="float:left;width:15.5%;${i < 5 ? 'margin-right:0.6%;' : ''}padding:7px 9px;border:1pt solid #e0e0e0;border-left:3pt solid ${k.color};border-radius:4px;box-sizing:border-box">
+          <div style="font-size:6pt;font-weight:700;text-transform:uppercase;color:#777">${k.l}</div>
+          <div style="font-size:13pt;font-weight:800;color:${k.color}">${k.v}</div>
+        </div>`
+      ).join('') + '<div style="clear:both"></div>'
+
+      // Per-set table rows
+      const setRows = this.testSets.map(ts => {
+        const total = ts.testCases.length
+        const pass  = ts.testCases.filter(c => c.status === 'PASS').length
+        const def   = ts.testCases.filter(c => c.status === 'DEFECT').length
+        const wip   = ts.testCases.filter(c => c.status === 'WIP').length
+        const na    = ts.testCases.filter(c => c.status === 'N/A').length
+        const ns    = ts.testCases.filter(c => c.status === 'Not Started').length
+        const pct   = total ? Math.round((pass + na) / total * 100) : 0
+        const status = this.testSetStatus(ts)
+        const stColor = status === 'Finished' ? '#16a34a' : status === 'WIP' ? '#2563eb' : '#92400e'
+        const img = pieImgs[ts.id] ? `<img src="${pieImgs[ts.id]}" style="width:48px;height:48px;vertical-align:middle">` : '—'
+        return `<tr>
+          <td style="font-weight:600">${esc(ts.name)}</td>
+          <td style="text-align:center">${img}</td>
+          <td style="color:${stColor};font-weight:700">${status}</td>
+          <td style="color:#16a34a;font-weight:700;text-align:right">${pass}</td>
+          <td style="color:#dc2626;font-weight:700;text-align:right">${def}</td>
+          <td style="color:#2563eb;font-weight:700;text-align:right">${wip}</td>
+          <td style="text-align:right">${na}</td>
+          <td style="text-align:right">${ns}</td>
+          <td style="text-align:right;font-weight:800">${total ? pct + '%' : '—'}</td>
+        </tr>`
+      }).join('')
+
+      // Defects table
+      const sevColor = { Critical: '#dc2626', High: '#c2410c', Medium: '#d97706', Low: '#6b7280' }
+      const defectRows = (s.defectsList ?? []).map(d =>
+        `<tr>
+          <td style="color:${sevColor[d.severity] ?? '#666'};font-weight:700">${esc(d.severity)}</td>
+          <td style="font-weight:600">${esc(d.title)}</td>
+          <td>${esc(d.testCase)}</td>
+          <td>${esc(d.testSet)}</td>
+          <td>${esc(d.status)}</td>
+          <td style="color:#888">${esc(d.reportedBy) || '—'}</td>
+        </tr>`
+      ).join('')
+
+      const body = this._pdfHeader('Test Management — Dashboard') + `
+        <h2>Celkový přehled test cases</h2>
+        <div style="margin-bottom:12px">${kpiHtml}</div>
+        <h2>Postup dle test setů</h2>
+        <table class="data">
+          <thead><tr>
+            <th>Test Set</th><th style="text-align:center">Graf</th><th>Status</th>
+            <th style="text-align:right;color:#16a34a">PASS</th>
+            <th style="text-align:right;color:#dc2626">DEFECT</th>
+            <th style="text-align:right;color:#2563eb">WIP</th>
+            <th style="text-align:right">N/A</th>
+            <th style="text-align:right">Not Started</th>
+            <th style="text-align:right">% Hotovo</th>
+          </tr></thead>
+          <tbody>${setRows}</tbody>
+        </table>
+        ${defectRows ? `
+        <h2>Defekty — top 15 dle závažnosti</h2>
+        <table class="data">
+          <thead><tr>
+            <th>Závažnost</th><th>Název defektu</th><th>Test Case</th><th>Test Set</th><th>Status</th><th>Nahlásil</th>
+          </tr></thead>
+          <tbody>${defectRows}</tbody>
+        </table>` : ''}
+      `
+      this._openPrintWindow(body, esc(this.projectName) + ' — Test Dashboard')
     },
 
     // --- Helpers ---
