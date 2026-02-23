@@ -905,7 +905,7 @@
         <template x-if="testingTab==='sets'">
           <div class="flex gap-2">
             <button class="btn-primary btn-sm" @click="openTsForm()">＋ Test Set</button>
-            <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=null;csvImport.setName='';csvImport.raw='';csvImport.error=''">⬆ Import CSV</button>
+            <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=null;csvImport.setName='';csvImport.raw='';csvImport.fileName='';csvImport.error=''">⬆ Import CSV</button>
           </div>
         </template>
       </div>
@@ -998,6 +998,53 @@
                 <span style="font-weight:700;color:#6b7280">● Low: <span x-text="testStats.defects.bySeverity.Low"></span></span>
               </div>
             </div>
+
+            <!-- Defects list top 15 -->
+            <template x-if="testStats.defectsList && testStats.defectsList.length > 0">
+              <div class="chart-card" style="overflow:hidden">
+                <div class="chart-header">
+                  <span>Top defekty — seřazeno dle závažnosti</span>
+                  <span class="text-xs text-gray-400" x-text="testStats.defectsList.length + ' defektů'"></span>
+                </div>
+                <div style="overflow-x:auto">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width:80px">Závažnost</th>
+                        <th>Název defektu</th>
+                        <th>Test case</th>
+                        <th>Test set</th>
+                        <th style="width:90px">Status</th>
+                        <th style="width:90px">Nahlásil</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="d in testStats.defectsList" :key="d.id">
+                        <tr>
+                          <td>
+                            <span class="badge" :class="defectSeverityClass(d.severity)" x-text="d.severity"></span>
+                          </td>
+                          <td>
+                            <div style="font-weight:600;font-size:12px" x-text="d.title"></div>
+                            <template x-if="d.description">
+                              <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px" x-text="d.description"></div>
+                            </template>
+                          </td>
+                          <td style="font-size:12px;color:#555" x-text="d.testCase"></td>
+                          <td style="font-size:12px;color:#888" x-text="d.testSet"></td>
+                          <td>
+                            <span class="badge"
+                              :style="d.status==='Open'?'background:#fff3cd;color:#856404':d.status==='Fixed'?'background:#d1fae5;color:#065f46':d.status==='Closed'?'background:#f3f4f6;color:#4b5563':'background:#dbeafe;color:#1e40af'"
+                              x-text="d.status"></span>
+                          </td>
+                          <td style="font-size:11px;color:#888" x-text="d.reportedBy || '—'"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </template>
           </div>
         </template>
         <template x-if="!testStats">
@@ -1035,7 +1082,7 @@
               <div class="flex gap-2" @click.stop>
                 <button class="btn-ghost btn-sm" @click="openTcForm(ts.id)" title="Přidat test case">＋ Test</button>
                 <button class="btn-ghost btn-sm" @click="openTsForm(ts)" title="Upravit test set">✏️</button>
-                <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
+                <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.fileName='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
                 <button class="btn-danger btn-sm" @click="deleteTestSet(ts.id)" title="Smazat test set">✕</button>
               </div>
             </div>
@@ -1125,7 +1172,10 @@
                               </template>
                             </div>
                           </div>
-                          <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                          <div class="flex gap-1" style="flex-shrink:0">
+                            <button class="btn-icon" style="font-size:11px;color:#888" @click="openStepEdit(step)" title="Upravit krok">✏️</button>
+                            <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                          </div>
                         </div>
                       </div>
                     </template>
@@ -1333,6 +1383,50 @@
       </div>
     </div>
 
+    <!-- Step Edit Modal -->
+    <div class="modal-overlay" x-show="stepEditForm.open" @click.self="stepEditForm.open=false">
+      <div class="modal" style="max-width:520px">
+        <div class="modal-header">
+          <h2><span class="accent">Upravit krok</span></h2>
+          <button class="btn-icon" style="color:#aaa" @click="stepEditForm.open=false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Akce *</label>
+              <textarea class="form-input" x-model="stepEditForm.description" rows="2" placeholder="Popis kroku / akce"></textarea>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Očekávaný výsledek</label>
+              <textarea class="form-input" x-model="stepEditForm.notes" rows="2" placeholder="Co se očekává..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select" x-model="stepEditForm.status">
+                <option>Not Started</option>
+                <option>WIP</option>
+                <option>PASS</option>
+                <option>DEFECT</option>
+                <option>N/A</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Datum testování</label>
+              <input type="date" class="form-input" x-model="stepEditForm.testedAt">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Jméno testera</label>
+              <input class="form-input" x-model="stepEditForm.testedBy" placeholder="Jméno...">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="stepEditForm.open=false">Zrušit</button>
+          <button class="btn-primary" @click="saveStepEdit()">Uložit</button>
+        </div>
+      </div>
+    </div>
+
     <!-- CSV Import Modal -->
     <div class="modal-overlay" x-show="csvImport.open" @click.self="csvImport.open=false">
       <div class="modal" style="max-width:560px">
@@ -1341,14 +1435,16 @@
           <button class="btn-icon" style="color:#aaa" @click="csvImport.open=false">✕</button>
         </div>
         <div class="modal-body">
-          <div style="background:#f8f8f8;border-radius:4px;padding:10px 12px;font-size:11px;color:#555;margin-bottom:14px;border-left:3px solid var(--dhl-yellow)">
-            <strong>Formát CSV:</strong> test_set, test_case, step_order, step_description<br>
-            Příklad:<br>
-            <code style="font-size:10px;color:#333">test_set,test_case,step_order,step_description<br>
-            Inbound,Happy Flow,1,Přijem zásilky<br>
-            Inbound,Happy Flow,2,Ověření štítku<br>
-            Inbound,Error Flow,1,Chybná zásilka</code>
+          <!-- Format info + download template -->
+          <div style="background:#f8f8f8;border-radius:4px;padding:10px 12px;font-size:11px;color:#555;margin-bottom:14px;border-left:3px solid var(--dhl-yellow);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div>
+              <strong>Formát CSV:</strong> test_set, test_set_date_min, test_set_date_max, test_set_notes, test_case, test_case_status, test_case_notes, test_case_tested_by, test_case_tested_at, test_case_data_used, step_order, step_description, step_notes, step_status, step_tested_by, step_tested_at<br>
+              <span style="color:#888">Povinné: test_set, test_case. Ostatní sloupce jsou volitelné. Stáhněte šablonu pro kompletní příklad.</span>
+            </div>
+            <button class="btn-ghost btn-sm" style="white-space:nowrap;flex-shrink:0" @click="downloadCsvTemplate()">⬇ Šablona</button>
           </div>
+
+          <!-- Target set -->
           <template x-if="csvImport.setId">
             <div style="padding:8px 10px;background:#fffbea;border-radius:4px;font-size:12px;margin-bottom:12px;border:1px solid #fde68a">
               Import do test setu: <strong x-text="csvImport.setName"></strong>
@@ -1360,19 +1456,41 @@
               <input class="form-input" x-model="csvImport.setName" placeholder="Ponechejte prázdné pro použití hodnot z CSV">
             </div>
           </template>
+
+          <!-- File upload drop zone -->
           <div class="form-group">
-            <label class="form-label">CSV obsah *</label>
-            <textarea class="form-input" x-model="csvImport.raw" rows="8"
-              style="font-family:monospace;font-size:11px"
-              placeholder="test_set,test_case,step_order,step_description&#10;Inbound,Happy Flow,1,Přijem zásilky"></textarea>
+            <label class="form-label">CSV soubor</label>
+            <div style="border:2px dashed var(--dhl-border);border-radius:6px;padding:24px 16px;text-align:center;cursor:pointer;background:#fafafa;transition:border-color 0.15s"
+              @click="$refs.csvFileInput.click()"
+              @dragover.prevent="$event.currentTarget.style.borderColor='var(--dhl-yellow)'"
+              @dragleave="$event.currentTarget.style.borderColor='var(--dhl-border)'"
+              @drop.prevent="handleCsvDrop($event); $event.currentTarget.style.borderColor='var(--dhl-border)'">
+              <input type="file" accept=".csv,.txt" x-ref="csvFileInput" style="display:none" @change="handleCsvFile($event)">
+              <template x-if="!csvImport.fileName">
+                <div>
+                  <div style="font-size:28px;margin-bottom:8px">📂</div>
+                  <div style="font-size:12px;font-weight:600;color:#555">Klikněte nebo přetáhněte CSV soubor</div>
+                  <div style="font-size:11px;color:#bbb;margin-top:3px">.csv, .txt</div>
+                </div>
+              </template>
+              <template x-if="csvImport.fileName">
+                <div>
+                  <div style="font-size:24px;margin-bottom:6px">✅</div>
+                  <div style="font-size:13px;font-weight:700;color:#1a1a1a" x-text="csvImport.fileName"></div>
+                  <div style="font-size:11px;color:#888;margin-top:2px" x-text="(csvImport.raw.split('\\n').length - 1) + ' řádků dat'"></div>
+                  <button class="btn-ghost btn-sm" style="margin-top:8px;font-size:10px" @click.stop="csvImport.fileName='';csvImport.raw='';$refs.csvFileInput.value=''">✕ Zrušit soubor</button>
+                </div>
+              </template>
+            </div>
           </div>
+
           <template x-if="csvImport.error">
             <div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:4px;font-size:12px" x-text="csvImport.error"></div>
           </template>
         </div>
         <div class="modal-footer">
           <button class="btn-ghost" @click="csvImport.open=false">Zrušit</button>
-          <button class="btn-primary" @click="importCSV()" :disabled="csvImport.loading">
+          <button class="btn-primary" @click="importCSV()" :disabled="csvImport.loading || !csvImport.raw">
             <span x-text="csvImport.loading ? 'Importuji...' : 'Importovat'"></span>
           </button>
         </div>
@@ -2211,8 +2329,11 @@ function app() {
     // Defect form
     defectForm: { open: false, id: null, caseId: null, title: '', description: '', severity: 'Medium', status: 'Open', reportedBy: '' },
 
+    // Step edit modal
+    stepEditForm: { open: false, id: null, description: '', notes: '', status: 'Not Started', testedBy: '', testedAt: '' },
+
     // CSV import
-    csvImport: { open: false, setId: null, setName: '', raw: '', loading: false, error: '' },
+    csvImport: { open: false, setId: null, setName: '', raw: '', fileName: '', loading: false, error: '' },
 
     // Waterfall chart instance
     _waterfallChart: null,
@@ -3363,8 +3484,44 @@ function app() {
     },
 
     async loadTestStats() {
-      const r = await fetch(`${API}/api/testing/stats`)
-      this.testStats = await r.json()
+      const [statsRes, defectsRes] = await Promise.all([
+        fetch(`${API}/api/testing/stats`),
+        fetch(`${API}/api/testing/defects`),
+      ])
+      const stats = await statsRes.json()
+      stats.defectsList = await defectsRes.json()
+      this.testStats = stats
+    },
+
+    openStepEdit(step) {
+      this.stepEditForm = {
+        open: true,
+        id: step.id,
+        description: step.description ?? '',
+        notes: step.notes ?? '',
+        status: step.status ?? 'Not Started',
+        testedBy: step.testedBy ?? '',
+        testedAt: step.testedAt ? step.testedAt.slice(0, 10) : '',
+      }
+    },
+
+    async saveStepEdit() {
+      if (!this.stepEditForm.description.trim()) return alert('Zadejte popis kroku')
+      const body = {
+        description: this.stepEditForm.description,
+        notes: this.stepEditForm.notes || null,
+        status: this.stepEditForm.status,
+        testedBy: this.stepEditForm.testedBy || null,
+        testedAt: this.stepEditForm.testedAt || null,
+      }
+      const r = await fetch(`${API}/api/teststeps/${this.stepEditForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) return alert('Chyba při ukládání kroku')
+      this.stepEditForm.open = false
+      await this.loadTestSets()
     },
 
     getStepForm(caseId) {
@@ -3531,8 +3688,47 @@ function app() {
     },
 
     // CSV Import
+    downloadCsvTemplate() {
+      const content = [
+        'test_set,test_set_date_min,test_set_date_max,test_set_notes,test_case,test_case_status,test_case_notes,test_case_tested_by,test_case_tested_at,test_case_data_used,step_order,step_description,step_notes,step_status,step_tested_by,step_tested_at',
+        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Happy Flow,Not Started,,Jan Novák,,TC001,1,Příjem zásilky na rampě,Zásilka je přijata bez poškození,Not Started,,',
+        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Happy Flow,Not Started,,Jan Novák,,TC001,2,Ověření štítku a obsahu,Štítek odpovídá obsahu,Not Started,,',
+        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Happy Flow,Not Started,,Jan Novák,,TC001,3,Uložení na sklad,Zásilka uložena na správné místo,Not Started,,',
+        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Error Flow,Not Started,,,,,1,Příjem poškozené zásilky,Zásilka je označena jako poškozená,Not Started,,',
+        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Error Flow,Not Started,,,,,2,Vytvoření reklamace,Reklamace je vytvořena v systému,Not Started,,',
+        'Outbound,,,,Pick & Pack,Not Started,,,,,1,Výběr ze skladu,Správná zásilka je vybrána,Not Started,,',
+        'Outbound,,,,Pick & Pack,Not Started,,,,,2,Balení zásilky,Zásilka je správně zabalena,Not Started,,',
+      ].join('\n')
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'import-template.csv'; a.click()
+      URL.revokeObjectURL(url)
+    },
+
+    handleCsvFile(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      this.csvImport.fileName = file.name
+      this.csvImport.error = ''
+      const reader = new FileReader()
+      reader.onload = (e) => { this.csvImport.raw = e.target.result }
+      reader.readAsText(file, 'UTF-8')
+    },
+
+    handleCsvDrop(event) {
+      const file = event.dataTransfer.files[0]
+      if (!file) return
+      if (!file.name.match(/\.(csv|txt)$/i)) { this.csvImport.error = 'Pouze .csv nebo .txt soubory'; return }
+      this.csvImport.fileName = file.name
+      this.csvImport.error = ''
+      const reader = new FileReader()
+      reader.onload = (e) => { this.csvImport.raw = e.target.result }
+      reader.readAsText(file, 'UTF-8')
+    },
+
     async importCSV() {
-      if (!this.csvImport.raw.trim()) { this.csvImport.error = 'Zadejte CSV obsah'; return }
+      if (!this.csvImport.raw.trim()) { this.csvImport.error = 'Nahrajte CSV soubor'; return }
       this.csvImport.loading = true
       this.csvImport.error = ''
       try {

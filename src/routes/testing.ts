@@ -51,19 +51,38 @@ const DefectSchema = z.object({
 // Expected CSV columns: test_set, test_case, step_order, step_description
 // All fields are optional except test_set and test_case.
 
-function parseCSV(csv: string): Array<{ testSet: string; testCase: string; stepOrder?: number; stepDescription?: string }> {
+type CsvRow = {
+  testSet: string; testSetDateMin?: string; testSetDateMax?: string; testSetNotes?: string
+  testCase: string; testCaseStatus?: string; testCaseNotes?: string; testCaseTestedBy?: string; testCaseTestedAt?: string; testCaseDataUsed?: string
+  stepOrder?: number; stepDescription?: string; stepNotes?: string; stepStatus?: string; stepTestedBy?: string; stepTestedAt?: string
+}
+
+function parseCSV(csv: string): CsvRow[] {
   const lines = csv.split(/\r?\n/).map(l => l.trim()).filter(l => l)
   if (!lines.length) return []
   const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, '_'))
+  const g = (row: Record<string, string>, ...keys: string[]) => keys.map(k => row[k]).find(v => v) || undefined
   return lines.slice(1).map(line => {
     const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
     const row: Record<string, string> = {}
     header.forEach((h, i) => { row[h] = cells[i] ?? '' })
     return {
-      testSet: row['test_set'] || row['testset'] || '',
-      testCase: row['test_case'] || row['testcase'] || '',
+      testSet: g(row, 'test_set', 'testset') ?? '',
+      testSetDateMin: g(row, 'test_set_date_min', 'set_date_min'),
+      testSetDateMax: g(row, 'test_set_date_max', 'set_date_max'),
+      testSetNotes: g(row, 'test_set_notes', 'set_notes'),
+      testCase: g(row, 'test_case', 'testcase') ?? '',
+      testCaseStatus: g(row, 'test_case_status', 'case_status'),
+      testCaseNotes: g(row, 'test_case_notes', 'case_notes'),
+      testCaseTestedBy: g(row, 'test_case_tested_by', 'case_tested_by'),
+      testCaseTestedAt: g(row, 'test_case_tested_at', 'case_tested_at'),
+      testCaseDataUsed: g(row, 'test_case_data_used', 'case_data_used', 'data_used'),
       stepOrder: row['step_order'] ? parseInt(row['step_order']) : undefined,
-      stepDescription: row['step_description'] || row['stepdescription'] || undefined,
+      stepDescription: g(row, 'step_description', 'stepdescription'),
+      stepNotes: g(row, 'step_notes', 'step_expected', 'expected_result'),
+      stepStatus: g(row, 'step_status'),
+      stepTestedBy: g(row, 'step_tested_by'),
+      stepTestedAt: g(row, 'step_tested_at'),
     }
   }).filter(r => r.testSet && r.testCase)
 }
@@ -279,13 +298,33 @@ export async function testingRoutes(fastify: FastifyInstance) {
         ts = await prisma.testSet.findUnique({ where: { id: body.testSetId } })
         if (!ts) return reply.code(404).send({ error: 'TestSet nenalezen' })
       } else {
-        ts = await prisma.testSet.create({ data: { name: body.testSetName || setName } })
+        // Use first row's testSet metadata for the set
+        const firstRows = [...casesMap.values()][0]
+        const meta = firstRows?.[0]
+        ts = await prisma.testSet.create({
+          data: {
+            name: body.testSetName || setName,
+            dateMin: parseDate(meta?.testSetDateMin),
+            dateMax: parseDate(meta?.testSetDateMax),
+            notes: meta?.testSetNotes ?? null,
+          },
+        })
       }
 
       let caseOrder = 0
       for (const [caseName, stepRows] of casesMap) {
+        const meta = stepRows[0]
         const tc = await prisma.testCase.create({
-          data: { testSetId: ts.id, name: caseName, order: caseOrder++ },
+          data: {
+            testSetId: ts.id,
+            name: caseName,
+            order: caseOrder++,
+            status: meta?.testCaseStatus ?? 'Not Started',
+            notes: meta?.testCaseNotes ?? null,
+            testedBy: meta?.testCaseTestedBy ?? null,
+            testedAt: parseDate(meta?.testCaseTestedAt),
+            dataUsed: meta?.testCaseDataUsed ?? null,
+          },
         })
 
         let stepOrder = 0
@@ -296,6 +335,10 @@ export async function testingRoutes(fastify: FastifyInstance) {
                 testCaseId: tc.id,
                 description: r.stepDescription,
                 order: r.stepOrder ?? stepOrder,
+                notes: r.stepNotes ?? null,
+                status: r.stepStatus ?? 'Not Started',
+                testedBy: r.stepTestedBy ?? null,
+                testedAt: parseDate(r.stepTestedAt),
               },
             })
             stepOrder++
@@ -307,6 +350,31 @@ export async function testingRoutes(fastify: FastifyInstance) {
 
     reply.code(201)
     return { imported: created.length, sets: created }
+  })
+
+  // ── Defects list ────────────────────────────────────────────────────────────
+
+  fastify.get('/api/testing/defects', async () => {
+    const severityOrder: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+    const defects = await prisma.defect.findMany({
+      include: { testCase: { include: { testSet: { select: { name: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    return defects
+      .sort((a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9))
+      .slice(0, 15)
+      .map(d => ({
+        id: d.id,
+        title: d.title,
+        description: d.description,
+        severity: d.severity,
+        status: d.status,
+        reportedBy: d.reportedBy,
+        testCase: d.testCase.name,
+        testSet: d.testCase.testSet.name,
+        createdAt: d.createdAt,
+      }))
   })
 
   // ── Statistics ───────────────────────────────────────────────────────────────
