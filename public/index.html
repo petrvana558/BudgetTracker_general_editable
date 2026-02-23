@@ -1438,8 +1438,9 @@
           <!-- Format info + download template -->
           <div style="background:#f8f8f8;border-radius:4px;padding:10px 12px;font-size:11px;color:#555;margin-bottom:14px;border-left:3px solid var(--dhl-yellow);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
             <div>
-              <strong>Formát CSV:</strong> test_set, test_set_date_min, test_set_date_max, test_set_notes, test_case, test_case_status, test_case_notes, test_case_tested_by, test_case_tested_at, test_case_data_used, step_order, step_description, step_notes, step_status, step_tested_by, step_tested_at<br>
-              <span style="color:#888">Povinné: test_set, test_case. Ostatní sloupce jsou volitelné. Stáhněte šablonu pro kompletní příklad.</span>
+              <strong>Povinné [M]:</strong> test_set, test_case<br>
+              <strong>Volitelné [O]:</strong> test_set_date_min, test_set_date_max, test_set_notes, test_case_notes, test_case_data_used, step_order, step_description, step_notes<br>
+              <span style="color:#888">Status se nastaví automaticky na Not Started. Stáhněte šablonu pro kompletní příklad.</span>
             </div>
             <button class="btn-ghost btn-sm" style="white-space:nowrap;flex-shrink:0" @click="downloadCsvTemplate()">⬇ Šablona</button>
           </div>
@@ -3617,7 +3618,11 @@ function app() {
     },
 
     async updateTestCaseStatus(tc, newStatus) {
-      await fetch(`${API}/api/testcases/${tc.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })
+      const calls = [
+        fetch(`${API}/api/testcases/${tc.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) }),
+        ...tc.steps.map(step => fetch(`${API}/api/teststeps/${step.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })),
+      ]
+      await Promise.all(calls)
       await this.loadTestSets()
     },
 
@@ -3690,16 +3695,17 @@ function app() {
     // CSV Import
     downloadCsvTemplate() {
       const content = [
-        'test_set,test_set_date_min,test_set_date_max,test_set_notes,test_case,test_case_status,test_case_notes,test_case_tested_by,test_case_tested_at,test_case_data_used,step_order,step_description,step_notes,step_status,step_tested_by,step_tested_at',
-        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Happy Flow,Not Started,,Jan Novák,,TC001,1,Příjem zásilky na rampě,Zásilka je přijata bez poškození,Not Started,,',
-        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Happy Flow,Not Started,,Jan Novák,,TC001,2,Ověření štítku a obsahu,Štítek odpovídá obsahu,Not Started,,',
-        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Happy Flow,Not Started,,Jan Novák,,TC001,3,Uložení na sklad,Zásilka uložena na správné místo,Not Started,,',
-        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Error Flow,Not Started,,,,,1,Příjem poškozené zásilky,Zásilka je označena jako poškozená,Not Started,,',
-        'Inbound,2025-01-10,2025-01-20,Testování příjmu zásilek,Error Flow,Not Started,,,,,2,Vytvoření reklamace,Reklamace je vytvořena v systému,Not Started,,',
-        'Outbound,,,,Pick & Pack,Not Started,,,,,1,Výběr ze skladu,Správná zásilka je vybrána,Not Started,,',
-        'Outbound,,,,Pick & Pack,Not Started,,,,,2,Balení zásilky,Zásilka je správně zabalena,Not Started,,',
+        '# REQUIRED: test_set, test_case | OPTIONAL: vse ostatni',
+        'test_set,test_set_date_min,test_set_date_max,test_set_notes,test_case,test_case_notes,test_case_data_used,step_order,step_description,step_notes',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Happy Flow,,TC001,1,Prijem zasilky na rampe,Zasilka je prijata bez poskozeni',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Happy Flow,,TC001,2,Overeni stitku a obsahu,Stitek odpovida obsahu',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Happy Flow,,TC001,3,Ulozeni na sklad,Zasilka ulozena na spravne misto',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Error Flow,,,1,Prijem poskozene zasilky,Zasilka je oznacena jako poskozena',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Error Flow,,,2,Vytvoreni reklamace,Reklamace je vytvorena v systemu',
+        'Outbound,,,,Pick & Pack,,,1,Vyber ze skladu,Spravna zasilka je vybrana',
+        'Outbound,,,,Pick & Pack,,,2,Baleni zasilky,Zasilka je spravne zabalena',
       ].join('\n')
-      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+      const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url; a.download = 'import-template.csv'; a.click()

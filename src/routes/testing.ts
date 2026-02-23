@@ -58,7 +58,7 @@ type CsvRow = {
 }
 
 function parseCSV(csv: string): CsvRow[] {
-  const lines = csv.split(/\r?\n/).map(l => l.trim()).filter(l => l)
+  const lines = csv.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'))
   if (!lines.length) return []
   const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, '_'))
   const g = (row: Record<string, string>, ...keys: string[]) => keys.map(k => row[k]).find(v => v) || undefined
