@@ -22,7 +22,7 @@ const TestSetSchema = z.object({
 
 const TestCaseSchema = z.object({
   name: z.string().min(1),
-  status: z.enum(['PASS', 'DEFECT', 'WIP', 'N/A']).default('WIP'),
+  status: z.enum(['PASS', 'DEFECT', 'WIP', 'N/A', 'Not Started']).default('Not Started'),
   notes: z.string().optional().nullable(),
   testedBy: z.string().optional().nullable(),
   testedAt: z.string().optional().nullable(),
@@ -33,7 +33,7 @@ const TestCaseSchema = z.object({
 const TestStepSchema = z.object({
   description: z.string().min(1),
   order: z.number().int().default(0),
-  status: z.enum(['PASS', 'DEFECT', 'WIP', 'N/A']).default('WIP'),
+  status: z.enum(['PASS', 'DEFECT', 'WIP', 'N/A', 'Not Started']).default('Not Started'),
   testedBy: z.string().optional().nullable(),
   testedAt: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),

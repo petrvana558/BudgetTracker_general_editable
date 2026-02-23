@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="/msal-browser.min.js"></script>
+
   <style>
     :root {
       --dhl-yellow: #FFCC00;
@@ -148,15 +148,6 @@
     .progress-fill.over { background: var(--dhl-red); }
 
     /* Login screen */
-    .login-screen { position: fixed; inset: 0; background: var(--dhl-dark); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-    .login-card { background: white; border-radius: 10px; padding: 48px 56px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,0.5); }
-    .login-card img { width: 120px; margin: 0 auto 20px; display: block; }
-    .login-card h1 { font-size: 22px; font-weight: 800; color: var(--dhl-dark); margin-bottom: 6px; }
-    .login-card p { font-size: 13px; color: var(--dhl-grey); margin-bottom: 32px; }
-    .btn-microsoft { background: #0078d4; color: white; border: none; border-radius: 4px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; width: 100%; justify-content: center; transition: background 0.15s; }
-    .btn-microsoft:hover { background: #106ebe; }
-    .btn-microsoft:disabled { background: #ccc; cursor: not-allowed; }
-    .login-error { margin-top: 16px; padding: 10px 14px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600; }
 
     /* Scrollable table wrapper */
     .table-scroll { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 230px); }
@@ -166,6 +157,7 @@
     .status-DEFECT { background: #fee2e2; color: #991b1b; }
     .status-WIP { background: #dbeafe; color: #1e40af; }
     .status-NA { background: #f3f4f6; color: #4b5563; }
+    .status-NOT-STARTED { background: #fef9c3; color: #854d0e; }
     .severity-Critical { background: #fee2e2; color: #991b1b; }
     .severity-High { background: #ffedd5; color: #9a3412; }
     .severity-Medium { background: #fff3cd; color: #856404; }
@@ -222,26 +214,7 @@
 </head>
 <body x-data="app()" x-init="init()" x-cloak>
 
-<!-- LOGIN SCREEN -->
-<div class="login-screen" x-show="!loggedIn" x-cloak>
-  <div class="login-card">
-    <img src="/dhl-logo.svg" alt="DHL">
-    <h1>Budget Tracker</h1>
-    <p>Přihlaste se firemním Microsoft účtem pro přístup k aplikaci.</p>
-    <button class="btn-microsoft" @click="login()" :disabled="authLoading">
-      <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
-        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-      </svg>
-      <span x-text="authLoading ? 'Načítám...' : 'Přihlásit se přes Microsoft'"></span>
-    </button>
-    <div class="login-error" x-show="authError" x-text="authError"></div>
-  </div>
-</div>
-
-<div class="flex" x-show="loggedIn">
+<div class="flex">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
@@ -280,12 +253,6 @@
     </div>
 
     <div style="padding: 24px 20px; margin-top: auto;">
-      <div style="margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #888; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" x-text="currentUser"></div>
-        <button @click="logout()" style="width:100%;background:rgba(212,5,17,0.15);color:#ff6b6b;border:1px solid rgba(212,5,17,0.3);border-radius:4px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
-          ⎋ Odhlásit se
-        </button>
-      </div>
       <div style="font-size: 10px; color: #444; line-height: 1.6;">
         <span style="color: var(--dhl-yellow)">●</span> Budget Tracker v1.0<br>
         Lokální instance
@@ -928,7 +895,7 @@
             style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
             Test Sety
           </button>
-          <button @click="testingTab='stats'; loadTestStats()"
+          <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }))"
             :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
             style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
             Statistiky
@@ -992,6 +959,17 @@
               </template>
             </div>
 
+            <!-- Waterfall per test set -->
+            <template x-for="ts in testSets.filter(ts => ts.dateMin && ts.dateMax)" :key="'wf-stats-'+ts.id">
+              <div class="chart-card p-4">
+                <div style="font-size:12px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+                  📅 <span x-text="ts.name"></span> — plán testování
+                  <span style="font-size:10px;color:#888;font-weight:400;margin-left:6px" x-text="(ts.dateMin ? ts.dateMin.slice(0,10) : '?') + ' → ' + (ts.dateMax ? ts.dateMax.slice(0,10) : '?')"></span>
+                </div>
+                <div :id="'waterfall-'+ts.id" style="width:100%;height:130px"></div>
+              </div>
+            </template>
+
             <!-- Defects -->
             <div class="chart-card p-4">
               <div style="font-size:12px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Defekty</div>
@@ -1044,6 +1022,7 @@
                 <span style="font-size:16px">📁</span>
                 <span style="font-weight:800;font-size:14px" x-text="ts.name"></span>
                 <span class="badge badge-grey" style="font-size:10px" x-text="ts.testCases.length + ' testů'"></span>
+                <span :class="testSetStatusClass(ts)" class="badge" style="font-size:10px;font-weight:700" x-text="testSetStatus(ts)"></span>
                 <!-- date range badges -->
                 <template x-if="ts.dateMin || ts.dateMax">
                   <span style="font-size:10px;color:#888;font-weight:600" x-text="(ts.dateMin ? ts.dateMin.slice(0,10) : '?') + ' → ' + (ts.dateMax ? ts.dateMax.slice(0,10) : '?')"></span>
@@ -1061,13 +1040,8 @@
               </div>
             </div>
 
-            <!-- Waterfall chart for this set -->
-            <div x-show="expandedSets[ts.id] && ts.dateMin && ts.dateMax" style="padding:12px 18px 0">
-              <div :id="'waterfall-'+ts.id" style="width:100%;height:130px"></div>
-            </div>
-
             <!-- TestCases list -->
-            <div x-show="expandedSets[ts.id]" style="padding:12px 18px 18px">
+            <div x-show="expandedSets[ts.id]" style="padding:8px 18px 14px">
               <template x-if="ts.testCases.length === 0">
                 <div style="color:#aaa;font-size:12px;padding:8px 0">Žádné test cases. Klikněte ＋ Test pro přidání.</div>
               </template>
@@ -1081,13 +1055,17 @@
                     <span style="font-size:13px">🧪</span>
                     <span style="font-weight:700;font-size:13px;flex:1" x-text="tc.name"></span>
 
-                    <!-- Status cycle button (clickable badge) -->
-                    <button @click.stop="cycleTestCaseStatus(tc)" :class="statusBadgeClass(tc.status)"
-                      class="badge"
-                      style="cursor:pointer;border:none;font-size:10px;font-weight:700;min-width:62px;text-align:center"
-                      :title="'Kliknutím změnit status (aktuálně: '+tc.status+')'"
-                      x-text="tc.status">
-                    </button>
+                    <!-- Status dropdown -->
+                    <select :value="tc.status" @click.stop @change.stop="updateTestCaseStatus(tc, $event.target.value)"
+                      :class="statusBadgeClass(tc.status)"
+                      class="inline-select"
+                      style="font-size:10px;min-width:90px;border:none;font-weight:700;padding:3px 6px;border-radius:3px">
+                      <option>Not Started</option>
+                      <option>WIP</option>
+                      <option>PASS</option>
+                      <option>DEFECT</option>
+                      <option>N/A</option>
+                    </select>
 
                     <div class="flex gap-1" @click.stop>
                       <button class="btn-ghost btn-sm" style="font-size:10px" @click="openTcForm(ts.id, tc)">✏️</button>
@@ -1112,29 +1090,79 @@
                     </template>
 
                     <template x-for="(step, si) in tc.steps" :key="step.id">
-                      <div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:3px;margin-bottom:2px;background:#fff">
-                        <span style="font-size:11px;color:#bbb;min-width:18px;text-align:right" x-text="(si+1)+'.'"></span>
-                        <span style="flex:1;font-size:12px" x-text="step.description"></span>
-                        <!-- Step status cycle -->
-                        <button @click="cycleStepStatus(step, tc)" :class="statusBadgeClass(step.status)"
-                          class="badge"
-                          style="cursor:pointer;border:none;font-size:9px;min-width:52px;text-align:center"
-                          x-text="step.status">
-                        </button>
-                        <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                      <div style="border:1px solid #e5e7eb;border-radius:5px;padding:8px 10px;margin-bottom:6px;background:#fff">
+                        <div style="display:flex;align-items:flex-start;gap:8px">
+                          <span style="font-size:11px;color:#bbb;min-width:18px;text-align:right;padding-top:2px" x-text="(si+1)+'.'"></span>
+                          <div style="flex:1;min-width:0">
+                            <!-- Akce + Očekávaný výsledek -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+                              <div>
+                                <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:2px">Akce</div>
+                                <div style="font-size:12px;color:#1a1a1a" x-text="step.description"></div>
+                              </div>
+                              <div>
+                                <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:2px">Očekávaný výsledek</div>
+                                <div style="font-size:12px;color:#555" x-text="step.notes || '—'"></div>
+                              </div>
+                            </div>
+                            <!-- Status + Tester + Datum -->
+                            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                              <select :value="step.status" @change="updateStepStatus(step, tc, $event.target.value)"
+                                :class="statusBadgeClass(step.status)"
+                                class="inline-select"
+                                style="font-size:10px;min-width:90px;border:none;font-weight:700;padding:2px 6px;border-radius:3px">
+                                <option>Not Started</option>
+                                <option>WIP</option>
+                                <option>PASS</option>
+                                <option>DEFECT</option>
+                                <option>N/A</option>
+                              </select>
+                              <template x-if="step.testedBy">
+                                <span style="font-size:10px;color:#6b7280">👤 <span x-text="step.testedBy"></span></span>
+                              </template>
+                              <template x-if="step.testedAt">
+                                <span style="font-size:10px;color:#6b7280">📅 <span x-text="step.testedAt ? step.testedAt.slice(0,10) : ''"></span></span>
+                              </template>
+                            </div>
+                          </div>
+                          <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                        </div>
                       </div>
                     </template>
 
-                    <!-- Add step inline -->
-                    <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
-                      <input x-model="getStepForm(tc.id).description"
-                        @keydown.enter.prevent="addTestStep(tc)"
-                        style="flex:1;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none"
-                        :style="getStepForm(tc.id).adding ? '' : ''"
-                        placeholder="Nový krok... (Enter pro přidání)"
-                        @focus="getStepForm(tc.id).adding=true"
-                        @blur="if(!getStepForm(tc.id).description) getStepForm(tc.id).adding=false">
-                      <button class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
+                    <!-- Add step form -->
+                    <div style="border:1px solid #e5e7eb;border-radius:5px;padding:10px 12px;margin-top:6px;background:#f9fafb">
+                      <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">Přidat krok</div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Akce *</div>
+                          <input x-model="getStepForm(tc.id).description"
+                            @keydown.enter.prevent="addTestStep(tc)"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box"
+                            placeholder="Co se dělá..."
+                            @focus="getStepForm(tc.id).adding=true">
+                        </div>
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Očekávaný výsledek</div>
+                          <input x-model="getStepForm(tc.id).notes"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box"
+                            placeholder="Co se očekává...">
+                        </div>
+                      </div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:flex-end">
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Jméno testera</div>
+                          <input x-model="getStepForm(tc.id).testedBy"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box"
+                            placeholder="Jméno...">
+                        </div>
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Datum</div>
+                          <input type="date" x-model="getStepForm(tc.id).testedAt"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box">
+                        </div>
+                        <button class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
+                      </div>
                     </div>
 
                     <!-- DEFECTS -->
@@ -1224,9 +1252,10 @@
             <div class="form-group">
               <label class="form-label">Status</label>
               <select class="form-select" x-model="tcForm.status">
+                <option>Not Started</option>
+                <option>WIP</option>
                 <option>PASS</option>
                 <option>DEFECT</option>
-                <option>WIP</option>
                 <option>N/A</option>
               </select>
             </div>
@@ -2044,52 +2073,6 @@
 <script>
 const API = ''
 
-// ── MSAL Auth ─────────────────────────────────────────────────────────────────
-let _msalApp = null
-
-async function initMsalApp() {
-  const res = await fetch('/api/config')
-  const { clientId, tenantId } = await res.json()
-  _msalApp = new msal.PublicClientApplication({
-    auth: {
-      clientId,
-      authority: `https://login.microsoftonline.com/${tenantId}`,
-      redirectUri: window.location.origin,
-    },
-    cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false },
-  })
-  await _msalApp.initialize()
-  return _msalApp
-}
-
-async function getToken() {
-  if (!_msalApp) return null
-  const accounts = _msalApp.getAllAccounts()
-  if (!accounts.length) return null
-  try {
-    const result = await _msalApp.acquireTokenSilent({
-      scopes: ['openid', 'profile', 'email'],
-      account: accounts[0],
-    })
-    return result.idToken
-  } catch {
-    return null
-  }
-}
-
-// Přidá Authorization header ke všem /api/ requestům (kromě /api/config)
-const _originalFetch = window.fetch.bind(window)
-window.fetch = async function (input, init = {}) {
-  const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input))
-  if (url.startsWith('/api/') && !url.startsWith('/api/config')) {
-    const token = await getToken()
-    if (token) {
-      init = { ...init, headers: { ...(init.headers || {}), 'Authorization': `Bearer ${token}` } }
-    }
-  }
-  return _originalFetch(input, init)
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Chart instances stored OUTSIDE Alpine reactivity — Alpine's Proxy corrupts Chart.js internal state
 const _charts = {}
@@ -2153,11 +2136,6 @@ const TENDER_STATUSES = [
 
 function app() {
   return {
-    // Auth
-    loggedIn: false,
-    authLoading: true,
-    authError: '',
-
     view: 'dashboard',
     settingsTab: 'people',
 
@@ -2241,61 +2219,9 @@ function app() {
 
 
     async init() {
-      await this.initAuth()
-      if (this.loggedIn) {
-        await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
-        this.loadDashboard()
-        this.$nextTick(() => restoreColWidths())
-      }
-    },
-
-    async initAuth() {
-      try {
-        await initMsalApp()
-
-        // Zpracuj redirect odpověď (návrat z Microsoft přihlášení)
-        const redirectResult = await _msalApp.handleRedirectPromise()
-        if (redirectResult) {
-          this.loggedIn = true
-          this.currentUser = redirectResult.account.username || redirectResult.account.name || 'Uživatel'
-          this.authLoading = false
-          return
-        }
-
-        // Zkontroluj existující session
-        const accounts = _msalApp.getAllAccounts()
-        if (accounts.length > 0) {
-          const token = await getToken()
-          if (token) {
-            this.loggedIn = true
-            this.currentUser = accounts[0].username || accounts[0].name || 'Uživatel'
-          }
-        }
-      } catch (e) {
-        this.authError = 'Chyba inicializace přihlášení: ' + (e.message || e)
-      }
-      this.authLoading = false
-    },
-
-    async login() {
-      this.authError = ''
-      this.authLoading = true
-      try {
-        if (!_msalApp) await initMsalApp()
-        // Redirect flow — přesměruje celou stránku na Microsoft, žádné popupy
-        await _msalApp.loginRedirect({ scopes: ['openid', 'profile', 'email'] })
-      } catch (e) {
-        this.authError = 'Přihlášení selhalo: ' + (e.message || e)
-        this.authLoading = false
-      }
-    },
-
-    async logout() {
-      try {
-        if (_msalApp) {
-          await _msalApp.logoutRedirect({ postLogoutRedirectUri: window.location.origin })
-        }
-      } catch { /* ignoruj chyby při odhlášení */ }
+      await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
+      this.loadDashboard()
+      this.$nextTick(() => restoreColWidths())
     },
 
     viewTitle() {
@@ -3442,13 +3368,28 @@ function app() {
     },
 
     getStepForm(caseId) {
-      if (!this.stepForms[caseId]) this.stepForms[caseId] = { description: '', adding: false }
+      if (!this.stepForms[caseId]) this.stepForms[caseId] = { description: '', notes: '', testedBy: '', testedAt: '', adding: false }
       return this.stepForms[caseId]
     },
 
     statusBadgeClass(status) {
-      const map = { 'PASS': 'status-PASS', 'DEFECT': 'status-DEFECT', 'WIP': 'status-WIP', 'N/A': 'status-NA' }
+      const map = { 'PASS': 'status-PASS', 'DEFECT': 'status-DEFECT', 'WIP': 'status-WIP', 'N/A': 'status-NA', 'Not Started': 'status-NOT-STARTED' }
       return map[status] ?? 'badge-grey'
+    },
+
+    testSetStatus(ts) {
+      if (!ts.testCases.length) return 'Not Started'
+      const finished = ['PASS', 'N/A']
+      if (ts.testCases.every(c => c.status === 'Not Started')) return 'Not Started'
+      if (ts.testCases.every(c => finished.includes(c.status))) return 'Finished'
+      return 'WIP'
+    },
+
+    testSetStatusClass(ts) {
+      const s = this.testSetStatus(ts)
+      if (s === 'Finished') return 'status-PASS'
+      if (s === 'WIP') return 'status-WIP'
+      return 'status-NOT-STARTED'
     },
 
     defectSeverityClass(sev) {
@@ -3496,7 +3437,7 @@ function app() {
       if (tc) {
         this.tcForm = { open: true, id: tc.id, setId, name: tc.name, status: tc.status, notes: tc.notes ?? '', testedBy: tc.testedBy ?? '', dataUsed: tc.dataUsed ?? '' }
       } else {
-        this.tcForm = { open: true, id: null, setId, name: '', status: 'WIP', notes: '', testedBy: '', dataUsed: '' }
+        this.tcForm = { open: true, id: null, setId, name: '', status: 'Not Started', notes: '', testedBy: '', dataUsed: '' }
       }
     },
 
@@ -3518,10 +3459,8 @@ function app() {
       await this.loadTestSets()
     },
 
-    async cycleTestCaseStatus(tc) {
-      const statuses = ['WIP', 'PASS', 'DEFECT', 'N/A']
-      const next = statuses[(statuses.indexOf(tc.status) + 1) % statuses.length]
-      await fetch(`${API}/api/testcases/${tc.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
+    async updateTestCaseStatus(tc, newStatus) {
+      await fetch(`${API}/api/testcases/${tc.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })
       await this.loadTestSets()
     },
 
@@ -3533,17 +3472,24 @@ function app() {
       await fetch(`${API}/api/testcases/${tc.id}/steps`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: sf.description, order: nextOrder }),
+        body: JSON.stringify({
+          description: sf.description,
+          order: nextOrder,
+          notes: sf.notes || null,
+          testedBy: sf.testedBy || null,
+          testedAt: sf.testedAt || null,
+        }),
       })
       sf.description = ''
+      sf.notes = ''
+      sf.testedBy = ''
+      sf.testedAt = ''
       sf.adding = false
       await this.loadTestSets()
     },
 
-    async cycleStepStatus(step, tc) {
-      const statuses = ['WIP', 'PASS', 'DEFECT', 'N/A']
-      const next = statuses[(statuses.indexOf(step.status) + 1) % statuses.length]
-      await fetch(`${API}/api/teststeps/${step.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
+    async updateStepStatus(step, tc, newStatus) {
+      await fetch(`${API}/api/teststeps/${step.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })
       await this.loadTestSets()
     },
 
@@ -3605,81 +3551,89 @@ function app() {
       }
     },
 
-    // Waterfall chart – shows required scenarios/day to finish on time (workdays only)
+    // Waterfall chart — planned target (Total/Available days) + actual closed by testedAt
     renderWaterfall(ts) {
       const canvasId = 'waterfall-' + ts.id
       const canvas = document.getElementById(canvasId)
       if (!canvas) return
 
-      const min = new Date(ts.dateMin)
-      const max = new Date(ts.dateMax)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
-      // Count workdays between two dates (inclusive)
-      function workdays(from, to) {
-        let count = 0
-        const d = new Date(from)
-        while (d <= to) {
-          const dow = d.getDay()
-          if (dow !== 0 && dow !== 6) count++
-          d.setDate(d.getDate() + 1)
-        }
-        return count
-      }
-
       const total = ts.testCases.length
-      const done = ts.testCases.filter(c => c.status === 'PASS' || c.status === 'N/A').length
-      const remaining = total - done
+      if (total === 0) return
 
-      // Build daily chart data from today to max
-      const start = today > min ? today : new Date(min)
+      const min = new Date(ts.dateMin); min.setHours(0,0,0,0)
+      const max = new Date(ts.dateMax); max.setHours(0,0,0,0)
+
+      // Count available days in range
+      let availDays = 0
+      const tmp = new Date(min)
+      while (tmp <= max) { availDays++; tmp.setDate(tmp.getDate() + 1) }
+
+      // Build day-by-day arrays
       const labels = []
-      const required = []
-      const actual = []
+      const planned = []   // cumulative linear target
+      const actualClosed = []  // cumulative tests closed by testedAt
 
-      let wd = workdays(start, max)
-
-      const d = new Date(start)
-      let leftover = remaining
+      const d = new Date(min)
+      let dayIndex = 0
       while (d <= max) {
-        const dow = d.getDay()
-        if (dow !== 0 && dow !== 6) {
-          labels.push(d.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' }))
-          const perDay = wd > 0 ? Math.ceil(leftover / wd) : 0
-          required.push(perDay)
-          leftover = Math.max(0, leftover - perDay)
-          wd--
-        }
+        labels.push(d.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' }))
+
+        // Planned: linear cumulative
+        planned.push(Math.round(total * (dayIndex + 1) / availDays))
+
+        // Actual: count cases closed (PASS/N/A) with testedAt <= end of this day
+        const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999)
+        const closed = ts.testCases.filter(c => {
+          if (!['PASS', 'N/A'].includes(c.status)) return false
+          if (!c.testedAt) return false
+          return new Date(c.testedAt) <= dayEnd
+        }).length
+        actualClosed.push(closed)
+
+        dayIndex++
         d.setDate(d.getDate() + 1)
-        if (labels.length > 60) break  // cap at 60 days for readability
+        if (labels.length > 90) break
       }
 
-      // Destroy existing chart if any
       const existing = Chart.getChart(canvas)
       if (existing) existing.destroy()
 
       new Chart(canvas, {
-        type: 'bar',
+        type: 'line',
         data: {
           labels,
-          datasets: [{
-            label: 'Scénáře/den',
-            data: required,
-            backgroundColor: required.map(v => v > 5 ? '#ef4444' : v > 2 ? '#f59e0b' : '#22c55e'),
-            borderRadius: 2,
-          }],
+          datasets: [
+            {
+              label: 'Plánovaný target',
+              data: planned,
+              borderColor: '#94a3b8',
+              borderDash: [6, 4],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0,
+            },
+            {
+              label: 'Reálně uzavřeno',
+              data: actualClosed,
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34,197,94,0.08)',
+              borderWidth: 2,
+              pointRadius: 2,
+              fill: true,
+              tension: 0.2,
+            },
+          ],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { title: (i) => i[0].label, label: (i) => i.raw + ' scénářů tento den' } },
-            title: { display: true, text: `Waterfall — ${remaining} zbývá, ${workdays(start, max)} prac. dní`, font: { size: 11 }, color: '#666' },
+            legend: { position: 'top', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+            tooltip: { mode: 'index', intersect: false },
           },
           scales: {
-            x: { ticks: { font: { size: 9 }, maxRotation: 45 } },
-            y: { ticks: { stepSize: 1, font: { size: 9 } }, beginAtZero: true },
+            x: { ticks: { font: { size: 9 }, maxRotation: 45, maxTicksLimit: 20 } },
+            y: { min: 0, max: total, ticks: { font: { size: 9 }, stepSize: Math.max(1, Math.ceil(total/5)) } },
           },
         },
       })
