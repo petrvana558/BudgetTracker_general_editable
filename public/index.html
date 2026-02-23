@@ -895,7 +895,7 @@
             style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
             Test Sety
           </button>
-          <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }))"
+          <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() })"
             :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
             style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
             Statistiky
@@ -958,6 +958,67 @@
                 </div>
               </template>
             </div>
+
+            <!-- Per test set donut charts -->
+            <template x-if="testSets.length > 0">
+              <div class="chart-card">
+                <div class="chart-header">
+                  <span>Postup dle test setů</span>
+                  <span class="text-xs text-gray-400" x-text="testSets.length + ' set' + (testSets.length > 4 ? 'ů' : testSets.length > 1 ? 'y' : '')"></span>
+                </div>
+                <div class="p-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <template x-for="ts in testSets" :key="'setstat-'+ts.id">
+                      <div style="border:1px solid var(--dhl-border);border-radius:6px;padding:14px 16px">
+                        <!-- Card header -->
+                        <div class="flex items-center gap-2 mb-3">
+                          <span style="font-weight:700;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ts.name"></span>
+                          <span class="badge flex-shrink-0" :class="testSetStatusClass(ts)" style="font-size:10px;font-weight:700" x-text="testSetStatus(ts)"></span>
+                        </div>
+                        <!-- Donut + legend -->
+                        <div class="flex items-center gap-4">
+                          <!-- Donut canvas with % center label -->
+                          <div style="position:relative;width:100px;height:100px;flex-shrink:0">
+                            <canvas :id="'pie-ts-'+ts.id" width="100" height="100"></canvas>
+                            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                              <div style="font-size:17px;font-weight:800;color:#1a1a1a"
+                                x-text="ts.testCases.length ? Math.round(ts.testCases.filter(c=>['PASS','N/A'].includes(c.status)).length / ts.testCases.length * 100) + '%' : '—'"></div>
+                              <div style="font-size:9px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">hotovo</div>
+                            </div>
+                          </div>
+                          <!-- Legend -->
+                          <div style="flex:1;min-width:0;font-size:11px;line-height:1.9">
+                            <div class="flex justify-between">
+                              <span style="color:#22c55e;font-weight:700">● PASS</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='PASS').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#ef4444;font-weight:700">● DEFECT</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='DEFECT').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#3b82f6;font-weight:700">● WIP</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='WIP').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#9ca3af;font-weight:700">● N/A</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='N/A').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#d97706;font-weight:700">● Not Started</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='Not Started').length"></span>
+                            </div>
+                            <div style="margin-top:5px;padding-top:5px;border-top:1px solid #f0f0f0;color:#888;font-size:10px">
+                              Celkem testů: <strong x-text="ts.testCases.length"></strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
 
             <!-- Waterfall per test set -->
             <template x-for="ts in testSets.filter(ts => ts.dateMin && ts.dateMax)" :key="'wf-stats-'+ts.id">
@@ -3839,6 +3900,52 @@ function app() {
           },
         },
       })
+    },
+
+    renderSetPieCharts() {
+      for (const ts of this.testSets) {
+        const canvas = document.getElementById('pie-ts-' + ts.id)
+        if (!canvas) continue
+        const c = { PASS: 0, DEFECT: 0, WIP: 0, 'N/A': 0, 'Not Started': 0 }
+        for (const tc of ts.testCases) c[tc.status] = (c[tc.status] ?? 0) + 1
+        const total = ts.testCases.length
+        const existing = Chart.getChart(canvas)
+        if (existing) existing.destroy()
+        if (total === 0) {
+          // Draw empty ring
+          new Chart(canvas, {
+            type: 'doughnut',
+            data: { labels: ['Prázdný'], datasets: [{ data: [1], backgroundColor: ['#e5e7eb'], borderWidth: 0 }] },
+            options: { responsive: false, cutout: '65%', plugins: { legend: { display: false }, tooltip: { enabled: false } } },
+          })
+          continue
+        }
+        new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: ['PASS', 'DEFECT', 'WIP', 'N/A', 'Not Started'],
+            datasets: [{
+              data: [c.PASS, c.DEFECT, c.WIP, c['N/A'], c['Not Started']],
+              backgroundColor: ['#22c55e', '#ef4444', '#3b82f6', '#9ca3af', '#fde68a'],
+              borderWidth: 2,
+              borderColor: '#fff',
+              hoverOffset: 4,
+            }],
+          },
+          options: {
+            responsive: false,
+            cutout: '65%',
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.label}: ${ctx.parsed} (${Math.round(ctx.parsed / total * 100)}%)`,
+                },
+              },
+            },
+          },
+        })
+      }
     },
 
     // --- Gantt ---
