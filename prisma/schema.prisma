@@ -87,6 +87,7 @@ model AuditLog {
   id        Int      @id @default(autoincrement())
   timestamp DateTime @default(now())
   user      String   @default("System")
+  category  String   @default("Budget Tracker")
   entity    String
   action    String
   entityId  Int?

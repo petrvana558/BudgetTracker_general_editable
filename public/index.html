@@ -1620,11 +1620,28 @@
 
       <!-- Log view -->
       <div x-show="settingsTab === 'log'">
+        <!-- Category switcher -->
+        <div class="flex gap-2 mb-4">
+          <button
+            @click="auditCategory='Budget Tracker'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Budget Tracker' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            📊 Budget Tracker
+          </button>
+          <button
+            @click="auditCategory='Test Management'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Test Management' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            🧪 Test Management
+          </button>
+        </div>
+
         <div class="chart-card">
           <div class="chart-header">
-            <span>Log změn</span>
+            <span x-text="auditCategory + ' — Log změn'"></span>
             <div class="flex gap-2 items-center">
-              <select x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+              <!-- Entity filter — Budget Tracker -->
+              <select x-show="auditCategory==='Budget Tracker'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
                 <option value="">Vše</option>
                 <option value="Item">Položky</option>
                 <option value="Labor">Role/Lidé</option>
@@ -1632,9 +1649,17 @@
                 <option value="Kategorie">Kategorie</option>
                 <option value="Priorita">Priority</option>
               </select>
+              <!-- Entity filter — Test Management -->
+              <select x-show="auditCategory==='Test Management'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">Vše</option>
+                <option value="TestSet">Test Set</option>
+                <option value="TestCase">Test Case</option>
+                <option value="TestStep">Test Step</option>
+                <option value="Defect">Defekt</option>
+              </select>
               <button class="btn-ghost btn-sm" @click="loadAuditLog()" title="Obnovit log"
                 style="font-size:15px;padding:4px 8px;line-height:1">↻</button>
-              <button class="btn-ghost btn-sm" @click="if(confirm('Smazat celý log?')) clearAuditLog()">🗑 Smazat log</button>
+              <button class="btn-ghost btn-sm" @click="clearAuditLog()">🗑 Smazat log</button>
             </div>
           </div>
           <div class="table-scroll" style="max-height:600px">
@@ -2373,6 +2398,7 @@ function app() {
     // Audit log
     auditLog: [],
     auditFilter: '',
+    auditCategory: 'Budget Tracker',
 
     ganttFilter: 'all',
 
@@ -2546,13 +2572,16 @@ function app() {
     },
 
     async loadAuditLog() {
-      const params = this.auditFilter ? `?entity=${encodeURIComponent(this.auditFilter)}` : ''
-      const r = await fetch(`${API}/api/audit${params}`)
+      const params = new URLSearchParams({ category: this.auditCategory })
+      if (this.auditFilter) params.set('entity', this.auditFilter)
+      const r = await fetch(`${API}/api/audit?${params}`)
       this.auditLog = await r.json()
     },
 
     async clearAuditLog() {
-      await this.apiFetch('DELETE', '/api/audit')
+      if (!confirm(`Smazat celý log kategorie "${this.auditCategory}"?`)) return
+      const params = new URLSearchParams({ category: this.auditCategory })
+      await fetch(`${API}/api/audit?${params}`, { method: 'DELETE' })
       this.auditLog = []
     },
 

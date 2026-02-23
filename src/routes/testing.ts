@@ -1,8 +1,10 @@
 import { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db'
+import { logAudit } from './audit'
 
-function user(req: { user?: string }) { return req.user || 'System' }
+const CAT = 'Test Management'
+function user(req: { user?: string }) { return (req as any).user || 'System' }
 function parseDate(s: string | null | undefined): Date | null {
   if (!s) return null
   const d = new Date(s)
@@ -118,6 +120,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
         notes: data.notes ?? null,
       },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestSet', action: 'CREATE', entityId: ts.id, summary: `Vytvořen test set: "${ts.name}"` })
     reply.code(201)
     return ts
   })
@@ -134,12 +137,15 @@ export async function testingRoutes(fastify: FastifyInstance) {
         ...(data.notes !== undefined && { notes: data.notes }),
       },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestSet', action: 'UPDATE', entityId: id, summary: `Upraven test set: "${ts.name}"` })
     return ts
   })
 
   fastify.delete('/api/testsets/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
+    const ts = await prisma.testSet.findUnique({ where: { id }, include: { _count: { select: { testCases: true } } } })
     await prisma.testSet.delete({ where: { id } })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestSet', action: 'DELETE', entityId: id, summary: `Smazán test set: "${ts?.name ?? id}" (${ts?._count.testCases ?? 0} testů)` })
     reply.code(204).send()
   })
 
@@ -148,6 +154,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
   fastify.post('/api/testsets/:setId/testcases', async (req: FastifyRequest<{ Params: { setId: string } }>, reply) => {
     const setId = parseInt(req.params.setId)
     const data = TestCaseSchema.parse(req.body)
+    const set = await prisma.testSet.findUnique({ where: { id: setId }, select: { name: true } })
     const tc = await prisma.testCase.create({
       data: {
         testSetId: setId,
@@ -161,6 +168,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
       },
       include: { steps: true, defects: true },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestCase', action: 'CREATE', entityId: tc.id, summary: `Vytvořen test: "${tc.name}" · set: "${set?.name ?? setId}"` })
     reply.code(201)
     return tc
   })
@@ -168,7 +176,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
   fastify.put('/api/testcases/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
     const data = TestCaseSchema.partial().parse(req.body)
-    return prisma.testCase.update({
+    const tc = await prisma.testCase.update({
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
@@ -181,11 +189,15 @@ export async function testingRoutes(fastify: FastifyInstance) {
       },
       include: { steps: true, defects: true },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestCase', action: 'UPDATE', entityId: id, summary: `Upraven test: "${tc.name}"${data.status !== undefined ? ` · Status → ${tc.status}` : ''}` })
+    return tc
   })
 
   fastify.delete('/api/testcases/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
+    const tc = await prisma.testCase.findUnique({ where: { id }, include: { testSet: { select: { name: true } } } })
     await prisma.testCase.delete({ where: { id } })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestCase', action: 'DELETE', entityId: id, summary: `Smazán test: "${tc?.name ?? id}" · set: "${tc?.testSet.name ?? '?'}"` })
     reply.code(204).send()
   })
 
@@ -194,6 +206,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
   fastify.post('/api/testcases/:caseId/steps', async (req: FastifyRequest<{ Params: { caseId: string } }>, reply) => {
     const caseId = parseInt(req.params.caseId)
     const data = TestStepSchema.parse(req.body)
+    const tc = await prisma.testCase.findUnique({ where: { id: caseId }, select: { name: true } })
     const step = await prisma.testStep.create({
       data: {
         testCaseId: caseId,
@@ -205,6 +218,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
         notes: data.notes ?? null,
       },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestStep', action: 'CREATE', entityId: step.id, summary: `Přidán krok: "${step.description.slice(0, 50)}" · test: "${tc?.name ?? caseId}"` })
     reply.code(201)
     return step
   })
@@ -212,7 +226,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
   fastify.put('/api/teststeps/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
     const data = TestStepSchema.partial().parse(req.body)
-    return prisma.testStep.update({
+    const step = await prisma.testStep.update({
       where: { id },
       data: {
         ...(data.description !== undefined && { description: data.description }),
@@ -223,11 +237,15 @@ export async function testingRoutes(fastify: FastifyInstance) {
         ...(data.notes !== undefined && { notes: data.notes }),
       },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestStep', action: 'UPDATE', entityId: id, summary: `Upraven krok: "${step.description.slice(0, 50)}"${data.status !== undefined ? ` · Status → ${step.status}` : ''}` })
+    return step
   })
 
   fastify.delete('/api/teststeps/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
+    const step = await prisma.testStep.findUnique({ where: { id }, select: { description: true } })
     await prisma.testStep.delete({ where: { id } })
+    await logAudit({ user: user(req), category: CAT, entity: 'TestStep', action: 'DELETE', entityId: id, summary: `Smazán krok: "${step?.description.slice(0, 50) ?? id}"` })
     reply.code(204).send()
   })
 
@@ -236,6 +254,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
   fastify.post('/api/testcases/:caseId/defects', async (req: FastifyRequest<{ Params: { caseId: string } }>, reply) => {
     const caseId = parseInt(req.params.caseId)
     const data = DefectSchema.parse(req.body)
+    const tc = await prisma.testCase.findUnique({ where: { id: caseId }, select: { name: true } })
     const defect = await prisma.defect.create({
       data: {
         testCaseId: caseId,
@@ -246,6 +265,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
         reportedBy: data.reportedBy ?? null,
       },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'Defect', action: 'CREATE', entityId: defect.id, summary: `Vytvořen defekt: "${defect.title}" [${defect.severity}] · test: "${tc?.name ?? caseId}"` })
     reply.code(201)
     return defect
   })
@@ -253,7 +273,7 @@ export async function testingRoutes(fastify: FastifyInstance) {
   fastify.put('/api/defects/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
     const data = DefectSchema.partial().parse(req.body)
-    return prisma.defect.update({
+    const defect = await prisma.defect.update({
       where: { id },
       data: {
         ...(data.title !== undefined && { title: data.title }),
@@ -263,11 +283,15 @@ export async function testingRoutes(fastify: FastifyInstance) {
         ...(data.reportedBy !== undefined && { reportedBy: data.reportedBy }),
       },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'Defect', action: 'UPDATE', entityId: id, summary: `Upraven defekt: "${defect.title}"${data.status !== undefined ? ` · Status → ${defect.status}` : ''}${data.severity !== undefined ? ` · Závažnost → ${defect.severity}` : ''}` })
+    return defect
   })
 
   fastify.delete('/api/defects/:id', async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
     const id = parseInt(req.params.id)
+    const defect = await prisma.defect.findUnique({ where: { id }, select: { title: true, severity: true } })
     await prisma.defect.delete({ where: { id } })
+    await logAudit({ user: user(req), category: CAT, entity: 'Defect', action: 'DELETE', entityId: id, summary: `Smazán defekt: "${defect?.title ?? id}" [${defect?.severity ?? '?'}]` })
     reply.code(204).send()
   })
 
@@ -348,6 +372,8 @@ export async function testingRoutes(fastify: FastifyInstance) {
       created.push(ts)
     }
 
+    const totalCases = rows.filter((r, i, a) => a.findIndex(x => x.testSet === r.testSet && x.testCase === r.testCase) === i).length
+    await logAudit({ user: user(req), category: CAT, entity: 'TestSet', action: 'CREATE', summary: `CSV import: ${created.length} test set${created.length !== 1 ? 'ů' : ''}, ${totalCases} testů` })
     reply.code(201)
     return { imported: created.length, sets: created }
   })
