@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="/msal-browser.min.js"></script>
+
   <style>
     :root {
       --dhl-yellow: #FFCC00;
@@ -148,18 +148,20 @@
     .progress-fill.over { background: var(--dhl-red); }
 
     /* Login screen */
-    .login-screen { position: fixed; inset: 0; background: var(--dhl-dark); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-    .login-card { background: white; border-radius: 10px; padding: 48px 56px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,0.5); }
-    .login-card img { width: 120px; margin: 0 auto 20px; display: block; }
-    .login-card h1 { font-size: 22px; font-weight: 800; color: var(--dhl-dark); margin-bottom: 6px; }
-    .login-card p { font-size: 13px; color: var(--dhl-grey); margin-bottom: 32px; }
-    .btn-microsoft { background: #0078d4; color: white; border: none; border-radius: 4px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; width: 100%; justify-content: center; transition: background 0.15s; }
-    .btn-microsoft:hover { background: #106ebe; }
-    .btn-microsoft:disabled { background: #ccc; cursor: not-allowed; }
-    .login-error { margin-top: 16px; padding: 10px 14px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600; }
 
     /* Scrollable table wrapper */
     .table-scroll { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 230px); }
+
+    /* Testing status badges */
+    .status-PASS { background: #d1fae5; color: #065f46; }
+    .status-DEFECT { background: #fee2e2; color: #991b1b; }
+    .status-WIP { background: #dbeafe; color: #1e40af; }
+    .status-NA { background: #f3f4f6; color: #4b5563; }
+    .status-NOT-STARTED { background: #fef9c3; color: #854d0e; }
+    .severity-Critical { background: #fee2e2; color: #991b1b; }
+    .severity-High { background: #ffedd5; color: #9a3412; }
+    .severity-Medium { background: #fff3cd; color: #856404; }
+    .severity-Low { background: #f3f4f6; color: #4b5563; }
 
     /* Deadline badge color */
     .deadline-urgent { color: var(--dhl-red); font-weight: 700; }
@@ -212,26 +214,7 @@
 </head>
 <body x-data="app()" x-init="init()" x-cloak>
 
-<!-- LOGIN SCREEN -->
-<div class="login-screen" x-show="!loggedIn" x-cloak>
-  <div class="login-card">
-    <img src="/dhl-logo.svg" alt="DHL">
-    <h1>Budget Tracker</h1>
-    <p>Přihlaste se firemním Microsoft účtem pro přístup k aplikaci.</p>
-    <button class="btn-microsoft" @click="login()" :disabled="authLoading">
-      <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
-        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-      </svg>
-      <span x-text="authLoading ? 'Načítám...' : 'Přihlásit se přes Microsoft'"></span>
-    </button>
-    <div class="login-error" x-show="authError" x-text="authError"></div>
-  </div>
-</div>
-
-<div class="flex" x-show="loggedIn">
+<div class="flex">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
@@ -259,18 +242,17 @@
       <span class="nav-icon">👥</span> Lidé / PM náklady
     </div>
 
+    <div class="nav-section">Testování</div>
+    <div class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; testingTab='stats'; loadTestSets().then(() => { loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() }) })">
+      <span class="nav-icon">🧪</span> Test Management
+    </div>
+
     <div class="nav-section">Konfigurace</div>
     <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
       <span class="nav-icon">⚙️</span> Nastavení
     </div>
 
     <div style="padding: 24px 20px; margin-top: auto;">
-      <div style="margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #888; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" x-text="currentUser"></div>
-        <button @click="logout()" style="width:100%;background:rgba(212,5,17,0.15);color:#ff6b6b;border:1px solid rgba(212,5,17,0.3);border-radius:4px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;">
-          ⎋ Odhlásit se
-        </button>
-      </div>
       <div style="font-size: 10px; color: #444; line-height: 1.6;">
         <span style="color: var(--dhl-yellow)">●</span> Budget Tracker v1.0<br>
         Lokální instance
@@ -307,6 +289,12 @@
         </template>
         <template x-if="view === 'gantt'">
           <button class="btn-ghost btn-sm" @click="exportGanttPDF()"
+            style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">
+            ⬇ Export PDF
+          </button>
+        </template>
+        <template x-if="view === 'testing' && testingTab === 'stats'">
+          <button class="btn-ghost btn-sm" @click="exportTestingDashboardPDF()"
             style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">
             ⬇ Export PDF
           </button>
@@ -900,6 +888,684 @@
     </div>
 
     <!-- ============================================================ -->
+    <!-- TESTING VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'testing'" class="p-6 space-y-4">
+
+      <!-- Header toolbar -->
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Tab switcher -->
+        <div style="display:flex;border:1px solid var(--dhl-border);border-radius:5px;overflow:hidden">
+          <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() })"
+            :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
+            style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
+            Dashboard
+          </button>
+          <button @click="testingTab='sets'"
+            :style="testingTab==='sets'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
+            style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
+            Test Management
+          </button>
+        </div>
+
+        <template x-if="testingTab==='sets'">
+          <div class="flex gap-2">
+            <button class="btn-primary btn-sm" @click="openTsForm()">＋ Test Set</button>
+            <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=null;csvImport.setName='';csvImport.raw='';csvImport.fileName='';csvImport.error=''">⬆ Import CSV</button>
+          </div>
+        </template>
+      </div>
+
+      <!-- STATISTICS TAB -->
+      <div x-show="testingTab==='stats'" x-cloak>
+        <template x-if="testStats">
+          <div class="space-y-4">
+            <!-- KPI row -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="kpi-card green">
+                <div class="kpi-label">PASS</div>
+                <div class="kpi-value" x-text="testStats.cases.PASS"></div>
+                <div class="kpi-sub">test cases</div>
+              </div>
+              <div class="kpi-card red">
+                <div class="kpi-label">DEFECT</div>
+                <div class="kpi-value" x-text="testStats.cases.DEFECT"></div>
+                <div class="kpi-sub">test cases</div>
+              </div>
+              <div class="kpi-card blue">
+                <div class="kpi-label">WIP</div>
+                <div class="kpi-value" x-text="testStats.cases.WIP"></div>
+                <div class="kpi-sub">test cases</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">N/A</div>
+                <div class="kpi-value" x-text="testStats.cases['N/A']"></div>
+                <div class="kpi-sub">test cases</div>
+              </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="chart-card p-4">
+              <div style="font-size:12px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Celkový postup test cases</div>
+              <template x-if="testStats">
+                <div>
+                  <div class="flex gap-1 mb-2" style="height:18px;border-radius:4px;overflow:hidden">
+                    <div :style="'flex:'+(testStats.cases.PASS||0)+';background:#22c55e'" :title="'PASS: '+(testStats.cases.PASS||0)"></div>
+                    <div :style="'flex:'+(testStats.cases.DEFECT||0)+';background:#ef4444'" :title="'DEFECT: '+(testStats.cases.DEFECT||0)"></div>
+                    <div :style="'flex:'+(testStats.cases.WIP||0)+';background:#3b82f6'" :title="'WIP: '+(testStats.cases.WIP||0)"></div>
+                    <div :style="'flex:'+(testStats.cases['N/A']||0)+';background:#9ca3af'" :title="'N/A: '+(testStats.cases['N/A']||0)"></div>
+                  </div>
+                  <div class="flex gap-4" style="font-size:11px">
+                    <span style="color:#22c55e;font-weight:700">● PASS: <span x-text="testStats.cases.PASS||0"></span></span>
+                    <span style="color:#ef4444;font-weight:700">● DEFECT: <span x-text="testStats.cases.DEFECT||0"></span></span>
+                    <span style="color:#3b82f6;font-weight:700">● WIP: <span x-text="testStats.cases.WIP||0"></span></span>
+                    <span style="color:#9ca3af;font-weight:700">● N/A: <span x-text="testStats.cases['N/A']||0"></span></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Per test set donut charts -->
+            <template x-if="testSets.length > 0">
+              <div class="chart-card">
+                <div class="chart-header">
+                  <span>Postup dle test setů</span>
+                  <span class="text-xs text-gray-400" x-text="testSets.length + ' set' + (testSets.length > 4 ? 'ů' : testSets.length > 1 ? 'y' : '')"></span>
+                </div>
+                <div class="p-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <template x-for="ts in testSets" :key="'setstat-'+ts.id">
+                      <div style="border:1px solid var(--dhl-border);border-radius:6px;padding:14px 16px">
+                        <!-- Card header -->
+                        <div class="flex items-center gap-2 mb-3">
+                          <span style="font-weight:700;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ts.name"></span>
+                          <span class="badge flex-shrink-0" :class="testSetStatusClass(ts)" style="font-size:10px;font-weight:700" x-text="testSetStatus(ts)"></span>
+                        </div>
+                        <!-- Donut + legend -->
+                        <div class="flex items-center gap-4">
+                          <!-- Donut canvas with % center label -->
+                          <div style="position:relative;width:100px;height:100px;flex-shrink:0">
+                            <canvas :id="'pie-ts-'+ts.id" width="100" height="100"></canvas>
+                            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                              <div style="font-size:17px;font-weight:800;color:#1a1a1a"
+                                x-text="ts.testCases.length ? Math.round(ts.testCases.filter(c=>['PASS','N/A'].includes(c.status)).length / ts.testCases.length * 100) + '%' : '—'"></div>
+                              <div style="font-size:9px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">hotovo</div>
+                            </div>
+                          </div>
+                          <!-- Legend -->
+                          <div style="flex:1;min-width:0;font-size:11px;line-height:1.9">
+                            <div class="flex justify-between">
+                              <span style="color:#22c55e;font-weight:700">● PASS</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='PASS').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#ef4444;font-weight:700">● DEFECT</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='DEFECT').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#3b82f6;font-weight:700">● WIP</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='WIP').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#9ca3af;font-weight:700">● N/A</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='N/A').length"></span>
+                            </div>
+                            <div class="flex justify-between">
+                              <span style="color:#d97706;font-weight:700">● Not Started</span>
+                              <span style="font-weight:700" x-text="ts.testCases.filter(c=>c.status==='Not Started').length"></span>
+                            </div>
+                            <div style="margin-top:5px;padding-top:5px;border-top:1px solid #f0f0f0;color:#888;font-size:10px">
+                              Celkem testů: <strong x-text="ts.testCases.length"></strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Waterfall per test set -->
+            <template x-for="ts in testSets.filter(ts => ts.dateMin && ts.dateMax)" :key="'wf-stats-'+ts.id">
+              <div class="chart-card p-4">
+                <div style="font-size:12px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+                  📅 <span x-text="ts.name"></span> — plán testování
+                  <span style="font-size:10px;color:#888;font-weight:400;margin-left:6px" x-text="(ts.dateMin ? ts.dateMin.slice(0,10) : '?') + ' → ' + (ts.dateMax ? ts.dateMax.slice(0,10) : '?')"></span>
+                </div>
+                <div :id="'waterfall-'+ts.id" style="width:100%;height:130px"></div>
+              </div>
+            </template>
+
+            <!-- Defects -->
+            <div class="chart-card p-4">
+              <div style="font-size:12px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Defekty</div>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div style="text-align:center;padding:12px;background:#fff3cd;border-radius:5px">
+                  <div style="font-size:11px;font-weight:700;color:#856404">OPEN</div>
+                  <div style="font-size:22px;font-weight:800;color:#1a1a1a" x-text="testStats.defects.open"></div>
+                </div>
+                <div style="text-align:center;padding:12px;background:#dbeafe;border-radius:5px">
+                  <div style="font-size:11px;font-weight:700;color:#1e40af">IN PROGRESS</div>
+                  <div style="font-size:22px;font-weight:800;color:#1a1a1a" x-text="testStats.defects.inProgress"></div>
+                </div>
+                <div style="text-align:center;padding:12px;background:#d1fae5;border-radius:5px">
+                  <div style="font-size:11px;font-weight:700;color:#065f46">FIXED</div>
+                  <div style="font-size:22px;font-weight:800;color:#1a1a1a" x-text="testStats.defects.fixed"></div>
+                </div>
+                <div style="text-align:center;padding:12px;background:#f3f4f6;border-radius:5px">
+                  <div style="font-size:11px;font-weight:700;color:#4b5563">CLOSED</div>
+                  <div style="font-size:22px;font-weight:800;color:#1a1a1a" x-text="testStats.defects.closed"></div>
+                </div>
+              </div>
+              <div class="flex gap-3 mt-3 flex-wrap" style="font-size:11px">
+                <span style="font-weight:700;color:#991b1b">● Critical: <span x-text="testStats.defects.bySeverity.Critical"></span></span>
+                <span style="font-weight:700;color:#c2410c">● High: <span x-text="testStats.defects.bySeverity.High"></span></span>
+                <span style="font-weight:700;color:#d97706">● Medium: <span x-text="testStats.defects.bySeverity.Medium"></span></span>
+                <span style="font-weight:700;color:#6b7280">● Low: <span x-text="testStats.defects.bySeverity.Low"></span></span>
+              </div>
+            </div>
+
+            <!-- Defects list top 15 -->
+            <template x-if="testStats.defectsList && testStats.defectsList.length > 0">
+              <div class="chart-card" style="overflow:hidden">
+                <div class="chart-header">
+                  <span>Top defekty — seřazeno dle závažnosti</span>
+                  <span class="text-xs text-gray-400" x-text="testStats.defectsList.length + ' defektů'"></span>
+                </div>
+                <div style="overflow-x:auto">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width:80px">Závažnost</th>
+                        <th>Název defektu</th>
+                        <th>Test case</th>
+                        <th>Test set</th>
+                        <th style="width:90px">Status</th>
+                        <th style="width:90px">Nahlásil</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="d in testStats.defectsList" :key="d.id">
+                        <tr>
+                          <td>
+                            <span class="badge" :class="defectSeverityClass(d.severity)" x-text="d.severity"></span>
+                          </td>
+                          <td>
+                            <div style="font-weight:600;font-size:12px" x-text="d.title"></div>
+                            <template x-if="d.description">
+                              <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px" x-text="d.description"></div>
+                            </template>
+                          </td>
+                          <td style="font-size:12px;color:#555" x-text="d.testCase"></td>
+                          <td style="font-size:12px;color:#888" x-text="d.testSet"></td>
+                          <td>
+                            <span class="badge"
+                              :style="d.status==='Open'?'background:#fff3cd;color:#856404':d.status==='Fixed'?'background:#d1fae5;color:#065f46':d.status==='Closed'?'background:#f3f4f6;color:#4b5563':'background:#dbeafe;color:#1e40af'"
+                              x-text="d.status"></span>
+                          </td>
+                          <td style="font-size:11px;color:#888" x-text="d.reportedBy || '—'"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+        <template x-if="!testStats">
+          <div class="text-center py-12 text-gray-400">Načítám statistiky...</div>
+        </template>
+      </div>
+
+      <!-- TEST SETS TAB -->
+      <div x-show="testingTab==='sets'" class="space-y-4">
+        <template x-if="testSets.length === 0">
+          <div class="chart-card p-10 text-center" style="color:var(--dhl-grey);font-size:13px">
+            Žádné test sety. Přidejte test set nebo importujte CSV.
+          </div>
+        </template>
+
+        <template x-for="ts in testSets" :key="ts.id">
+          <div class="chart-card">
+            <!-- TestSet header -->
+            <div class="chart-header" style="cursor:pointer;user-select:none" @click="expandedSets[ts.id] = !expandedSets[ts.id]">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <span style="font-size:16px" x-text="expandedSets[ts.id] ? '▼' : '▶'"></span>
+                <span style="font-size:16px">📁</span>
+                <span style="font-weight:800;font-size:14px" x-text="ts.name"></span>
+                <span class="badge badge-grey" style="font-size:10px" x-text="ts.testCases.length + ' testů'"></span>
+                <span :class="testSetStatusClass(ts)" class="badge" style="font-size:10px;font-weight:700" x-text="testSetStatus(ts)"></span>
+                <!-- date range badges -->
+                <template x-if="ts.dateMin || ts.dateMax">
+                  <span style="font-size:10px;color:#888;font-weight:600" x-text="(ts.dateMin ? ts.dateMin.slice(0,10) : '?') + ' → ' + (ts.dateMax ? ts.dateMax.slice(0,10) : '?')"></span>
+                </template>
+                <!-- quick status pills -->
+                <span style="font-size:10px;font-weight:700;color:#22c55e" x-text="'✓' + ts.testCases.filter(c=>c.status==='PASS').length"></span>
+                <span style="font-size:10px;font-weight:700;color:#ef4444" x-text="'✗' + ts.testCases.filter(c=>c.status==='DEFECT').length"></span>
+                <span style="font-size:10px;font-weight:700;color:#3b82f6" x-text="'⟳' + ts.testCases.filter(c=>c.status==='WIP').length"></span>
+              </div>
+              <div class="flex gap-2" @click.stop>
+                <button class="btn-ghost btn-sm" @click="openTcForm(ts.id)" title="Přidat test case">＋ Test</button>
+                <button class="btn-ghost btn-sm" @click="openTsForm(ts)" title="Upravit test set">✏️</button>
+                <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.fileName='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
+                <button class="btn-danger btn-sm" @click="deleteTestSet(ts.id)" title="Smazat test set">✕</button>
+              </div>
+            </div>
+
+            <!-- TestCases list -->
+            <div x-show="expandedSets[ts.id]" style="padding:8px 18px 14px">
+              <template x-if="ts.testCases.length === 0">
+                <div style="color:#aaa;font-size:12px;padding:8px 0">Žádné test cases. Klikněte ＋ Test pro přidání.</div>
+              </template>
+
+              <template x-for="tc in ts.testCases" :key="tc.id">
+                <div style="border:1px solid var(--dhl-border);border-radius:5px;margin-bottom:8px;overflow:hidden">
+                  <!-- TestCase header -->
+                  <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fafafa;cursor:pointer"
+                    @click="expandedCases[tc.id] = !expandedCases[tc.id]">
+                    <span style="font-size:12px;color:#888" x-text="expandedCases[tc.id] ? '▼' : '▶'"></span>
+                    <span style="font-size:13px">🧪</span>
+                    <span style="font-weight:700;font-size:13px;flex:1" x-text="tc.name"></span>
+
+                    <!-- Status dropdown -->
+                    <select :value="tc.status" @click.stop @change.stop="updateTestCaseStatus(tc, $event.target.value)"
+                      :class="statusBadgeClass(tc.status)"
+                      class="inline-select"
+                      style="font-size:10px;min-width:90px;border:none;font-weight:700;padding:3px 6px;border-radius:3px">
+                      <option>Not Started</option>
+                      <option>WIP</option>
+                      <option>PASS</option>
+                      <option>DEFECT</option>
+                      <option>N/A</option>
+                    </select>
+
+                    <div class="flex gap-1" @click.stop>
+                      <button class="btn-ghost btn-sm" style="font-size:10px" @click="openTcForm(ts.id, tc)">✏️</button>
+                      <button class="btn-danger btn-sm" style="font-size:10px" @click="deleteTestCase(tc.id, ts.id)">✕</button>
+                    </div>
+                  </div>
+
+                  <!-- TestCase body (expanded) -->
+                  <div x-show="expandedCases[tc.id]" style="padding:10px 14px;border-top:1px solid #f0f0f0">
+
+                    <!-- Meta info -->
+                    <div class="flex gap-4 flex-wrap" style="font-size:11px;color:#888;margin-bottom:10px">
+                      <template x-if="tc.testedBy"><span>👤 <span x-text="tc.testedBy"></span></span></template>
+                      <template x-if="tc.dataUsed"><span>📋 <span x-text="tc.dataUsed"></span></span></template>
+                      <template x-if="tc.notes"><span style="color:#555">💬 <span x-text="tc.notes"></span></span></template>
+                    </div>
+
+                    <!-- TEST STEPS -->
+                    <div style="font-size:11px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Test Steps</div>
+                    <template x-if="tc.steps.length === 0 && !(stepForms[tc.id]?.adding)">
+                      <div style="color:#bbb;font-size:12px;margin-bottom:6px">Zatím žádné kroky.</div>
+                    </template>
+
+                    <template x-for="(step, si) in tc.steps" :key="step.id">
+                      <div style="border:1px solid #e5e7eb;border-radius:5px;padding:8px 10px;margin-bottom:6px;background:#fff">
+                        <div style="display:flex;align-items:flex-start;gap:8px">
+                          <span style="font-size:11px;color:#bbb;min-width:18px;text-align:right;padding-top:2px" x-text="(si+1)+'.'"></span>
+                          <div style="flex:1;min-width:0">
+                            <!-- Akce + Očekávaný výsledek -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
+                              <div>
+                                <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:2px">Akce</div>
+                                <div style="font-size:12px;color:#1a1a1a" x-text="step.description"></div>
+                              </div>
+                              <div>
+                                <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:2px">Očekávaný výsledek</div>
+                                <div style="font-size:12px;color:#555" x-text="step.notes || '—'"></div>
+                              </div>
+                            </div>
+                            <!-- Status + Tester + Datum -->
+                            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                              <select :value="step.status" @change="updateStepStatus(step, tc, $event.target.value)"
+                                :class="statusBadgeClass(step.status)"
+                                class="inline-select"
+                                style="font-size:10px;min-width:90px;border:none;font-weight:700;padding:2px 6px;border-radius:3px">
+                                <option>Not Started</option>
+                                <option>WIP</option>
+                                <option>PASS</option>
+                                <option>DEFECT</option>
+                                <option>N/A</option>
+                              </select>
+                              <template x-if="step.testedBy">
+                                <span style="font-size:10px;color:#6b7280">👤 <span x-text="step.testedBy"></span></span>
+                              </template>
+                              <template x-if="step.testedAt">
+                                <span style="font-size:10px;color:#6b7280">📅 <span x-text="step.testedAt ? step.testedAt.slice(0,10) : ''"></span></span>
+                              </template>
+                            </div>
+                          </div>
+                          <div class="flex gap-1" style="flex-shrink:0">
+                            <button class="btn-icon" style="font-size:11px;color:#888" @click="openStepEdit(step)" title="Upravit krok">✏️</button>
+                            <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Add step form -->
+                    <div style="border:1px solid #e5e7eb;border-radius:5px;padding:10px 12px;margin-top:6px;background:#f9fafb">
+                      <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">Přidat krok</div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Akce *</div>
+                          <input x-model="getStepForm(tc.id).description"
+                            @keydown.enter.prevent="addTestStep(tc)"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box"
+                            placeholder="Co se dělá..."
+                            @focus="getStepForm(tc.id).adding=true">
+                        </div>
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Očekávaný výsledek</div>
+                          <input x-model="getStepForm(tc.id).notes"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box"
+                            placeholder="Co se očekává...">
+                        </div>
+                      </div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:flex-end">
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Jméno testera</div>
+                          <input x-model="getStepForm(tc.id).testedBy"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box"
+                            placeholder="Jméno...">
+                        </div>
+                        <div>
+                          <div style="font-size:10px;font-weight:700;color:#555;margin-bottom:3px">Datum</div>
+                          <input type="date" x-model="getStepForm(tc.id).testedAt"
+                            style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box">
+                        </div>
+                        <button class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
+                      </div>
+                    </div>
+
+                    <!-- DEFECTS -->
+                    <div style="font-size:11px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px">Defekty
+                      <button class="btn-ghost btn-sm" style="margin-left:8px;font-size:10px"
+                        @click="openDefectForm(tc.id)">＋ Defekt</button>
+                    </div>
+                    <template x-if="tc.defects.length === 0">
+                      <div style="color:#bbb;font-size:12px">Žádné defekty.</div>
+                    </template>
+                    <template x-for="def in tc.defects" :key="def.id">
+                      <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:4px;background:#fff8f8;border:1px solid #fee2e2;margin-bottom:4px">
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:12px;font-weight:700;color:#991b1b" x-text="def.title"></div>
+                          <div style="font-size:11px;color:#888;margin-top:1px" x-text="def.description || ''"></div>
+                        </div>
+                        <span :class="defectSeverityClass(def.severity)" class="badge" style="font-size:9px" x-text="def.severity"></span>
+                        <select :value="def.status" @change="updateDefectStatus(def, $event.target.value)"
+                          class="inline-select badge-grey" style="font-size:10px;min-width:80px">
+                          <option>Open</option>
+                          <option>In Progress</option>
+                          <option>Fixed</option>
+                          <option>Closed</option>
+                          <option>Rejected</option>
+                        </select>
+                        <button class="btn-icon" style="color:#ccc;font-size:11px" @click="deleteDefect(def.id, tc)">✕</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- TestSet Form Modal -->
+    <div class="modal-overlay" x-show="tsForm.open" @click.self="tsForm.open=false">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h2><span class="accent" x-text="tsForm.id ? 'Upravit' : 'Nový'"></span> Test Set</h2>
+          <button class="btn-icon" style="color:#aaa" @click="tsForm.open=false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Název *</label>
+            <input class="form-input" x-model="tsForm.name" placeholder="např. Inbound">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Datum od (MIN)</label>
+              <input type="date" class="form-input" x-model="tsForm.dateMin">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Datum do (MAX)</label>
+              <input type="date" class="form-input" x-model="tsForm.dateMax">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Poznámky</label>
+            <textarea class="form-input" x-model="tsForm.notes" rows="2" placeholder="Volitelné poznámky"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="tsForm.open=false">Zrušit</button>
+          <button class="btn-primary" @click="saveTestSet()">
+            <span x-text="tsForm.id ? 'Uložit' : 'Vytvořit'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TestCase Form Modal -->
+    <div class="modal-overlay" x-show="tcForm.open" @click.self="tcForm.open=false">
+      <div class="modal" style="max-width:500px">
+        <div class="modal-header">
+          <h2><span class="accent" x-text="tcForm.id ? 'Upravit' : 'Nový'"></span> Test Case</h2>
+          <button class="btn-icon" style="color:#aaa" @click="tcForm.open=false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Název *</label>
+            <input class="form-input" x-model="tcForm.name" placeholder="např. Inbound Happy Flow">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select" x-model="tcForm.status">
+                <option>Not Started</option>
+                <option>WIP</option>
+                <option>PASS</option>
+                <option>DEFECT</option>
+                <option>N/A</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Testoval/a</label>
+              <input class="form-input" x-model="tcForm.testedBy" placeholder="Jméno testera">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Použitá data</label>
+            <input class="form-input" x-model="tcForm.dataUsed" placeholder="např. shipment #12345, warehouse A">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Poznámky</label>
+            <textarea class="form-input" x-model="tcForm.notes" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="tcForm.open=false">Zrušit</button>
+          <button class="btn-primary" @click="saveTestCase()">
+            <span x-text="tcForm.id ? 'Uložit' : 'Přidat'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Defect Form Modal -->
+    <div class="modal-overlay" x-show="defectForm.open" @click.self="defectForm.open=false">
+      <div class="modal" style="max-width:460px">
+        <div class="modal-header">
+          <h2><span class="accent" x-text="defectForm.id ? 'Upravit' : 'Nový'"></span> Defekt</h2>
+          <button class="btn-icon" style="color:#aaa" @click="defectForm.open=false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Název *</label>
+            <input class="form-input" x-model="defectForm.title" placeholder="Krátký popis defektu">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Popis</label>
+            <textarea class="form-input" x-model="defectForm.description" rows="3" placeholder="Detailní popis, kroky k reprodukci..."></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Závažnost</label>
+              <select class="form-select" x-model="defectForm.severity">
+                <option>Critical</option>
+                <option>High</option>
+                <option>Medium</option>
+                <option>Low</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select" x-model="defectForm.status">
+                <option>Open</option>
+                <option>In Progress</option>
+                <option>Fixed</option>
+                <option>Closed</option>
+                <option>Rejected</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nahlásil/a</label>
+            <input class="form-input" x-model="defectForm.reportedBy">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="defectForm.open=false">Zrušit</button>
+          <button class="btn-primary" @click="saveDefect()">
+            <span x-text="defectForm.id ? 'Uložit' : 'Přidat'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step Edit Modal -->
+    <div class="modal-overlay" x-show="stepEditForm.open" @click.self="stepEditForm.open=false">
+      <div class="modal" style="max-width:520px">
+        <div class="modal-header">
+          <h2><span class="accent">Upravit krok</span></h2>
+          <button class="btn-icon" style="color:#aaa" @click="stepEditForm.open=false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Akce *</label>
+              <textarea class="form-input" x-model="stepEditForm.description" rows="2" placeholder="Popis kroku / akce"></textarea>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Očekávaný výsledek</label>
+              <textarea class="form-input" x-model="stepEditForm.notes" rows="2" placeholder="Co se očekává..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select" x-model="stepEditForm.status">
+                <option>Not Started</option>
+                <option>WIP</option>
+                <option>PASS</option>
+                <option>DEFECT</option>
+                <option>N/A</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Datum testování</label>
+              <input type="date" class="form-input" x-model="stepEditForm.testedAt">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Jméno testera</label>
+              <input class="form-input" x-model="stepEditForm.testedBy" placeholder="Jméno...">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="stepEditForm.open=false">Zrušit</button>
+          <button class="btn-primary" @click="saveStepEdit()">Uložit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CSV Import Modal -->
+    <div class="modal-overlay" x-show="csvImport.open" @click.self="csvImport.open=false">
+      <div class="modal" style="max-width:560px">
+        <div class="modal-header">
+          <h2><span class="accent">Import CSV</span></h2>
+          <button class="btn-icon" style="color:#aaa" @click="csvImport.open=false">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Format info + download template -->
+          <div style="background:#f8f8f8;border-radius:4px;padding:10px 12px;font-size:11px;color:#555;margin-bottom:14px;border-left:3px solid var(--dhl-yellow);display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div>
+              <strong>Povinné [M]:</strong> test_set, test_case<br>
+              <strong>Volitelné [O]:</strong> test_set_date_min, test_set_date_max, test_set_notes, test_case_notes, test_case_data_used, step_order, step_description, step_notes<br>
+              <span style="color:#888">Status se nastaví automaticky na Not Started. Stáhněte šablonu pro kompletní příklad.</span>
+            </div>
+            <button class="btn-ghost btn-sm" style="white-space:nowrap;flex-shrink:0" @click="downloadCsvTemplate()">⬇ Šablona</button>
+          </div>
+
+          <!-- Target set -->
+          <template x-if="csvImport.setId">
+            <div style="padding:8px 10px;background:#fffbea;border-radius:4px;font-size:12px;margin-bottom:12px;border:1px solid #fde68a">
+              Import do test setu: <strong x-text="csvImport.setName"></strong>
+            </div>
+          </template>
+          <template x-if="!csvImport.setId">
+            <div class="form-group">
+              <label class="form-label">Název nového test setu (volitelné – jinak se použije z CSV)</label>
+              <input class="form-input" x-model="csvImport.setName" placeholder="Ponechejte prázdné pro použití hodnot z CSV">
+            </div>
+          </template>
+
+          <!-- File upload drop zone -->
+          <div class="form-group">
+            <label class="form-label">CSV soubor</label>
+            <div style="border:2px dashed var(--dhl-border);border-radius:6px;padding:24px 16px;text-align:center;cursor:pointer;background:#fafafa;transition:border-color 0.15s"
+              @click="$refs.csvFileInput.click()"
+              @dragover.prevent="$event.currentTarget.style.borderColor='var(--dhl-yellow)'"
+              @dragleave="$event.currentTarget.style.borderColor='var(--dhl-border)'"
+              @drop.prevent="handleCsvDrop($event); $event.currentTarget.style.borderColor='var(--dhl-border)'">
+              <input type="file" accept=".csv,.txt" x-ref="csvFileInput" style="display:none" @change="handleCsvFile($event)">
+              <template x-if="!csvImport.fileName">
+                <div>
+                  <div style="font-size:28px;margin-bottom:8px">📂</div>
+                  <div style="font-size:12px;font-weight:600;color:#555">Klikněte nebo přetáhněte CSV soubor</div>
+                  <div style="font-size:11px;color:#bbb;margin-top:3px">.csv, .txt</div>
+                </div>
+              </template>
+              <template x-if="csvImport.fileName">
+                <div>
+                  <div style="font-size:24px;margin-bottom:6px">✅</div>
+                  <div style="font-size:13px;font-weight:700;color:#1a1a1a" x-text="csvImport.fileName"></div>
+                  <div style="font-size:11px;color:#888;margin-top:2px" x-text="(csvImport.raw.split('\\n').length - 1) + ' řádků dat'"></div>
+                  <button class="btn-ghost btn-sm" style="margin-top:8px;font-size:10px" @click.stop="csvImport.fileName='';csvImport.raw='';$refs.csvFileInput.value=''">✕ Zrušit soubor</button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <template x-if="csvImport.error">
+            <div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:4px;font-size:12px" x-text="csvImport.error"></div>
+          </template>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="csvImport.open=false">Zrušit</button>
+          <button class="btn-primary" @click="importCSV()" :disabled="csvImport.loading || !csvImport.raw">
+            <span x-text="csvImport.loading ? 'Importuji...' : 'Importovat'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
     <!-- SETTINGS VIEW -->
     <!-- ============================================================ -->
     <div x-show="view === 'settings'" class="p-6">
@@ -954,11 +1620,28 @@
 
       <!-- Log view -->
       <div x-show="settingsTab === 'log'">
+        <!-- Category switcher -->
+        <div class="flex gap-2 mb-4">
+          <button
+            @click="auditCategory='Budget Tracker'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Budget Tracker' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            📊 Budget Tracker
+          </button>
+          <button
+            @click="auditCategory='Test Management'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Test Management' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            🧪 Test Management
+          </button>
+        </div>
+
         <div class="chart-card">
           <div class="chart-header">
-            <span>Log změn</span>
+            <span x-text="auditCategory + ' — Log změn'"></span>
             <div class="flex gap-2 items-center">
-              <select x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+              <!-- Entity filter — Budget Tracker -->
+              <select x-show="auditCategory==='Budget Tracker'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
                 <option value="">Vše</option>
                 <option value="Item">Položky</option>
                 <option value="Labor">Role/Lidé</option>
@@ -966,9 +1649,17 @@
                 <option value="Kategorie">Kategorie</option>
                 <option value="Priorita">Priority</option>
               </select>
+              <!-- Entity filter — Test Management -->
+              <select x-show="auditCategory==='Test Management'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">Vše</option>
+                <option value="TestSet">Test Set</option>
+                <option value="TestCase">Test Case</option>
+                <option value="TestStep">Test Step</option>
+                <option value="Defect">Defekt</option>
+              </select>
               <button class="btn-ghost btn-sm" @click="loadAuditLog()" title="Obnovit log"
                 style="font-size:15px;padding:4px 8px;line-height:1">↻</button>
-              <button class="btn-ghost btn-sm" @click="if(confirm('Smazat celý log?')) clearAuditLog()">🗑 Smazat log</button>
+              <button class="btn-ghost btn-sm" @click="clearAuditLog()">🗑 Smazat log</button>
             </div>
           </div>
           <div class="table-scroll" style="max-height:600px">
@@ -1593,52 +2284,6 @@
 <script>
 const API = ''
 
-// ── MSAL Auth ─────────────────────────────────────────────────────────────────
-let _msalApp = null
-
-async function initMsalApp() {
-  const res = await fetch('/api/config')
-  const { clientId, tenantId } = await res.json()
-  _msalApp = new msal.PublicClientApplication({
-    auth: {
-      clientId,
-      authority: `https://login.microsoftonline.com/${tenantId}`,
-      redirectUri: window.location.origin,
-    },
-    cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false },
-  })
-  await _msalApp.initialize()
-  return _msalApp
-}
-
-async function getToken() {
-  if (!_msalApp) return null
-  const accounts = _msalApp.getAllAccounts()
-  if (!accounts.length) return null
-  try {
-    const result = await _msalApp.acquireTokenSilent({
-      scopes: ['openid', 'profile', 'email'],
-      account: accounts[0],
-    })
-    return result.idToken
-  } catch {
-    return null
-  }
-}
-
-// Přidá Authorization header ke všem /api/ requestům (kromě /api/config)
-const _originalFetch = window.fetch.bind(window)
-window.fetch = async function (input, init = {}) {
-  const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input))
-  if (url.startsWith('/api/') && !url.startsWith('/api/config')) {
-    const token = await getToken()
-    if (token) {
-      init = { ...init, headers: { ...(init.headers || {}), 'Authorization': `Bearer ${token}` } }
-    }
-  }
-  return _originalFetch(input, init)
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Chart instances stored OUTSIDE Alpine reactivity — Alpine's Proxy corrupts Chart.js internal state
 const _charts = {}
@@ -1702,11 +2347,6 @@ const TENDER_STATUSES = [
 
 function app() {
   return {
-    // Auth
-    loggedIn: false,
-    authLoading: true,
-    authError: '',
-
     view: 'dashboard',
     settingsTab: 'people',
 
@@ -1758,75 +2398,52 @@ function app() {
     // Audit log
     auditLog: [],
     auditFilter: '',
+    auditCategory: 'Budget Tracker',
 
     ganttFilter: 'all',
 
     TENDER_STATUSES,
 
+    // ── Testing ───────────────────────────────────────────────────────────────
+    testSets: [],
+    testStats: null,
+    testingTab: 'stats',         // 'stats' | 'sets'
+    expandedSets: {},            // setId -> bool
+    expandedCases: {},           // caseId -> bool
+
+    // TestSet form
+    tsForm: { open: false, id: null, name: '', dateMin: '', dateMax: '', notes: '' },
+
+    // TestCase form
+    tcForm: { open: false, id: null, setId: null, name: '', status: 'WIP', notes: '', testedBy: '', dataUsed: '' },
+
+    // TestStep inline add
+    stepForms: {},               // caseId -> { description: '', adding: bool }
+
+    // Defect form
+    defectForm: { open: false, id: null, caseId: null, title: '', description: '', severity: 'Medium', status: 'Open', reportedBy: '' },
+
+    // Step edit modal
+    stepEditForm: { open: false, id: null, description: '', notes: '', status: 'Not Started', testedBy: '', testedAt: '' },
+
+    // CSV import
+    csvImport: { open: false, setId: null, setName: '', raw: '', fileName: '', loading: false, error: '' },
+
+    // Waterfall chart instance
+    _waterfallChart: null,
+
 
     async init() {
-      await this.initAuth()
-      if (this.loggedIn) {
-        await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
-        this.loadDashboard()
-        this.$nextTick(() => restoreColWidths())
-      }
-    },
-
-    async initAuth() {
-      try {
-        await initMsalApp()
-
-        // Zpracuj redirect odpověď (návrat z Microsoft přihlášení)
-        const redirectResult = await _msalApp.handleRedirectPromise()
-        if (redirectResult) {
-          this.loggedIn = true
-          this.currentUser = redirectResult.account.username || redirectResult.account.name || 'Uživatel'
-          this.authLoading = false
-          return
-        }
-
-        // Zkontroluj existující session
-        const accounts = _msalApp.getAllAccounts()
-        if (accounts.length > 0) {
-          const token = await getToken()
-          if (token) {
-            this.loggedIn = true
-            this.currentUser = accounts[0].username || accounts[0].name || 'Uživatel'
-          }
-        }
-      } catch (e) {
-        this.authError = 'Chyba inicializace přihlášení: ' + (e.message || e)
-      }
-      this.authLoading = false
-    },
-
-    async login() {
-      this.authError = ''
-      this.authLoading = true
-      try {
-        if (!_msalApp) await initMsalApp()
-        // Redirect flow — přesměruje celou stránku na Microsoft, žádné popupy
-        await _msalApp.loginRedirect({ scopes: ['openid', 'profile', 'email'] })
-      } catch (e) {
-        this.authError = 'Přihlášení selhalo: ' + (e.message || e)
-        this.authLoading = false
-      }
-    },
-
-    async logout() {
-      try {
-        if (_msalApp) {
-          await _msalApp.logoutRedirect({ postLogoutRedirectUri: window.location.origin })
-        }
-      } catch { /* ignoruj chyby při odhlášení */ }
+      await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
+      this.loadDashboard()
+      this.$nextTick(() => restoreColWidths())
     },
 
     viewTitle() {
-      return { dashboard: 'Dashboard', assets: 'Asset List', gantt: 'Gantt / Timeline', labor: 'Lidé / PM náklady', settings: 'Nastavení' }[this.view] ?? ''
+      return { dashboard: 'Dashboard', assets: 'Asset List', gantt: 'Gantt / Timeline', labor: 'Lidé / PM náklady', settings: 'Nastavení', testing: 'Test Management' }[this.view] ?? ''
     },
     viewSubtitle() {
-      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému' }[this.view] ?? ''
+      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému', testing: 'Test sety, scénáře, kroky, defekty a statistiky' }[this.view] ?? ''
     },
 
     async loadItems() {
@@ -1955,13 +2572,16 @@ function app() {
     },
 
     async loadAuditLog() {
-      const params = this.auditFilter ? `?entity=${encodeURIComponent(this.auditFilter)}` : ''
-      const r = await fetch(`${API}/api/audit${params}`)
+      const params = new URLSearchParams({ category: this.auditCategory })
+      if (this.auditFilter) params.set('entity', this.auditFilter)
+      const r = await fetch(`${API}/api/audit?${params}`)
       this.auditLog = await r.json()
     },
 
     async clearAuditLog() {
-      await this.apiFetch('DELETE', '/api/audit')
+      if (!confirm(`Smazat celý log kategorie "${this.auditCategory}"?`)) return
+      const params = new URLSearchParams({ category: this.auditCategory })
+      await fetch(`${API}/api/audit?${params}`, { method: 'DELETE' })
       this.auditLog = []
     },
 
@@ -2706,6 +3326,102 @@ function app() {
       this._openPrintWindow(body, esc(this.projectName) + ' — Export vše')
     },
 
+    exportTestingDashboardPDF() {
+      if (!this.testStats) return alert('Přejděte na záložku Dashboard a počkejte na načtení dat.')
+      const { esc } = this._pdfFmt()
+      const s = this.testStats
+      const totalCases = Object.values(s.cases).reduce((a, b) => a + b, 0)
+      const donePct = totalCases ? Math.round(((s.cases.PASS ?? 0) + (s.cases['N/A'] ?? 0)) / totalCases * 100) : 0
+
+      // Capture donut chart images
+      const pieImgs = {}
+      for (const ts of this.testSets) {
+        const c = document.getElementById('pie-ts-' + ts.id)
+        if (c && c.width > 0) { try { pieImgs[ts.id] = c.toDataURL('image/png') } catch(e) {} }
+      }
+
+      // Global KPI row
+      const kpiItems = [
+        { l: 'PASS',        v: s.cases.PASS ?? 0,            color: '#22c55e' },
+        { l: 'DEFECT',      v: s.cases.DEFECT ?? 0,          color: '#ef4444' },
+        { l: 'WIP',         v: s.cases.WIP ?? 0,             color: '#3b82f6' },
+        { l: 'N/A',         v: s.cases['N/A'] ?? 0,          color: '#9ca3af' },
+        { l: 'Not Started', v: s.cases['Not Started'] ?? 0,  color: '#d97706' },
+        { l: 'Hotovo',      v: donePct + '%',                 color: '#1a1a1a' },
+      ]
+      const kpiHtml = kpiItems.map((k, i) =>
+        `<div style="float:left;width:15.5%;${i < 5 ? 'margin-right:0.6%;' : ''}padding:7px 9px;border:1pt solid #e0e0e0;border-left:3pt solid ${k.color};border-radius:4px;box-sizing:border-box">
+          <div style="font-size:6pt;font-weight:700;text-transform:uppercase;color:#777">${k.l}</div>
+          <div style="font-size:13pt;font-weight:800;color:${k.color}">${k.v}</div>
+        </div>`
+      ).join('') + '<div style="clear:both"></div>'
+
+      // Per-set table rows
+      const setRows = this.testSets.map(ts => {
+        const total = ts.testCases.length
+        const pass  = ts.testCases.filter(c => c.status === 'PASS').length
+        const def   = ts.testCases.filter(c => c.status === 'DEFECT').length
+        const wip   = ts.testCases.filter(c => c.status === 'WIP').length
+        const na    = ts.testCases.filter(c => c.status === 'N/A').length
+        const ns    = ts.testCases.filter(c => c.status === 'Not Started').length
+        const pct   = total ? Math.round((pass + na) / total * 100) : 0
+        const status = this.testSetStatus(ts)
+        const stColor = status === 'Finished' ? '#16a34a' : status === 'WIP' ? '#2563eb' : '#92400e'
+        const img = pieImgs[ts.id] ? `<img src="${pieImgs[ts.id]}" style="width:48px;height:48px;vertical-align:middle">` : '—'
+        return `<tr>
+          <td style="font-weight:600">${esc(ts.name)}</td>
+          <td style="text-align:center">${img}</td>
+          <td style="color:${stColor};font-weight:700">${status}</td>
+          <td style="color:#16a34a;font-weight:700;text-align:right">${pass}</td>
+          <td style="color:#dc2626;font-weight:700;text-align:right">${def}</td>
+          <td style="color:#2563eb;font-weight:700;text-align:right">${wip}</td>
+          <td style="text-align:right">${na}</td>
+          <td style="text-align:right">${ns}</td>
+          <td style="text-align:right;font-weight:800">${total ? pct + '%' : '—'}</td>
+        </tr>`
+      }).join('')
+
+      // Defects table
+      const sevColor = { Critical: '#dc2626', High: '#c2410c', Medium: '#d97706', Low: '#6b7280' }
+      const defectRows = (s.defectsList ?? []).map(d =>
+        `<tr>
+          <td style="color:${sevColor[d.severity] ?? '#666'};font-weight:700">${esc(d.severity)}</td>
+          <td style="font-weight:600">${esc(d.title)}</td>
+          <td>${esc(d.testCase)}</td>
+          <td>${esc(d.testSet)}</td>
+          <td>${esc(d.status)}</td>
+          <td style="color:#888">${esc(d.reportedBy) || '—'}</td>
+        </tr>`
+      ).join('')
+
+      const body = this._pdfHeader('Test Management — Dashboard') + `
+        <h2>Celkový přehled test cases</h2>
+        <div style="margin-bottom:12px">${kpiHtml}</div>
+        <h2>Postup dle test setů</h2>
+        <table class="data">
+          <thead><tr>
+            <th>Test Set</th><th style="text-align:center">Graf</th><th>Status</th>
+            <th style="text-align:right;color:#16a34a">PASS</th>
+            <th style="text-align:right;color:#dc2626">DEFECT</th>
+            <th style="text-align:right;color:#2563eb">WIP</th>
+            <th style="text-align:right">N/A</th>
+            <th style="text-align:right">Not Started</th>
+            <th style="text-align:right">% Hotovo</th>
+          </tr></thead>
+          <tbody>${setRows}</tbody>
+        </table>
+        ${defectRows ? `
+        <h2>Defekty — top 15 dle závažnosti</h2>
+        <table class="data">
+          <thead><tr>
+            <th>Závažnost</th><th>Název defektu</th><th>Test Case</th><th>Test Set</th><th>Status</th><th>Nahlásil</th>
+          </tr></thead>
+          <tbody>${defectRows}</tbody>
+        </table>` : ''}
+      `
+      this._openPrintWindow(body, esc(this.projectName) + ' — Test Dashboard')
+    },
+
     // --- Helpers ---
     fmtMoney(v) {
       if (v == null || v === 0) return '—'
@@ -2936,6 +3652,427 @@ function app() {
               const name = prioData[els[0].index].name
               const prio = this.priorities.find(p => p.name === name)
               if (prio) this.gotoAssets('priorityId', String(prio.id))
+            },
+          },
+        })
+      }
+    },
+
+    // ── Testing ────────────────────────────────────────────────────────────────
+
+    async loadTestSets() {
+      try {
+        const r = await fetch(`${API}/api/testsets`)
+        const data = await r.json()
+        this.testSets = Array.isArray(data) ? data : []
+        this.$nextTick(() => {
+          for (const ts of this.testSets) {
+            if (ts.dateMin && ts.dateMax) this.renderWaterfall(ts)
+          }
+        })
+      } catch (e) {
+        console.error('loadTestSets error:', e)
+        this.testSets = []
+      }
+    },
+
+    async loadTestStats() {
+      const [statsRes, defectsRes] = await Promise.all([
+        fetch(`${API}/api/testing/stats`),
+        fetch(`${API}/api/testing/defects`),
+      ])
+      const stats = await statsRes.json()
+      stats.defectsList = await defectsRes.json()
+      this.testStats = stats
+    },
+
+    openStepEdit(step) {
+      this.stepEditForm = {
+        open: true,
+        id: step.id,
+        description: step.description ?? '',
+        notes: step.notes ?? '',
+        status: step.status ?? 'Not Started',
+        testedBy: step.testedBy ?? '',
+        testedAt: step.testedAt ? step.testedAt.slice(0, 10) : '',
+      }
+    },
+
+    async saveStepEdit() {
+      if (!this.stepEditForm.description.trim()) return alert('Zadejte popis kroku')
+      const body = {
+        description: this.stepEditForm.description,
+        notes: this.stepEditForm.notes || null,
+        status: this.stepEditForm.status,
+        testedBy: this.stepEditForm.testedBy || null,
+        testedAt: this.stepEditForm.testedAt || null,
+      }
+      const r = await fetch(`${API}/api/teststeps/${this.stepEditForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) return alert('Chyba při ukládání kroku')
+      this.stepEditForm.open = false
+      await this.loadTestSets()
+    },
+
+    getStepForm(caseId) {
+      if (!this.stepForms[caseId]) this.stepForms[caseId] = { description: '', notes: '', testedBy: '', testedAt: '', adding: false }
+      return this.stepForms[caseId]
+    },
+
+    statusBadgeClass(status) {
+      const map = { 'PASS': 'status-PASS', 'DEFECT': 'status-DEFECT', 'WIP': 'status-WIP', 'N/A': 'status-NA', 'Not Started': 'status-NOT-STARTED' }
+      return map[status] ?? 'badge-grey'
+    },
+
+    testSetStatus(ts) {
+      if (!ts.testCases.length) return 'Not Started'
+      const finished = ['PASS', 'N/A']
+      if (ts.testCases.every(c => c.status === 'Not Started')) return 'Not Started'
+      if (ts.testCases.every(c => finished.includes(c.status))) return 'Finished'
+      return 'WIP'
+    },
+
+    testSetStatusClass(ts) {
+      const s = this.testSetStatus(ts)
+      if (s === 'Finished') return 'status-PASS'
+      if (s === 'WIP') return 'status-WIP'
+      return 'status-NOT-STARTED'
+    },
+
+    defectSeverityClass(sev) {
+      const map = { 'Critical': 'severity-Critical', 'High': 'severity-High', 'Medium': 'severity-Medium', 'Low': 'severity-Low' }
+      return map[sev] ?? 'badge-grey'
+    },
+
+    // TestSet CRUD
+    openTsForm(ts = null) {
+      if (ts) {
+        this.tsForm = { open: true, id: ts.id, name: ts.name, dateMin: ts.dateMin?.slice(0,10) ?? '', dateMax: ts.dateMax?.slice(0,10) ?? '', notes: ts.notes ?? '' }
+      } else {
+        this.tsForm = { open: true, id: null, name: '', dateMin: '', dateMax: '', notes: '' }
+      }
+    },
+
+    async saveTestSet() {
+      if (!this.tsForm.name.trim()) return alert('Zadejte název test setu')
+      const body = { name: this.tsForm.name, dateMin: this.tsForm.dateMin || null, dateMax: this.tsForm.dateMax || null, notes: this.tsForm.notes || null }
+      const url = this.tsForm.id ? `${API}/api/testsets/${this.tsForm.id}` : `${API}/api/testsets`
+      const method = this.tsForm.id ? 'PUT' : 'POST'
+      try {
+        const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        console.log('[saveTestSet] HTTP status:', r.status)
+        if (!r.ok) {
+          const errText = await r.text().catch(() => '?')
+          alert('Chyba při uložení (HTTP ' + r.status + '):\n' + errText)
+          return
+        }
+        this.tsForm.open = false
+        await this.loadTestSets()
+      } catch (e) {
+        alert('Síťová chyba: ' + e.message)
+      }
+    },
+
+    async deleteTestSet(id) {
+      if (!confirm('Smazat test set i se všemi testy?')) return
+      await fetch(`${API}/api/testsets/${id}`, { method: 'DELETE' })
+      await this.loadTestSets()
+    },
+
+    // TestCase CRUD
+    openTcForm(setId, tc = null) {
+      if (tc) {
+        this.tcForm = { open: true, id: tc.id, setId, name: tc.name, status: tc.status, notes: tc.notes ?? '', testedBy: tc.testedBy ?? '', dataUsed: tc.dataUsed ?? '' }
+      } else {
+        this.tcForm = { open: true, id: null, setId, name: '', status: 'Not Started', notes: '', testedBy: '', dataUsed: '' }
+      }
+    },
+
+    async saveTestCase() {
+      if (!this.tcForm.name.trim()) return alert('Zadejte název test case')
+      const body = { name: this.tcForm.name, status: this.tcForm.status, notes: this.tcForm.notes || null, testedBy: this.tcForm.testedBy || null, dataUsed: this.tcForm.dataUsed || null }
+      if (this.tcForm.id) {
+        await fetch(`${API}/api/testcases/${this.tcForm.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      } else {
+        await fetch(`${API}/api/testsets/${this.tcForm.setId}/testcases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      }
+      this.tcForm.open = false
+      await this.loadTestSets()
+    },
+
+    async deleteTestCase(id, setId) {
+      if (!confirm('Smazat test case?')) return
+      await fetch(`${API}/api/testcases/${id}`, { method: 'DELETE' })
+      await this.loadTestSets()
+    },
+
+    async updateTestCaseStatus(tc, newStatus) {
+      const calls = [
+        fetch(`${API}/api/testcases/${tc.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) }),
+        ...tc.steps.map(step => fetch(`${API}/api/teststeps/${step.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })),
+      ]
+      await Promise.all(calls)
+      await this.loadTestSets()
+    },
+
+    // TestStep CRUD
+    async addTestStep(tc) {
+      const sf = this.getStepForm(tc.id)
+      if (!sf.description.trim()) return
+      const nextOrder = tc.steps.length
+      await fetch(`${API}/api/testcases/${tc.id}/steps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: sf.description,
+          order: nextOrder,
+          notes: sf.notes || null,
+          testedBy: sf.testedBy || null,
+          testedAt: sf.testedAt || null,
+        }),
+      })
+      sf.description = ''
+      sf.notes = ''
+      sf.testedBy = ''
+      sf.testedAt = ''
+      sf.adding = false
+      await this.loadTestSets()
+    },
+
+    async updateStepStatus(step, tc, newStatus) {
+      await fetch(`${API}/api/teststeps/${step.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })
+      await this.loadTestSets()
+    },
+
+    async deleteTestStep(id, tc) {
+      await fetch(`${API}/api/teststeps/${id}`, { method: 'DELETE' })
+      await this.loadTestSets()
+    },
+
+    // Defect CRUD
+    openDefectForm(caseId, def = null) {
+      if (def) {
+        this.defectForm = { open: true, id: def.id, caseId, title: def.title, description: def.description ?? '', severity: def.severity, status: def.status, reportedBy: def.reportedBy ?? '' }
+      } else {
+        this.defectForm = { open: true, id: null, caseId, title: '', description: '', severity: 'Medium', status: 'Open', reportedBy: '' }
+      }
+    },
+
+    async saveDefect() {
+      if (!this.defectForm.title.trim()) return alert('Zadejte název defektu')
+      const body = { title: this.defectForm.title, description: this.defectForm.description || null, severity: this.defectForm.severity, status: this.defectForm.status, reportedBy: this.defectForm.reportedBy || null }
+      if (this.defectForm.id) {
+        await fetch(`${API}/api/defects/${this.defectForm.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      } else {
+        await fetch(`${API}/api/testcases/${this.defectForm.caseId}/defects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      }
+      this.defectForm.open = false
+      await this.loadTestSets()
+    },
+
+    async updateDefectStatus(def, newStatus) {
+      await fetch(`${API}/api/defects/${def.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })
+      def.status = newStatus
+    },
+
+    async deleteDefect(id, tc) {
+      if (!confirm('Smazat defekt?')) return
+      await fetch(`${API}/api/defects/${id}`, { method: 'DELETE' })
+      await this.loadTestSets()
+    },
+
+    // CSV Import
+    downloadCsvTemplate() {
+      const content = [
+        '# REQUIRED: test_set, test_case | OPTIONAL: vse ostatni',
+        'test_set,test_set_date_min,test_set_date_max,test_set_notes,test_case,test_case_notes,test_case_data_used,step_order,step_description,step_notes',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Happy Flow,,TC001,1,Prijem zasilky na rampe,Zasilka je prijata bez poskozeni',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Happy Flow,,TC001,2,Overeni stitku a obsahu,Stitek odpovida obsahu',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Happy Flow,,TC001,3,Ulozeni na sklad,Zasilka ulozena na spravne misto',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Error Flow,,,1,Prijem poskozene zasilky,Zasilka je oznacena jako poskozena',
+        'Inbound,2025-01-10,2025-01-20,Testovani prijmu zasilek,Error Flow,,,2,Vytvoreni reklamace,Reklamace je vytvorena v systemu',
+        'Outbound,,,,Pick & Pack,,,1,Vyber ze skladu,Spravna zasilka je vybrana',
+        'Outbound,,,,Pick & Pack,,,2,Baleni zasilky,Zasilka je spravne zabalena',
+      ].join('\n')
+      const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'import-template.csv'; a.click()
+      URL.revokeObjectURL(url)
+    },
+
+    handleCsvFile(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      this.csvImport.fileName = file.name
+      this.csvImport.error = ''
+      const reader = new FileReader()
+      reader.onload = (e) => { this.csvImport.raw = e.target.result }
+      reader.readAsText(file, 'UTF-8')
+    },
+
+    handleCsvDrop(event) {
+      const file = event.dataTransfer.files[0]
+      if (!file) return
+      if (!file.name.match(/\.(csv|txt)$/i)) { this.csvImport.error = 'Pouze .csv nebo .txt soubory'; return }
+      this.csvImport.fileName = file.name
+      this.csvImport.error = ''
+      const reader = new FileReader()
+      reader.onload = (e) => { this.csvImport.raw = e.target.result }
+      reader.readAsText(file, 'UTF-8')
+    },
+
+    async importCSV() {
+      if (!this.csvImport.raw.trim()) { this.csvImport.error = 'Nahrajte CSV soubor'; return }
+      this.csvImport.loading = true
+      this.csvImport.error = ''
+      try {
+        const body = { csv: this.csvImport.raw }
+        if (this.csvImport.setId) body.testSetId = this.csvImport.setId
+        else if (this.csvImport.setName) body.testSetName = this.csvImport.setName
+        const r = await fetch(`${API}/api/testsets/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        const data = await r.json()
+        if (!r.ok) { this.csvImport.error = data.error || 'Chyba při importu'; return }
+        this.csvImport.open = false
+        await this.loadTestSets()
+      } catch (e) {
+        this.csvImport.error = String(e)
+      } finally {
+        this.csvImport.loading = false
+      }
+    },
+
+    // Waterfall chart — planned target (Total/Available days) + actual closed by testedAt
+    renderWaterfall(ts) {
+      const canvasId = 'waterfall-' + ts.id
+      const canvas = document.getElementById(canvasId)
+      if (!canvas) return
+
+      const total = ts.testCases.length
+      if (total === 0) return
+
+      const min = new Date(ts.dateMin); min.setHours(0,0,0,0)
+      const max = new Date(ts.dateMax); max.setHours(0,0,0,0)
+
+      // Count available days in range
+      let availDays = 0
+      const tmp = new Date(min)
+      while (tmp <= max) { availDays++; tmp.setDate(tmp.getDate() + 1) }
+
+      // Build day-by-day arrays
+      const labels = []
+      const planned = []   // cumulative linear target
+      const actualClosed = []  // cumulative tests closed by testedAt
+
+      const d = new Date(min)
+      let dayIndex = 0
+      while (d <= max) {
+        labels.push(d.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' }))
+
+        // Planned: linear cumulative
+        planned.push(Math.round(total * (dayIndex + 1) / availDays))
+
+        // Actual: count cases closed (PASS/N/A) with testedAt <= end of this day
+        const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999)
+        const closed = ts.testCases.filter(c => {
+          if (!['PASS', 'N/A'].includes(c.status)) return false
+          if (!c.testedAt) return false
+          return new Date(c.testedAt) <= dayEnd
+        }).length
+        actualClosed.push(closed)
+
+        dayIndex++
+        d.setDate(d.getDate() + 1)
+        if (labels.length > 90) break
+      }
+
+      const existing = Chart.getChart(canvas)
+      if (existing) existing.destroy()
+
+      new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Plánovaný target',
+              data: planned,
+              borderColor: '#94a3b8',
+              borderDash: [6, 4],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+              tension: 0,
+            },
+            {
+              label: 'Reálně uzavřeno',
+              data: actualClosed,
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34,197,94,0.08)',
+              borderWidth: 2,
+              pointRadius: 2,
+              fill: true,
+              tension: 0.2,
+            },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+            tooltip: { mode: 'index', intersect: false },
+          },
+          scales: {
+            x: { ticks: { font: { size: 9 }, maxRotation: 45, maxTicksLimit: 20 } },
+            y: { min: 0, max: total, ticks: { font: { size: 9 }, stepSize: Math.max(1, Math.ceil(total/5)) } },
+          },
+        },
+      })
+    },
+
+    renderSetPieCharts() {
+      for (const ts of this.testSets) {
+        const canvas = document.getElementById('pie-ts-' + ts.id)
+        if (!canvas) continue
+        const c = { PASS: 0, DEFECT: 0, WIP: 0, 'N/A': 0, 'Not Started': 0 }
+        for (const tc of ts.testCases) c[tc.status] = (c[tc.status] ?? 0) + 1
+        const total = ts.testCases.length
+        const existing = Chart.getChart(canvas)
+        if (existing) existing.destroy()
+        if (total === 0) {
+          // Draw empty ring
+          new Chart(canvas, {
+            type: 'doughnut',
+            data: { labels: ['Prázdný'], datasets: [{ data: [1], backgroundColor: ['#e5e7eb'], borderWidth: 0 }] },
+            options: { responsive: false, cutout: '65%', plugins: { legend: { display: false }, tooltip: { enabled: false } } },
+          })
+          continue
+        }
+        new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: ['PASS', 'DEFECT', 'WIP', 'N/A', 'Not Started'],
+            datasets: [{
+              data: [c.PASS, c.DEFECT, c.WIP, c['N/A'], c['Not Started']],
+              backgroundColor: ['#22c55e', '#ef4444', '#3b82f6', '#9ca3af', '#fde68a'],
+              borderWidth: 2,
+              borderColor: '#fff',
+              hoverOffset: 4,
+            }],
+          },
+          options: {
+            responsive: false,
+            cutout: '65%',
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.label}: ${ctx.parsed} (${Math.round(ctx.parsed / total * 100)}%)`,
+                },
+              },
             },
           },
         })

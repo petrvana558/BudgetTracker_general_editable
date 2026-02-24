@@ -11,7 +11,7 @@ import { settingsRoutes } from './routes/settings'
 import { laborRoutes } from './routes/labor'
 import { auditRoutes } from './routes/audit'
 import { commentRoutes } from './routes/comments'
-import { authMiddleware } from './auth'
+import { testingRoutes } from './routes/testing'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
 
@@ -29,19 +29,6 @@ async function main() {
     prefix: '/',
   })
 
-  // Veřejný endpoint s Azure AD konfigurací pro frontend (bez auth)
-  fastify.get('/api/config', async () => ({
-    clientId: process.env.AZURE_CLIENT_ID,
-    tenantId: process.env.AZURE_TENANT_ID,
-  }))
-
-  // Auth middleware pro všechny /api/* routy kromě /api/config
-  fastify.addHook('preHandler', async (req, reply) => {
-    if (req.url.startsWith('/api/') && !req.url.startsWith('/api/config')) {
-      await authMiddleware(req, reply)
-    }
-  })
-
   await fastify.register(itemRoutes)
   await fastify.register(peopleRoutes)
   await fastify.register(categoryRoutes)
@@ -51,6 +38,7 @@ async function main() {
   await fastify.register(laborRoutes)
   await fastify.register(auditRoutes)
   await fastify.register(commentRoutes)
+  await fastify.register(testingRoutes)
 
   await fastify.listen({ port: PORT, host: '0.0.0.0' })
   console.log(`Budget Tracker running on http://localhost:${PORT}`)

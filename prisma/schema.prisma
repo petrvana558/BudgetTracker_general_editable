@@ -87,6 +87,7 @@ model AuditLog {
   id        Int      @id @default(autoincrement())
   timestamp DateTime @default(now())
   user      String   @default("System")
+  category  String   @default("Budget Tracker")
   entity    String
   action    String
   entityId  Int?
@@ -124,4 +125,61 @@ model LaborSpentLog {
   amount    Float
   note      String?
   createdAt DateTime @default(now())
+}
+
+// ── Testing ──────────────────────────────────────────────────────────────────
+
+model TestSet {
+  id        Int        @id @default(autoincrement())
+  name      String
+  dateMin   DateTime?
+  dateMax   DateTime?
+  notes     String?
+  testCases TestCase[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model TestCase {
+  id        Int        @id @default(autoincrement())
+  testSetId Int
+  testSet   TestSet    @relation(fields: [testSetId], references: [id], onDelete: Cascade)
+  name      String
+  status    String     @default("WIP")
+  notes     String?
+  testedBy  String?
+  testedAt  DateTime?
+  dataUsed  String?
+  order     Int        @default(0)
+  steps     TestStep[]
+  defects   Defect[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model TestStep {
+  id         Int      @id @default(autoincrement())
+  testCaseId Int
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  order      Int      @default(0)
+  description String
+  status     String   @default("WIP")
+  testedBy   String?
+  testedAt   DateTime?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Defect {
+  id          Int      @id @default(autoincrement())
+  testCaseId  Int
+  testCase    TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  severity    String   @default("Medium")
+  status      String   @default("Open")
+  reportedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
