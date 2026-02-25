@@ -24,7 +24,7 @@
     body { background: var(--dhl-light); font-family: 'Segoe UI', Arial, sans-serif; }
 
     /* Sidebar */
-    .sidebar { width: 220px; background: var(--dhl-dark); min-height: 100vh; flex-shrink: 0; }
+    .sidebar { width: 220px; background: var(--dhl-dark); height: 100vh; overflow-y: auto; flex-shrink: 0; position: sticky; top: 0; }
     .sidebar-logo { background: var(--dhl-yellow); padding: 14px 20px; display: flex; flex-direction: column; gap: 4px; }
     .sidebar-logo img { display: block; max-width: 100%; }
     .sidebar-logo .logo-sub { font-weight: 900; font-size: 15px; color: var(--dhl-dark); letter-spacing: 0.3px; line-height: 1.2; margin-top: 2px; }
@@ -214,7 +214,7 @@
 </head>
 <body x-data="app()" x-init="init()" x-cloak>
 
-<div class="flex">
+<div class="flex" style="height: 100vh; overflow: hidden; align-items: flex-start;">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
@@ -275,7 +275,7 @@
   </aside>
 
   <!-- MAIN -->
-  <div class="flex-1 flex flex-col min-h-screen" style="min-width: 0;">
+  <div class="flex-1 flex flex-col" style="min-width: 0; height: 100vh; overflow-y: auto;">
 
     <!-- TOPBAR -->
     <div class="topbar">
