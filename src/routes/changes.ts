@@ -1,6 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db'
+import { logAudit } from './audit'
+
+const CAT = 'Change Management'
+function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
 
 const CRBody = z.object({
   title:                 z.string().min(1),
@@ -85,6 +89,7 @@ export async function changesRoutes(fastify: FastifyInstance) {
       },
       include: { requestedBy: true, approvedBy: true },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'CREATE', entityId: cr.id, summary: `Vytvořen CR: "${cr.title}" · Typ: ${cr.changeType} · Status: ${cr.approvalStatus}${cr.budgetImpact ? ' · Budget impact: ' + cr.budgetImpact.toLocaleString('cs-CZ') + ' Kč' : ''}` })
     return reply.code(201).send({
       ...cr,
       linkedRiskIds:  d.linkedRiskIds,
@@ -126,18 +131,22 @@ export async function changesRoutes(fastify: FastifyInstance) {
       },
       include: { requestedBy: true, approvedBy: true },
     })
-    return {
-      ...cr,
-      linkedRiskIds:  riskIds,
-      linkedIssueIds: issueIds,
-    }
+
+    const changes: string[] = []
+    if (d.approvalStatus && d.approvalStatus !== existing.approvalStatus) changes.push(`Status: ${existing.approvalStatus} → ${d.approvalStatus}`)
+    if (d.budgetImpact !== undefined && d.budgetImpact !== existing.budgetImpact) changes.push(`Budget impact: ${d.budgetImpact?.toLocaleString('cs-CZ') ?? '—'} Kč`)
+    if (d.title && d.title !== existing.title) changes.push(`Název: "${d.title}"`)
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'UPDATE', entityId: id, summary: `Upraven CR: "${cr.title}"${changes.length ? ' · ' + changes.join(', ') : ''}` })
+    return { ...cr, linkedRiskIds: riskIds, linkedIssueIds: issueIds }
   })
 
   // DELETE change request
   fastify.delete('/api/changes/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
+    const existing = await prisma.changeRequest.findUnique({ where: { id } })
     await prisma.changeRequest.delete({ where: { id } })
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'DELETE', entityId: id, summary: `Smazán CR: "${existing?.title ?? 'ID ' + id}" · Byl ve stavu: ${existing?.approvalStatus ?? '?'}` })
     return reply.code(204).send()
   })
 }

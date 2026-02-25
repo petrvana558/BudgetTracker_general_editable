@@ -202,10 +202,11 @@ model Risk {
   contingencyPlan String?
   ownerId         Int?
   owner           Person?            @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  status          String             @default("Open")
-  dateIdentified  DateTime           @default(now())
-  reviewDate      DateTime?
-  scoreHistory    RiskScoreHistory[]
+  status               String             @default("Open")
+  dateIdentified       DateTime           @default(now())
+  reviewDate           DateTime?
+  materializationDate  DateTime?
+  scoreHistory         RiskScoreHistory[]
   issues          Issue[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt

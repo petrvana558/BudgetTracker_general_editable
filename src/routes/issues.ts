@@ -1,6 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db'
+import { logAudit } from './audit'
+
+const CAT = 'Issue Tracker'
+function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
 
 const IssueBody = z.object({
   title:                z.string().min(1),
@@ -46,6 +50,7 @@ export async function issueRoutes(fastify: FastifyInstance) {
       },
       include: { owner: true, linkedRisk: true },
     })
+    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'CREATE', entityId: issue.id, summary: `Vytvořen issue: "${issue.title}" · Typ: ${issue.type} · Závažnost: ${issue.severity} · Status: ${issue.status}` })
     return reply.code(201).send(issue)
   })
 
@@ -70,17 +75,19 @@ export async function issueRoutes(fastify: FastifyInstance) {
         priority:             d.priority             ?? existing.priority,
         status:               d.status               ?? existing.status,
         ownerId:              d.ownerId !== undefined ? (d.ownerId ?? null) : existing.ownerId,
-        dueDate:              d.dueDate !== undefined
-          ? (d.dueDate ? new Date(d.dueDate) : null)
-          : existing.dueDate,
+        dueDate:              d.dueDate !== undefined ? (d.dueDate ? new Date(d.dueDate) : null) : existing.dueDate,
         rootCause:            d.rootCause            ?? existing.rootCause,
         linkedRiskId:         d.linkedRiskId !== undefined ? (d.linkedRiskId ?? null) : existing.linkedRiskId,
-        linkedChangeRequestId: d.linkedChangeRequestId !== undefined
-          ? (d.linkedChangeRequestId ?? null)
-          : existing.linkedChangeRequestId,
+        linkedChangeRequestId: d.linkedChangeRequestId !== undefined ? (d.linkedChangeRequestId ?? null) : existing.linkedChangeRequestId,
       },
       include: { owner: true, linkedRisk: true },
     })
+
+    const changes: string[] = []
+    if (d.status && d.status !== existing.status) changes.push(`Status: ${existing.status} → ${d.status}`)
+    if (d.severity && d.severity !== existing.severity) changes.push(`Závažnost: ${existing.severity} → ${d.severity}`)
+    if (d.title && d.title !== existing.title) changes.push(`Název: "${d.title}"`)
+    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'UPDATE', entityId: id, summary: `Upraven issue: "${issue.title}"${changes.length ? ' · ' + changes.join(', ') : ''}` })
     return issue
   })
 
@@ -88,7 +95,9 @@ export async function issueRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/issues/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
+    const existing = await prisma.issue.findUnique({ where: { id } })
     await prisma.issue.delete({ where: { id } })
+    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'DELETE', entityId: id, summary: `Smazán issue: "${existing?.title ?? 'ID ' + id}" · Závažnost: ${existing?.severity ?? '?'}` })
     return reply.code(204).send()
   })
 }

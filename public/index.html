@@ -311,13 +311,25 @@
           </button>
         </template>
         <template x-if="view === 'risks'">
-          <button class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
+          <div class="flex gap-2">
+            <button class="btn-ghost btn-sm" @click="exportRisksPDF()"
+              style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
+            <button class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
+          </div>
         </template>
         <template x-if="view === 'issues'">
-          <button class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
+          <div class="flex gap-2">
+            <button class="btn-ghost btn-sm" @click="exportIssuesPDF()"
+              style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
+            <button class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
+          </div>
         </template>
         <template x-if="view === 'changes'">
-          <button class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
+          <div class="flex gap-2">
+            <button class="btn-ghost btn-sm" @click="exportChangesPDF()"
+              style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
+            <button class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
+          </div>
         </template>
         <!-- Currency toggle (hidden when eurRate=0) -->
         <template x-if="eurRate > 0">
@@ -1660,6 +1672,7 @@
                   <th style="width:110px">Owner</th>
                   <th style="width:100px">Status</th>
                   <th style="width:100px">Review datum</th>
+                  <th style="width:110px">Materializace</th>
                   <th style="width:80px">Akce</th>
                 </tr>
               </thead>
@@ -1683,6 +1696,8 @@
                     <td x-text="r.owner?.name ?? '—'"></td>
                     <td><span class="badge" :class="riskStatusBadge(r.status)" x-text="r.status"></span></td>
                     <td class="text-xs" x-text="r.reviewDate ? fmtDate(r.reviewDate) : '—'"></td>
+                    <td class="text-xs" :class="r.materializationDate && new Date(r.materializationDate) <= new Date() ? 'deadline-urgent' : ''"
+                      x-text="r.materializationDate ? fmtDate(r.materializationDate) : '—'"></td>
                     <td>
                       <button class="btn-icon" @click="openEditRisk(r)" title="Editovat">✏️</button>
                       <button class="btn-icon" @click="deleteRisk(r.id)" title="Smazat" style="color:#D40511">🗑</button>
@@ -1937,7 +1952,7 @@
       <!-- Log view -->
       <div x-show="settingsTab === 'log'">
         <!-- Category switcher -->
-        <div class="flex gap-2 mb-4">
+        <div class="flex gap-2 mb-4 flex-wrap">
           <button
             @click="auditCategory='Budget Tracker'; auditFilter=''; loadAuditLog()"
             :style="auditCategory==='Budget Tracker' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
@@ -1949,6 +1964,24 @@
             :style="auditCategory==='Test Management' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
             style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
             🧪 Test Management
+          </button>
+          <button
+            @click="auditCategory='Risk Management'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Risk Management' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            ⚠️ Risk Management
+          </button>
+          <button
+            @click="auditCategory='Issue Tracker'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Issue Tracker' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            🐛 Issue Tracker
+          </button>
+          <button
+            @click="auditCategory='Change Management'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Change Management' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            🔄 Change Management
           </button>
         </div>
 
@@ -1972,6 +2005,21 @@
                 <option value="TestCase">Test Case</option>
                 <option value="TestStep">Test Step</option>
                 <option value="Defect">Defekt</option>
+              </select>
+              <!-- Entity filter — Risk Management -->
+              <select x-show="auditCategory==='Risk Management'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">Vše</option>
+                <option value="Risk">Riziko</option>
+              </select>
+              <!-- Entity filter — Issue Tracker -->
+              <select x-show="auditCategory==='Issue Tracker'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">Vše</option>
+                <option value="Issue">Issue</option>
+              </select>
+              <!-- Entity filter — Change Management -->
+              <select x-show="auditCategory==='Change Management'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">Vše</option>
+                <option value="ChangeRequest">Change Request</option>
               </select>
               <button class="btn-ghost btn-sm" @click="loadAuditLog()" title="Obnovit log"
                 style="font-size:15px;padding:4px 8px;line-height:1">↻</button>
@@ -2365,6 +2413,11 @@
               <label class="form-label">Review datum</label>
               <input class="form-input" type="date" x-model="riskForm.reviewDate">
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Datum materializace rizika</label>
+            <input class="form-input" type="date" x-model="riskForm.materializationDate">
+            <div class="text-xs text-gray-400 mt-1">Datum, kdy se riziko mění v issue (nastane/materializuje)</div>
           </div>
           <div class="form-group">
             <label class="form-label">Mitigation plan</label>
@@ -3057,7 +3110,7 @@ function app() {
     riskTab: 'list',
     riskFilters: { status: '', category: '' },
     riskModal: { open: false, id: null },
-    riskForm: { title: '', description: '', category: 'technical', probability: 3, impact: 3, mitigationPlan: '', contingencyPlan: '', ownerId: '', status: 'Open', dateIdentified: '', reviewDate: '' },
+    riskForm: { title: '', description: '', category: 'technical', probability: 3, impact: 3, mitigationPlan: '', contingencyPlan: '', ownerId: '', status: 'Open', dateIdentified: '', reviewDate: '', materializationDate: '' },
     riskTrendId: '',
     _top10Chart: null,
     _trendChart: null,
@@ -3351,16 +3404,16 @@ function app() {
     },
 
     openNewRisk() {
-      this.riskForm = { title: '', description: '', category: 'technical', probability: 3, impact: 3, mitigationPlan: '', contingencyPlan: '', ownerId: '', status: 'Open', dateIdentified: new Date().toISOString().slice(0,10), reviewDate: '' }
+      this.riskForm = { title: '', description: '', category: 'technical', probability: 3, impact: 3, mitigationPlan: '', contingencyPlan: '', ownerId: '', status: 'Open', dateIdentified: new Date().toISOString().slice(0,10), reviewDate: '', materializationDate: '' }
       this.riskModal = { open: true, id: null }
     },
     openEditRisk(r) {
-      this.riskForm = { title: r.title, description: r.description ?? '', category: r.category, probability: r.probability, impact: r.impact, mitigationPlan: r.mitigationPlan ?? '', contingencyPlan: r.contingencyPlan ?? '', ownerId: r.ownerId ?? '', status: r.status, dateIdentified: r.dateIdentified ? r.dateIdentified.slice(0,10) : '', reviewDate: r.reviewDate ? r.reviewDate.slice(0,10) : '' }
+      this.riskForm = { title: r.title, description: r.description ?? '', category: r.category, probability: r.probability, impact: r.impact, mitigationPlan: r.mitigationPlan ?? '', contingencyPlan: r.contingencyPlan ?? '', ownerId: r.ownerId ?? '', status: r.status, dateIdentified: r.dateIdentified ? r.dateIdentified.slice(0,10) : '', reviewDate: r.reviewDate ? r.reviewDate.slice(0,10) : '', materializationDate: r.materializationDate ? r.materializationDate.slice(0,10) : '' }
       this.riskModal = { open: true, id: r.id }
     },
     async saveRisk() {
       if (!this.riskForm.title?.trim()) return alert('Vyplňte název rizika')
-      const payload = { ...this.riskForm, probability: parseInt(this.riskForm.probability), impact: parseInt(this.riskForm.impact), ownerId: this.riskForm.ownerId ? parseInt(this.riskForm.ownerId) : null, reviewDate: this.riskForm.reviewDate || null }
+      const payload = { ...this.riskForm, probability: parseInt(this.riskForm.probability), impact: parseInt(this.riskForm.impact), ownerId: this.riskForm.ownerId ? parseInt(this.riskForm.ownerId) : null, reviewDate: this.riskForm.reviewDate || null, materializationDate: this.riskForm.materializationDate || null }
       const method = this.riskModal.id ? 'PUT' : 'POST'
       const path   = this.riskModal.id ? `/api/risks/${this.riskModal.id}` : '/api/risks'
       await this.apiFetch(method, path, payload)
@@ -4270,6 +4323,148 @@ function app() {
         </table>` : ''}
       `
       this._openPrintWindow(body, esc(this.projectName) + ' — Test Dashboard')
+    },
+
+    // --- Risk / Issue / Change PDF exports ---
+    exportRisksPDF() {
+      const { fmt, fmtD, esc } = this._pdfFmt()
+      const scoreStyle = (s) => s >= 15 ? 'background:#fee2e2;color:#991b1b' : s >= 10 ? 'background:#ffedd5;color:#9a3412' : s >= 5 ? 'background:#fef9c3;color:#854d0e' : 'background:#d1fae5;color:#065f46'
+      const rows = this.risks.map(r => `<tr>
+        <td style="font-size:7pt;color:#888">R-${String(r.id).padStart(3,'0')}</td>
+        <td><b>${esc(r.title)}</b>${r.description ? '<br><span style="color:#888;font-size:7pt">' + esc(r.description.slice(0,80)) + '</span>' : ''}</td>
+        <td>${esc(r.category)}</td>
+        <td class="r">${r.probability}</td><td class="r">${r.impact}</td>
+        <td class="r"><span style="padding:2px 6px;border-radius:3px;font-weight:700;${scoreStyle(r.score)}">${r.score}</span></td>
+        <td>${esc(r.owner?.name)}</td>
+        <td>${esc(r.status)}</td>
+        <td>${fmtD(r.reviewDate)}</td>
+        <td>${fmtD(r.materializationDate)}</td>
+        <td style="font-size:7pt">${esc(r.mitigationPlan?.slice(0,60))}</td>
+      </tr>`).join('')
+      const openRisks = this.risks.filter(r => r.status === 'Open' || r.status === 'Monitoring')
+      const exposure  = openRisks.reduce((s, r) => s + r.score, 0)
+      const body = this._pdfHeader('Risk Management — Registr rizik') + `
+        <div class="kpi-grid" style="overflow:hidden;margin-bottom:12px">
+          <div class="kpi" style="float:left;width:18%;padding:7px 9px;border:1px solid #e0e0e0;border-radius:4px;margin-right:1%">
+            <div class="kpi-l" style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#777">Celkem rizik</div>
+            <div class="kpi-v" style="font-size:14pt;font-weight:800">${this.risks.length}</div>
+          </div>
+          <div class="kpi" style="float:left;width:18%;padding:7px 9px;border:1px solid #e0e0e0;border-radius:4px;margin-right:1%">
+            <div class="kpi-l" style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#777">Otevřená rizika</div>
+            <div class="kpi-v" style="font-size:14pt;font-weight:800">${openRisks.length}</div>
+          </div>
+          <div class="kpi" style="float:left;width:18%;padding:7px 9px;border:1px solid #fee2e2;border-radius:4px;margin-right:1%">
+            <div class="kpi-l" style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#991b1b">Risk Exposure</div>
+            <div class="kpi-v" style="font-size:14pt;font-weight:800;color:#D40511">${exposure}</div>
+          </div>
+          <div style="clear:both"></div>
+        </div>
+        <table class="data">
+          <thead><tr>
+            <th style="width:40px">ID</th><th>Název / Popis</th><th style="width:80px">Kategorie</th>
+            <th style="width:30px">P</th><th style="width:30px">D</th><th style="width:55px">Skóre</th>
+            <th style="width:90px">Owner</th><th style="width:80px">Status</th>
+            <th style="width:80px">Review</th><th style="width:90px">Materializace</th>
+            <th>Mitigation</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`
+      this._openPrintWindow(body, esc(this.projectName) + ' — Risk Management')
+    },
+
+    exportIssuesPDF() {
+      const { fmtD, esc } = this._pdfFmt()
+      const sevStyle = (s) => s === 'Critical' ? 'background:#fee2e2;color:#991b1b' : s === 'High' ? 'background:#ffedd5;color:#9a3412' : s === 'Medium' ? 'background:#fff3cd;color:#856404' : 'background:#f3f4f6;color:#4b5563'
+      const stStyle  = (s) => s === 'Open' ? 'background:#fee2e2;color:#991b1b' : s === 'In progress' ? 'background:#dbeafe;color:#1e40af' : s === 'Escalated' ? 'background:#ede9fe;color:#5b21b6' : s === 'Resolved' ? 'background:#fff3cd;color:#856404' : 'background:#d1fae5;color:#065f46'
+      const rows = this.issues.map(i => `<tr>
+        <td style="font-size:7pt;color:#888">I-${String(i.id).padStart(3,'0')}</td>
+        <td><b>${esc(i.title)}</b>${i.rootCause ? '<br><span style="color:#888;font-size:7pt">Příčina: ' + esc(i.rootCause.slice(0,60)) + '</span>' : ''}</td>
+        <td>${esc(i.type)}</td>
+        <td><span style="padding:2px 5px;border-radius:3px;font-weight:700;font-size:7pt;${sevStyle(i.severity)}">${esc(i.severity)}</span></td>
+        <td><span style="padding:2px 5px;border-radius:3px;font-weight:700;font-size:7pt;${sevStyle(i.priority)}">${esc(i.priority)}</span></td>
+        <td><span style="padding:2px 5px;border-radius:3px;font-weight:700;font-size:7pt;${stStyle(i.status)}">${esc(i.status)}</span></td>
+        <td>${esc(i.owner?.name)}</td>
+        <td class="${i.dueDate && new Date(i.dueDate) < new Date() ? 'red' : ''}">${fmtD(i.dueDate)}</td>
+        <td style="font-size:7pt">${i.linkedRisk ? 'R-' + String(i.linkedRisk.id).padStart(3,'0') + ' ' + esc(i.linkedRisk.title.slice(0,25)) : '—'}</td>
+      </tr>`).join('')
+      const critical = this.issues.filter(i => i.severity === 'Critical' || i.severity === 'High').length
+      const open     = this.issues.filter(i => i.status === 'Open' || i.status === 'In progress').length
+      const body = this._pdfHeader('Issue Tracker') + `
+        <div style="overflow:hidden;margin-bottom:12px">
+          <div style="float:left;width:18%;padding:7px 9px;border:1px solid #e0e0e0;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#777">Celkem issues</div>
+            <div style="font-size:14pt;font-weight:800">${this.issues.length}</div>
+          </div>
+          <div style="float:left;width:18%;padding:7px 9px;border:1px solid #fee2e2;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#991b1b">Critical / High</div>
+            <div style="font-size:14pt;font-weight:800;color:#D40511">${critical}</div>
+          </div>
+          <div style="float:left;width:18%;padding:7px 9px;border:1px solid #dbeafe;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#1e40af">Otevřené</div>
+            <div style="font-size:14pt;font-weight:800;color:#1e40af">${open}</div>
+          </div>
+          <div style="clear:both"></div>
+        </div>
+        <table class="data">
+          <thead><tr>
+            <th style="width:40px">ID</th><th>Název / Root cause</th><th style="width:80px">Typ</th>
+            <th style="width:70px">Závažnost</th><th style="width:70px">Priorita</th>
+            <th style="width:80px">Status</th><th style="width:90px">Owner</th>
+            <th style="width:80px">Due date</th><th>Linked Risk</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`
+      this._openPrintWindow(body, esc(this.projectName) + ' — Issue Tracker')
+    },
+
+    exportChangesPDF() {
+      const { fmt, fmtD, esc } = this._pdfFmt()
+      const stStyle = (s) => s === 'Draft' ? 'background:#f3f4f6;color:#4b5563' : s === 'Submitted' ? 'background:#dbeafe;color:#1e40af' : s === 'Approved' ? 'background:#d1fae5;color:#065f46' : s === 'Rejected' ? 'background:#fee2e2;color:#991b1b' : 'background:#ede9fe;color:#5b21b6'
+      const rows = this.changes.map(cr => `<tr>
+        <td style="font-size:7pt;color:#888">CR-${String(cr.id).padStart(3,'0')}</td>
+        <td><b>${esc(cr.title)}</b>${cr.description ? '<br><span style="color:#888;font-size:7pt">' + esc(cr.description.slice(0,70)) + '</span>' : ''}</td>
+        <td>${esc(cr.changeType)}</td>
+        <td><span style="padding:2px 5px;border-radius:3px;font-weight:700;font-size:7pt;${stStyle(cr.approvalStatus)}">${esc(cr.approvalStatus)}</span></td>
+        <td class="r ${(cr.budgetImpact ?? 0) > 0 ? 'red' : ''}">${cr.budgetImpact ? fmt(cr.budgetImpact) : '—'}</td>
+        <td>${esc(cr.timelineImpact)}</td>
+        <td>${esc(cr.requestedBy?.name)}</td>
+        <td>${esc(cr.approvedBy?.name)}</td>
+        <td style="font-size:7pt">${esc(cr.businessJustification?.slice(0,60))}</td>
+      </tr>`).join('')
+      const pending  = this.changes.filter(c => c.approvalStatus === 'Draft' || c.approvalStatus === 'Submitted').length
+      const approved = this.changes.filter(c => c.approvalStatus === 'Approved' || c.approvalStatus === 'Implemented').length
+      const totalImpact = this.changes.filter(c => c.approvalStatus === 'Approved' || c.approvalStatus === 'Implemented').reduce((s,c) => s + (c.budgetImpact ?? 0), 0)
+      const body = this._pdfHeader('Change Management') + `
+        <div style="overflow:hidden;margin-bottom:12px">
+          <div style="float:left;width:18%;padding:7px 9px;border:1px solid #e0e0e0;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#777">Celkem CR</div>
+            <div style="font-size:14pt;font-weight:800">${this.changes.length}</div>
+          </div>
+          <div style="float:left;width:18%;padding:7px 9px;border:1px solid #dbeafe;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#1e40af">Čekající</div>
+            <div style="font-size:14pt;font-weight:800;color:#1e40af">${pending}</div>
+          </div>
+          <div style="float:left;width:18%;padding:7px 9px;border:1px solid #d1fae5;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#065f46">Schválené</div>
+            <div style="font-size:14pt;font-weight:800;color:#065f46">${approved}</div>
+          </div>
+          ${totalImpact ? `<div style="float:left;width:22%;padding:7px 9px;border:1px solid #fee2e2;border-radius:4px;margin-right:1%">
+            <div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#991b1b">Budget Impact (schválené)</div>
+            <div style="font-size:14pt;font-weight:800;color:#D40511">${fmt(totalImpact)}</div>
+          </div>` : ''}
+          <div style="clear:both"></div>
+        </div>
+        <table class="data">
+          <thead><tr>
+            <th style="width:40px">ID</th><th>Název / Popis</th><th style="width:80px">Typ</th>
+            <th style="width:90px">Status</th><th style="width:90px">Budget impact</th>
+            <th style="width:80px">Timeline</th>
+            <th style="width:90px">Requested by</th><th style="width:90px">Approved by</th>
+            <th>Justification</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`
+      this._openPrintWindow(body, esc(this.projectName) + ' — Change Management')
     },
 
     // --- Helpers ---
