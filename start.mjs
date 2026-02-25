@@ -43,26 +43,20 @@ if (!existsSync('.env') || externalDbUrl) {
   console.log(`✓ DATABASE_URL → ${dbUrl}`)
 }
 
-// ── Seed / initialise DB at target path if it does not exist yet ──────────────
+// ── On first deploy: copy bundled seed DB to volume path ─────────────────────
 if (dbFile && !existsSync(dbFile)) {
   const seedDb = 'prisma/dev.db'
   if (existsSync(seedDb) && dbFile !== seedDb) {
     console.log(`⚙  First deploy — copying seed DB to ${dbFile} …`)
     copyFileSync(seedDb, dbFile)
-    console.log('✓ Seed database ready')
-  } else {
-    console.log('⚙  Initialising database…')
-    execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push'], { stdio: 'inherit' })
-    console.log('✓ Database ready')
-  }
-} else if (!dbFile) {
-  // Relative path (local dev) — run db push if prisma/dev.db missing
-  if (!existsSync('prisma/dev.db')) {
-    console.log('⚙  Initialising database…')
-    execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push'], { stdio: 'inherit' })
-    console.log('✓ Database ready')
+    console.log('✓ Seed database copied')
   }
 }
+
+// ── Always sync schema (idempotent — adds missing tables, keeps existing data) ─
+console.log('⚙  Syncing database schema…')
+execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { stdio: 'inherit' })
+console.log('✓ Schema up to date')
 
 // ── Start server ──────────────────────────────────────────────────────────────
 console.log('🚀 Starting Budget Tracker…')
