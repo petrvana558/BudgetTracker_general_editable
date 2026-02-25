@@ -4,9 +4,13 @@ import { laborAmount } from './labor'
 
 export async function dashboardRoutes(fastify: FastifyInstance) {
   fastify.get('/api/dashboard', async () => {
-    const [items, laborCosts] = await Promise.all([
+    const [items, laborCosts, risks, issues, changes, assumptions] = await Promise.all([
       prisma.budgetItem.findMany({ include: { responsible: true, priority: true } }),
       prisma.laborCost.findMany(),
+      prisma.risk.findMany(),
+      prisma.issue.findMany(),
+      prisma.changeRequest.findMany(),
+      prisma.assumption.findMany(),
     ])
 
     // ── Financials ──────────────────────────────────────────────
@@ -101,6 +105,31 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     }
     const laborByDept = Object.entries(byDeptMap).map(([dept, total]) => ({ dept, total }))
 
+    // ── PM KPIs ──────────────────────────────────────────────────
+    const totalRisks           = risks.length
+    const highSeverityIssues   = issues.filter(i => i.severity === 'Critical' || i.severity === 'High').length
+    const pendingChangeRequests = changes.filter(c => c.approvalStatus === 'Draft' || c.approvalStatus === 'Submitted').length
+    const budgetImpactSummary  = changes
+      .filter(c => c.approvalStatus === 'Approved' || c.approvalStatus === 'Implemented')
+      .reduce((s, c) => s + (c.budgetImpact ?? 0), 0)
+    const riskExposure = risks
+      .filter(r => r.status === 'Open' || r.status === 'Monitoring')
+      .reduce((s, r) => s + r.score, 0)
+
+    // ── Assumption KPIs ──────────────────────────────────────────
+    const now14 = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    const activeAssumptions    = assumptions.filter(a => !['Validated', 'Closed', 'Converted to Risk'].includes(a.status))
+    const totalAssumptions     = assumptions.length
+    const validatedAssumptions = assumptions.filter(a => a.status === 'Validated' || a.status === 'Closed').length
+    const validatedPct         = totalAssumptions > 0 ? Math.round(validatedAssumptions / totalAssumptions * 100) : 0
+    const expiringSoon         = activeAssumptions.filter(a => a.validationDate && a.validationDate <= now14 && a.validationDate >= new Date()).length
+    const overdueAssumptions   = activeAssumptions.filter(a => a.validationDate && a.validationDate < new Date()).length
+    const top5Assumptions      = [...assumptions]
+      .filter(a => a.status === 'Active' || a.status === 'Under review')
+      .sort((a, b) => b.exposureScore - a.exposureScore)
+      .slice(0, 5)
+      .map(a => ({ id: a.id, code: a.code, title: a.title, exposureScore: a.exposureScore, status: a.status, category: a.category }))
+
     return {
       summary: {
         // Budget = sum of item estimates (auto-computed)
@@ -116,6 +145,17 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         spentPct:       totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : null,
         byStatus,
         byApproval,
+        // PM KPIs
+        totalRisks,
+        highSeverityIssues,
+        pendingChangeRequests,
+        budgetImpactSummary,
+        riskExposure,
+        // Assumption KPIs
+        totalAssumptions,
+        validatedPct,
+        expiringSoon,
+        overdueAssumptions,
       },
       byCategory,
       byPriority,
@@ -123,6 +163,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       upcomingDeadlines,
       laborCosts,
       laborByDept,
+      top5Assumptions,
     }
   })
 }

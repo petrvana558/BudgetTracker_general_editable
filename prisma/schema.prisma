@@ -57,11 +57,16 @@ model Comment {
 }
 
 model Person {
-  id         Int          @id @default(autoincrement())
-  name       String
-  email      String?
-  department String?
-  items      BudgetItem[]
+  id              Int             @id @default(autoincrement())
+  name            String
+  email           String?
+  department      String?
+  items           BudgetItem[]
+  ownedRisks       Risk[]          @relation("RiskOwner")
+  ownedIssues      Issue[]         @relation("IssueOwner")
+  requestedCRs     ChangeRequest[] @relation("CRRequestedBy")
+  approvedCRs      ChangeRequest[] @relation("CRApprovedBy")
+  ownedAssumptions Assumption[]    @relation("AssumptionOwner")
 }
 
 model Priority {
@@ -87,6 +92,7 @@ model AuditLog {
   id        Int      @id @default(autoincrement())
   timestamp DateTime @default(now())
   user      String   @default("System")
+  category  String   @default("Budget Tracker")
   entity    String
   action    String
   entityId  Int?
@@ -124,4 +130,168 @@ model LaborSpentLog {
   amount    Float
   note      String?
   createdAt DateTime @default(now())
+}
+
+// ── Testing ──────────────────────────────────────────────────────────────────
+
+model TestSet {
+  id        Int        @id @default(autoincrement())
+  name      String
+  dateMin   DateTime?
+  dateMax   DateTime?
+  notes     String?
+  testCases TestCase[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model TestCase {
+  id        Int        @id @default(autoincrement())
+  testSetId Int
+  testSet   TestSet    @relation(fields: [testSetId], references: [id], onDelete: Cascade)
+  name      String
+  status    String     @default("WIP")
+  notes     String?
+  testedBy  String?
+  testedAt  DateTime?
+  dataUsed  String?
+  order     Int        @default(0)
+  steps     TestStep[]
+  defects   Defect[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model TestStep {
+  id         Int      @id @default(autoincrement())
+  testCaseId Int
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  order      Int      @default(0)
+  description String
+  status     String   @default("WIP")
+  testedBy   String?
+  testedAt   DateTime?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Defect {
+  id          Int      @id @default(autoincrement())
+  testCaseId  Int
+  testCase    TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  severity    String   @default("Medium")
+  status      String   @default("Open")
+  reportedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── Risk Management ───────────────────────────────────────────────────────────
+
+model Risk {
+  id              Int                @id @default(autoincrement())
+  title           String
+  description     String?
+  category        String             @default("technical")
+  probability     Int                @default(3)
+  impact          Int                @default(3)
+  score           Int                @default(9)
+  mitigationPlan  String?
+  contingencyPlan String?
+  ownerId         Int?
+  owner           Person?            @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  status               String             @default("Open")
+  dateIdentified       DateTime           @default(now())
+  reviewDate           DateTime?
+  materializationDate  DateTime?
+  scoreHistory         RiskScoreHistory[]
+  issues          Issue[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model RiskScoreHistory {
+  id     Int      @id @default(autoincrement())
+  riskId Int
+  risk   Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  score  Int
+  date   DateTime @default(now())
+}
+
+// ── Issue Tracker ─────────────────────────────────────────────────────────────
+
+model Issue {
+  id                    Int            @id @default(autoincrement())
+  title                 String
+  description           String?
+  type                  String         @default("Bug")
+  severity              String         @default("Medium")
+  priority              String         @default("Medium")
+  status                String         @default("Open")
+  ownerId               Int?
+  owner                 Person?        @relation("IssueOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  dateCreated           DateTime       @default(now())
+  dueDate               DateTime?
+  rootCause             String?
+  linkedRiskId          Int?
+  linkedRisk            Risk?          @relation(fields: [linkedRiskId], references: [id], onDelete: SetNull)
+  linkedChangeRequestId Int?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+}
+
+// ── Change Management ─────────────────────────────────────────────────────────
+
+model ChangeRequest {
+  id                    Int      @id @default(autoincrement())
+  title                 String
+  description           String?
+  changeType            String   @default("Scope")
+  businessJustification String?
+  budgetImpact          Float?
+  timelineImpact        String?
+  resourceImpact        String?
+  riskImpact            String?
+  requestedById         Int?
+  requestedBy           Person?  @relation("CRRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedById          Int?
+  approvedBy            Person?  @relation("CRApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvalStatus        String   @default("Draft")
+  linkedRiskIds         String   @default("[]")
+  linkedIssueIds        String   @default("[]")
+  linkedRequirements    String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ── Assumption Log ─────────────────────────────────────────────────────────────
+
+model Assumption {
+  id                      Int       @id @default(autoincrement())
+  code                    String    @unique
+  title                   String
+  description             String?
+  category                String    @default("Finance")
+  phase                   String    @default("Design")
+  type                    String    @default("Operational")
+  source                  String    @default("Internal planning")
+  validationMethod        String?
+  status                  String    @default("Active")
+  isLocked                Boolean   @default(false)
+  ownerId                 Int?
+  owner                   Person?   @relation("AssumptionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  validationDate          DateTime?
+  validatedAt             DateTime?
+  budgetImpact            Float?
+  timelineImpact          Int?
+  scopeImpact             String    @default("Medium")
+  invalidationProbability Int       @default(3)
+  exposureScore           Int       @default(0)
+  convertedRiskId         Int?
+  notes                   String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
