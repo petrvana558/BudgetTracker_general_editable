@@ -43,7 +43,7 @@ if (!existsSync('.env') || externalDbUrl) {
   console.log(`✓ DATABASE_URL → ${dbUrl}`)
 }
 
-// ── Seed / initialise DB at target path if it does not exist yet ──────────────
+// ── On first deploy: copy bundled seed DB to volume path ─────────────────────
 if (dbFile && !existsSync(dbFile)) {
   const seedDb = 'prisma/dev.db'
   if (existsSync(seedDb) && dbFile !== seedDb) {
@@ -53,7 +53,7 @@ if (dbFile && !existsSync(dbFile)) {
   }
 }
 
-// ── Always run db push to apply any schema changes (safe / idempotent) ────────
+// ── Always sync schema (idempotent — adds missing tables, keeps existing data) ─
 console.log('⚙  Syncing database schema…')
 execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { stdio: 'inherit' })
 console.log('✓ Schema up to date')
