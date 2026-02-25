@@ -2334,6 +2334,29 @@
         <div class="chart-card p-6 space-y-5">
           <h3 class="font-bold text-base">Logo &amp; Vzhled sidebaru</h3>
 
+          <!-- Colour palette picker -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight:700;margin-bottom:10px;display:block">Barevná paleta</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <template x-for="p in palettes" :key="p.id">
+                <div @click="selectPalette(p.id)" :title="p.name"
+                  style="cursor:pointer;border-radius:8px;overflow:hidden;width:72px;transition:transform 0.1s"
+                  :style="colorPalette === p.id
+                    ? 'outline:3px solid ' + p.accent + ';outline-offset:2px;transform:scale(1.07)'
+                    : 'outline:2px solid #e0e0e0;outline-offset:2px'"
+                  @mouseenter="$el.style.transform='scale(1.05)'"
+                  @mouseleave="$el.style.transform = colorPalette === p.id ? 'scale(1.07)' : 'scale(1)'">
+                  <div :style="'background:' + p.dark + ';padding:10px 8px;display:flex;gap:5px;align-items:center;justify-content:center'">
+                    <div :style="'width:20px;height:20px;border-radius:50%;background:' + p.accent"></div>
+                    <div :style="'width:10px;height:10px;border-radius:50%;background:' + p.accent + ';opacity:0.45'"></div>
+                  </div>
+                  <div :style="'background:' + p.accent + ';padding:5px 4px;text-align:center;font-size:10px;font-weight:800;letter-spacing:0.3px;color:' + p.dark" x-text="p.name"></div>
+                </div>
+              </template>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">Paleta změní barvy sidebaru a akcentů. Barvy statusů a upozornění zůstávají beze změny.</div>
+          </div>
+
           <!-- Logo upload -->
           <div class="form-group">
             <label class="form-label">Nahrát logo (PNG, SVG, JPG)</label>
@@ -3450,6 +3473,14 @@ function app() {
     logoBgColor: '#FFCC00',
     projectName: '',
     settingsSaved: false,
+    colorPalette: 'dhl',
+    palettes: [
+      { id: 'dhl',    name: 'DHL',    accent: '#FFCC00', dark: '#1A1A1A', mid: '#2C2C2C', light: '#F4F4F4' },
+      { id: 'ocean',  name: 'Ocean',  accent: '#38BDF8', dark: '#0F172A', mid: '#1E293B', light: '#F0F9FF' },
+      { id: 'forest', name: 'Forest', accent: '#4ADE80', dark: '#052E16', mid: '#14532D', light: '#F0FDF4' },
+      { id: 'indigo', name: 'Indigo', accent: '#A78BFA', dark: '#1E1B4B', mid: '#312E81', light: '#F5F3FF' },
+      { id: 'sunset', name: 'Sunset', accent: '#FB923C', dark: '#431407', mid: '#7C2D12', light: '#FFF7ED' },
+    ],
 
     // Currency
     currency: 'CZK',
@@ -3526,6 +3557,9 @@ function app() {
 
 
     async init() {
+      // Apply cached palette immediately to avoid color flash before settings load
+      const cachedPalette = localStorage.getItem('colorPalette') || 'dhl'
+      this.applyPalette(cachedPalette)
       await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
       await Promise.all([this.loadRisks(), this.loadIssues(), this.loadChanges(), this.loadAssumptions()])
       this.loadDashboard()
@@ -3559,6 +3593,24 @@ function app() {
         this.logoSrc = e.target.result
       }
       reader.readAsDataURL(file)
+    },
+
+    applyPalette(id) {
+      const p = this.palettes.find(x => x.id === id) || this.palettes[0]
+      const s = document.documentElement.style
+      s.setProperty('--dhl-yellow', p.accent)
+      s.setProperty('--dhl-dark', p.dark)
+      s.setProperty('--dhl-mid', p.mid)
+      s.setProperty('--dhl-light', p.light)
+      this.colorPalette = p.id
+      localStorage.setItem('colorPalette', p.id)
+    },
+
+    async selectPalette(id) {
+      this.applyPalette(id)
+      await this.apiFetch('PUT', '/api/settings/colorPalette', { value: id })
+      this.settingsSaved = true
+      setTimeout(() => this.settingsSaved = false, 2000)
     },
 
     async saveBranding() {
@@ -3631,6 +3683,8 @@ function app() {
       this.logoSrc = s.logoData || '/dhl-logo.svg'
       this.settingsForm.logoWidth = String(this.logoWidth)
       this.settingsForm.logoBgColor = this.logoBgColor
+      // Palette
+      this.applyPalette(s.colorPalette || 'dhl')
     },
 
     async saveEurRate() {
