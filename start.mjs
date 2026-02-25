@@ -60,7 +60,10 @@ console.log('✓ Schema up to date')
 
 // ── Start server ──────────────────────────────────────────────────────────────
 console.log('🚀 Starting Budget Tracker…')
-const server = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/server.ts'], { stdio: 'inherit' })
+const server = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/server.ts'], {
+  stdio: 'inherit',
+  env: { ...process.env, DATABASE_URL: dbUrl },
+})
 server.on('exit', code => process.exit(code ?? 0))
 
 // Forward shutdown signals from Railway/Docker to the child process
