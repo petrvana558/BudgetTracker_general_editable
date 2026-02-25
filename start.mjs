@@ -49,20 +49,14 @@ if (dbFile && !existsSync(dbFile)) {
   if (existsSync(seedDb) && dbFile !== seedDb) {
     console.log(`⚙  First deploy — copying seed DB to ${dbFile} …`)
     copyFileSync(seedDb, dbFile)
-    console.log('✓ Seed database ready')
-  } else {
-    console.log('⚙  Initialising database…')
-    execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push'], { stdio: 'inherit' })
-    console.log('✓ Database ready')
-  }
-} else if (!dbFile) {
-  // Relative path (local dev) — run db push if prisma/dev.db missing
-  if (!existsSync('prisma/dev.db')) {
-    console.log('⚙  Initialising database…')
-    execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push'], { stdio: 'inherit' })
-    console.log('✓ Database ready')
+    console.log('✓ Seed database copied')
   }
 }
+
+// ── Always run db push to apply any schema changes (safe / idempotent) ────────
+console.log('⚙  Syncing database schema…')
+execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { stdio: 'inherit' })
+console.log('✓ Schema up to date')
 
 // ── Start server ──────────────────────────────────────────────────────────────
 console.log('🚀 Starting Budget Tracker…')
