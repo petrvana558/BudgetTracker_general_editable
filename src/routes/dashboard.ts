@@ -4,9 +4,12 @@ import { laborAmount } from './labor'
 
 export async function dashboardRoutes(fastify: FastifyInstance) {
   fastify.get('/api/dashboard', async () => {
-    const [items, laborCosts] = await Promise.all([
+    const [items, laborCosts, risks, issues, changes] = await Promise.all([
       prisma.budgetItem.findMany({ include: { responsible: true, priority: true } }),
       prisma.laborCost.findMany(),
+      prisma.risk.findMany(),
+      prisma.issue.findMany(),
+      prisma.changeRequest.findMany(),
     ])
 
     // ── Financials ──────────────────────────────────────────────
@@ -101,6 +104,17 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     }
     const laborByDept = Object.entries(byDeptMap).map(([dept, total]) => ({ dept, total }))
 
+    // ── PM KPIs ──────────────────────────────────────────────────
+    const totalRisks           = risks.length
+    const highSeverityIssues   = issues.filter(i => i.severity === 'Critical' || i.severity === 'High').length
+    const pendingChangeRequests = changes.filter(c => c.approvalStatus === 'Draft' || c.approvalStatus === 'Submitted').length
+    const budgetImpactSummary  = changes
+      .filter(c => c.approvalStatus === 'Approved' || c.approvalStatus === 'Implemented')
+      .reduce((s, c) => s + (c.budgetImpact ?? 0), 0)
+    const riskExposure = risks
+      .filter(r => r.status === 'Open' || r.status === 'Monitoring')
+      .reduce((s, r) => s + r.score, 0)
+
     return {
       summary: {
         // Budget = sum of item estimates (auto-computed)
@@ -116,6 +130,12 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         spentPct:       totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : null,
         byStatus,
         byApproval,
+        // PM KPIs
+        totalRisks,
+        highSeverityIssues,
+        pendingChangeRequests,
+        budgetImpactSummary,
+        riskExposure,
       },
       byCategory,
       byPriority,
