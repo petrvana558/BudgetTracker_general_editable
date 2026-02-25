@@ -105,7 +105,7 @@ export async function changesRoutes(fastify: FastifyInstance) {
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
 
-    const existing = await prisma.changeRequest.findUnique({ where: { id } })
+    const existing = await prisma.changeRequest.findUnique({ where: { id }, include: { requestedBy: true, approvedBy: true } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
     const riskIds  = d.linkedRiskIds  !== undefined ? d.linkedRiskIds  : JSON.parse(existing.linkedRiskIds  || '[]')
@@ -132,11 +132,56 @@ export async function changesRoutes(fastify: FastifyInstance) {
       include: { requestedBy: true, approvedBy: true },
     })
 
-    const changes: string[] = []
-    if (d.approvalStatus && d.approvalStatus !== existing.approvalStatus) changes.push(`Status: ${existing.approvalStatus} → ${d.approvalStatus}`)
-    if (d.budgetImpact !== undefined && d.budgetImpact !== existing.budgetImpact) changes.push(`Budget impact: ${d.budgetImpact?.toLocaleString('cs-CZ') ?? '—'} Kč`)
-    if (d.title && d.title !== existing.title) changes.push(`Název: "${d.title}"`)
-    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'UPDATE', entityId: id, summary: `Upraven CR: "${cr.title}"${changes.length ? ' · ' + changes.join(', ') : ''}` })
+    const ch: string[] = []
+    if (d.title !== undefined && d.title !== existing.title)
+      ch.push(`Název: "${existing.title}" → "${d.title}"`)
+    if (d.changeType !== undefined && d.changeType !== existing.changeType)
+      ch.push(`Typ změny: ${existing.changeType} → ${d.changeType}`)
+    if (d.approvalStatus !== undefined && d.approvalStatus !== existing.approvalStatus)
+      ch.push(`Status: ${existing.approvalStatus} → ${d.approvalStatus}`)
+    if (d.budgetImpact !== undefined && d.budgetImpact !== existing.budgetImpact) {
+      const oldVal = existing.budgetImpact != null ? existing.budgetImpact.toLocaleString('cs-CZ') + ' Kč' : '—'
+      const newVal = d.budgetImpact != null ? d.budgetImpact.toLocaleString('cs-CZ') + ' Kč' : '—'
+      ch.push(`Budget impact: ${oldVal} → ${newVal}`)
+    }
+    if (d.requestedById !== undefined && d.requestedById !== existing.requestedById) {
+      const oldName = existing.requestedBy?.name ?? '—'
+      const newName = cr.requestedBy?.name ?? '—'
+      ch.push(`Požaduje: ${oldName} → ${newName}`)
+    }
+    if (d.approvedById !== undefined && d.approvedById !== existing.approvedById) {
+      const oldName = existing.approvedBy?.name ?? '—'
+      const newName = cr.approvedBy?.name ?? '—'
+      ch.push(`Schválil: ${oldName} → ${newName}`)
+    }
+    if (d.timelineImpact !== undefined && d.timelineImpact !== existing.timelineImpact)
+      ch.push(`Dopad na harmonogram: upraven`)
+    if (d.resourceImpact !== undefined && d.resourceImpact !== existing.resourceImpact)
+      ch.push(`Dopad na zdroje: upraven`)
+    if (d.riskImpact !== undefined && d.riskImpact !== existing.riskImpact)
+      ch.push(`Dopad na rizika: upraven`)
+    if (d.businessJustification !== undefined && d.businessJustification !== existing.businessJustification)
+      ch.push(`Obchodní zdůvodnění: upraven`)
+    if (d.linkedRequirements !== undefined && d.linkedRequirements !== existing.linkedRequirements)
+      ch.push(`Propojené požadavky: upraven`)
+    if (d.linkedRiskIds !== undefined) {
+      const oldIds: number[] = JSON.parse(existing.linkedRiskIds || '[]')
+      const added   = riskIds.filter((x: number) => !oldIds.includes(x))
+      const removed = oldIds.filter((x: number) => !riskIds.includes(x))
+      if (added.length)   ch.push(`Přidána rizika: #${added.join(', #')}`)
+      if (removed.length) ch.push(`Odebrána rizika: #${removed.join(', #')}`)
+    }
+    if (d.linkedIssueIds !== undefined) {
+      const oldIds: number[] = JSON.parse(existing.linkedIssueIds || '[]')
+      const added   = issueIds.filter((x: number) => !oldIds.includes(x))
+      const removed = oldIds.filter((x: number) => !issueIds.includes(x))
+      if (added.length)   ch.push(`Přidány issues: #${added.join(', #')}`)
+      if (removed.length) ch.push(`Odebrány issues: #${removed.join(', #')}`)
+    }
+    if (d.description !== undefined && d.description !== existing.description)
+      ch.push(`Popis: upraven`)
+
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'UPDATE', entityId: id, summary: `Upraven CR: "${cr.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}` })
     return { ...cr, linkedRiskIds: riskIds, linkedIssueIds: issueIds }
   })
 

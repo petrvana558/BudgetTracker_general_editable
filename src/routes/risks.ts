@@ -5,6 +5,7 @@ import { logAudit } from './audit'
 
 const CAT = 'Risk Management'
 function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
+function fmtDate(d: Date | null | undefined) { return d ? d.toISOString().slice(0, 10) : '—' }
 
 const RiskBody = z.object({
   title:               z.string().min(1),
@@ -78,7 +79,7 @@ export async function riskRoutes(fastify: FastifyInstance) {
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
 
-    const existing = await prisma.risk.findUnique({ where: { id } })
+    const existing = await prisma.risk.findUnique({ where: { id }, include: { owner: true } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
     const prob   = d.probability ?? existing.probability
@@ -108,11 +109,36 @@ export async function riskRoutes(fastify: FastifyInstance) {
       include: { owner: true },
     })
 
-    const changes: string[] = []
-    if (d.status && d.status !== existing.status) changes.push(`Status: ${existing.status} → ${d.status}`)
-    if (scoreChanged) changes.push(`Skóre: ${existing.score} → ${score}`)
-    if (d.title && d.title !== existing.title) changes.push(`Název: "${d.title}"`)
-    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'UPDATE', entityId: id, summary: `Upraveno riziko: "${risk.title}"${changes.length ? ' · ' + changes.join(', ') : ''}` })
+    const ch: string[] = []
+    if (d.title !== undefined && d.title !== existing.title)
+      ch.push(`Název: "${existing.title}" → "${d.title}"`)
+    if (d.category !== undefined && d.category !== existing.category)
+      ch.push(`Kategorie: ${existing.category} → ${d.category}`)
+    if (d.probability !== undefined && d.probability !== existing.probability)
+      ch.push(`Pravděpodobnost: P${existing.probability} → P${d.probability}`)
+    if (d.impact !== undefined && d.impact !== existing.impact)
+      ch.push(`Dopad: D${existing.impact} → D${d.impact}`)
+    if (scoreChanged)
+      ch.push(`Skóre: ${existing.score} → ${score}`)
+    if (d.status !== undefined && d.status !== existing.status)
+      ch.push(`Status: ${existing.status} → ${d.status}`)
+    if (d.ownerId !== undefined && d.ownerId !== existing.ownerId) {
+      const oldName = existing.owner?.name ?? '—'
+      const newName = risk.owner?.name ?? '—'
+      ch.push(`Vlastník: ${oldName} → ${newName}`)
+    }
+    if (d.reviewDate !== undefined && fmtDate(d.reviewDate ? new Date(d.reviewDate) : null) !== fmtDate(existing.reviewDate))
+      ch.push(`Datum revize: ${fmtDate(existing.reviewDate)} → ${fmtDate(d.reviewDate ? new Date(d.reviewDate) : null)}`)
+    if (d.materializationDate !== undefined && fmtDate(d.materializationDate ? new Date(d.materializationDate) : null) !== fmtDate(existing.materializationDate))
+      ch.push(`Datum materializace: ${fmtDate(existing.materializationDate)} → ${fmtDate(d.materializationDate ? new Date(d.materializationDate) : null)}`)
+    if (d.mitigationPlan !== undefined && d.mitigationPlan !== existing.mitigationPlan)
+      ch.push(`Mitigační plán: upraven`)
+    if (d.contingencyPlan !== undefined && d.contingencyPlan !== existing.contingencyPlan)
+      ch.push(`Záložní plán: upraven`)
+    if (d.description !== undefined && d.description !== existing.description)
+      ch.push(`Popis: upraven`)
+
+    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'UPDATE', entityId: id, summary: `Upraveno riziko: "${risk.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}` })
     return risk
   })
 
