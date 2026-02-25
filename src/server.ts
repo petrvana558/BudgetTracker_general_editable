@@ -15,6 +15,7 @@ import { testingRoutes } from './routes/testing'
 import { riskRoutes } from './routes/risks'
 import { issueRoutes } from './routes/issues'
 import { changesRoutes } from './routes/changes'
+import { assumptionRoutes } from './routes/assumptions'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
 
@@ -45,6 +46,7 @@ async function main() {
   await fastify.register(riskRoutes)
   await fastify.register(issueRoutes)
   await fastify.register(changesRoutes)
+  await fastify.register(assumptionRoutes)
 
   await fastify.listen({ port: PORT, host: '0.0.0.0' })
   console.log(`PM Tool running on http://localhost:${PORT}`)

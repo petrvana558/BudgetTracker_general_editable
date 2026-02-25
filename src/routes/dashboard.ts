@@ -4,12 +4,13 @@ import { laborAmount } from './labor'
 
 export async function dashboardRoutes(fastify: FastifyInstance) {
   fastify.get('/api/dashboard', async () => {
-    const [items, laborCosts, risks, issues, changes] = await Promise.all([
+    const [items, laborCosts, risks, issues, changes, assumptions] = await Promise.all([
       prisma.budgetItem.findMany({ include: { responsible: true, priority: true } }),
       prisma.laborCost.findMany(),
       prisma.risk.findMany(),
       prisma.issue.findMany(),
       prisma.changeRequest.findMany(),
+      prisma.assumption.findMany(),
     ])
 
     // ── Financials ──────────────────────────────────────────────
@@ -115,6 +116,20 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       .filter(r => r.status === 'Open' || r.status === 'Monitoring')
       .reduce((s, r) => s + r.score, 0)
 
+    // ── Assumption KPIs ──────────────────────────────────────────
+    const now14 = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    const activeAssumptions    = assumptions.filter(a => !['Validated', 'Closed', 'Converted to Risk'].includes(a.status))
+    const totalAssumptions     = assumptions.length
+    const validatedAssumptions = assumptions.filter(a => a.status === 'Validated' || a.status === 'Closed').length
+    const validatedPct         = totalAssumptions > 0 ? Math.round(validatedAssumptions / totalAssumptions * 100) : 0
+    const expiringSoon         = activeAssumptions.filter(a => a.validationDate && a.validationDate <= now14 && a.validationDate >= new Date()).length
+    const overdueAssumptions   = activeAssumptions.filter(a => a.validationDate && a.validationDate < new Date()).length
+    const top5Assumptions      = [...assumptions]
+      .filter(a => a.status === 'Active' || a.status === 'Under review')
+      .sort((a, b) => b.exposureScore - a.exposureScore)
+      .slice(0, 5)
+      .map(a => ({ id: a.id, code: a.code, title: a.title, exposureScore: a.exposureScore, status: a.status, category: a.category }))
+
     return {
       summary: {
         // Budget = sum of item estimates (auto-computed)
@@ -136,6 +151,11 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         pendingChangeRequests,
         budgetImpactSummary,
         riskExposure,
+        // Assumption KPIs
+        totalAssumptions,
+        validatedPct,
+        expiringSoon,
+        overdueAssumptions,
       },
       byCategory,
       byPriority,
@@ -143,6 +163,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       upcomingDeadlines,
       laborCosts,
       laborByDept,
+      top5Assumptions,
     }
   })
 }

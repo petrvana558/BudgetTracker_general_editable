@@ -62,10 +62,11 @@ model Person {
   email           String?
   department      String?
   items           BudgetItem[]
-  ownedRisks      Risk[]          @relation("RiskOwner")
-  ownedIssues     Issue[]         @relation("IssueOwner")
-  requestedCRs    ChangeRequest[] @relation("CRRequestedBy")
-  approvedCRs     ChangeRequest[] @relation("CRApprovedBy")
+  ownedRisks       Risk[]          @relation("RiskOwner")
+  ownedIssues      Issue[]         @relation("IssueOwner")
+  requestedCRs     ChangeRequest[] @relation("CRRequestedBy")
+  approvedCRs      ChangeRequest[] @relation("CRApprovedBy")
+  ownedAssumptions Assumption[]    @relation("AssumptionOwner")
 }
 
 model Priority {
@@ -264,4 +265,33 @@ model ChangeRequest {
   linkedRequirements    String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+// ── Assumption Log ─────────────────────────────────────────────────────────────
+
+model Assumption {
+  id                      Int       @id @default(autoincrement())
+  code                    String    @unique
+  title                   String
+  description             String?
+  category                String    @default("Finance")
+  phase                   String    @default("Design")
+  type                    String    @default("Operational")
+  source                  String    @default("Internal planning")
+  validationMethod        String?
+  status                  String    @default("Active")
+  isLocked                Boolean   @default(false)
+  ownerId                 Int?
+  owner                   Person?   @relation("AssumptionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  validationDate          DateTime?
+  validatedAt             DateTime?
+  budgetImpact            Float?
+  timelineImpact          Int?
+  scopeImpact             String    @default("Medium")
+  invalidationProbability Int       @default(3)
+  exposureScore           Int       @default(0)
+  convertedRiskId         Int?
+  notes                   String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
