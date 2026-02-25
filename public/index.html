@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Budget Tracker</title>
+  <title>PM Tool</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -219,7 +219,7 @@
   <aside class="sidebar">
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
       <img :src="logoSrc" alt="Logo" :style="'width:' + logoWidth + 'px'">
-      <div class="logo-sub">Budget Tracker</div>
+      <div class="logo-sub">PM Tool</div>
       <div x-show="projectName" class="logo-date" style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px" x-text="projectName"></div>
       <div class="logo-date" x-text="new Date().toLocaleDateString('cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
     </div>
@@ -247,6 +247,17 @@
       <span class="nav-icon">🧪</span> Test Management
     </div>
 
+    <div class="nav-section">PM / Řízení rizik</div>
+    <div class="nav-item" :class="{ active: view === 'risks' }" @click="view = 'risks'; loadRisks()">
+      <span class="nav-icon">⚠️</span> Risk Management
+    </div>
+    <div class="nav-item" :class="{ active: view === 'issues' }" @click="view = 'issues'; loadIssues()">
+      <span class="nav-icon">🐛</span> Issue Tracker
+    </div>
+    <div class="nav-item" :class="{ active: view === 'changes' }" @click="view = 'changes'; loadChanges()">
+      <span class="nav-icon">🔄</span> Change Management
+    </div>
+
     <div class="nav-section">Konfigurace</div>
     <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
       <span class="nav-icon">⚙️</span> Nastavení
@@ -254,7 +265,7 @@
 
     <div style="padding: 24px 20px; margin-top: auto;">
       <div style="font-size: 10px; color: #444; line-height: 1.6;">
-        <span style="color: var(--dhl-yellow)">●</span> Budget Tracker v1.0<br>
+        <span style="color: var(--dhl-yellow)">●</span> PM Tool v2.0<br>
         Lokální instance
       </div>
     </div>
@@ -299,17 +310,33 @@
             ⬇ Export PDF
           </button>
         </template>
-        <!-- Currency toggle -->
-        <span class="text-xs text-gray-400" style="white-space:nowrap"
-          :style="currency !== 'EUR' ? 'visibility:hidden' : ''"
-          x-text="'@ ' + eurRate + ' CZK'"></span>
-        <button
-          @click="currency = currency === 'CZK' ? 'EUR' : 'CZK'"
-          style="height:32px;padding:0 14px;border:1px solid #ddd;border-radius:16px;cursor:pointer;font-size:12px;font-weight:700;background:white;color:#333;display:flex;align-items:center;gap:6px;white-space:nowrap">
-          <span x-text="currency"></span>
-          <span style="color:#bbb;font-size:14px;line-height:1">⇄</span>
-          <span style="color:#aaa" x-text="currency === 'CZK' ? 'EUR' : 'CZK'"></span>
-        </button>
+        <template x-if="view === 'risks'">
+          <button class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
+        </template>
+        <template x-if="view === 'issues'">
+          <button class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
+        </template>
+        <template x-if="view === 'changes'">
+          <button class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
+        </template>
+        <!-- Currency toggle (hidden when eurRate=0) -->
+        <template x-if="eurRate > 0">
+          <span class="text-xs text-gray-400" style="white-space:nowrap"
+            :style="currency !== 'EUR' ? 'visibility:hidden' : ''"
+            x-text="'@ ' + eurRate + ' CZK'"></span>
+        </template>
+        <template x-if="eurRate > 0">
+          <button
+            @click="currency = currency === 'CZK' ? 'EUR' : 'CZK'"
+            style="height:32px;padding:0 14px;border:1px solid #ddd;border-radius:16px;cursor:pointer;font-size:12px;font-weight:700;background:white;color:#333;display:flex;align-items:center;gap:6px;white-space:nowrap">
+            <span x-text="currency"></span>
+            <span style="color:#bbb;font-size:14px;line-height:1">⇄</span>
+            <span style="color:#aaa" x-text="currency === 'CZK' ? 'EUR' : 'CZK'"></span>
+          </button>
+        </template>
+        <template x-if="eurRate <= 0">
+          <span class="text-xs text-gray-400" title="Nastav kurz EUR v Nastavení" style="padding:4px 10px;border:1px solid #eee;border-radius:12px;background:#fafafa">CZK</span>
+        </template>
       </div>
     </div>
 
@@ -406,6 +433,35 @@
           <div style="padding:16px;height:220px;display:flex;align-items:center;justify-content:center">
             <canvas id="priorityChart"></canvas>
           </div>
+        </div>
+      </div>
+
+      <!-- PM KPI Row -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div class="kpi-card" :class="(dash.summary?.totalRisks ?? 0) > 0 ? 'red' : ''">
+          <div class="kpi-label">Celkem rizika</div>
+          <div class="kpi-value" x-text="dash.summary?.totalRisks ?? 0"></div>
+          <div class="kpi-sub" x-text="'Exp. skóre: ' + (dash.summary?.riskExposure ?? 0)"></div>
+        </div>
+        <div class="kpi-card" :class="(dash.summary?.highSeverityIssues ?? 0) > 0 ? 'red' : 'green'">
+          <div class="kpi-label">High / Critical Issues</div>
+          <div class="kpi-value" x-text="dash.summary?.highSeverityIssues ?? 0"></div>
+          <div class="kpi-sub">Kritické a vysoké závažnosti</div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">Čekající změny</div>
+          <div class="kpi-value" x-text="dash.summary?.pendingChangeRequests ?? 0"></div>
+          <div class="kpi-sub">Draft + Submitted</div>
+        </div>
+        <div class="kpi-card" :class="(dash.summary?.budgetImpactSummary ?? 0) > 0 ? 'red' : ''">
+          <div class="kpi-label">Budget impact CR</div>
+          <div class="kpi-value" x-text="(dash.summary?.budgetImpactSummary ?? 0) !== 0 ? fmtMoney(dash.summary.budgetImpactSummary) : '—'"></div>
+          <div class="kpi-sub">Schválené Change Requesty</div>
+        </div>
+        <div class="kpi-card" :class="(dash.summary?.riskExposure ?? 0) >= 20 ? 'red' : (dash.summary?.riskExposure ?? 0) >= 10 ? '' : 'green'">
+          <div class="kpi-label">Risk Exposure</div>
+          <div class="kpi-value" x-text="dash.summary?.riskExposure ?? 0"></div>
+          <div class="kpi-sub">Σ skóre otevřených rizik</div>
         </div>
       </div>
 
@@ -1566,6 +1622,266 @@
     </div>
 
     <!-- ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- RISK MANAGEMENT VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'risks'" class="p-6 space-y-4">
+      <!-- Sub-tabs -->
+      <div class="flex gap-1 border-b border-gray-200 mb-2">
+        <button @click="riskTab='list'" :class="riskTab==='list' ? 'active' : ''" class="settings-tab">📋 Seznam rizik</button>
+        <button @click="riskTab='matrix'" :class="riskTab==='matrix' ? 'active' : ''" class="settings-tab">🔥 Risk Matrix</button>
+        <button @click="riskTab='top10'; $nextTick(()=>renderTop10Chart())" :class="riskTab==='top10' ? 'active' : ''" class="settings-tab">🏆 Top 10</button>
+        <button @click="riskTab='trend'; $nextTick(()=>renderRiskTrendChart())" :class="riskTab==='trend' ? 'active' : ''" class="settings-tab">📈 Trend</button>
+      </div>
+
+      <!-- LIST TAB -->
+      <div x-show="riskTab==='list'">
+        <div class="filter-bar mb-3" style="background:transparent;border:none;padding:0">
+          <select x-model="riskFilters.status" class="form-select" style="width:160px">
+            <option value="">Všechny statusy</option>
+            <option>Open</option><option>Monitoring</option><option>Mitigated</option><option>Closed</option>
+          </select>
+          <select x-model="riskFilters.category" class="form-select" style="width:160px">
+            <option value="">Všechny kategorie</option>
+            <option>technical</option><option>budget</option><option>resource</option><option>external</option><option>regulatory</option>
+          </select>
+        </div>
+        <div class="chart-card">
+          <div class="table-scroll" style="max-height:calc(100vh - 260px)">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width:50px">ID</th>
+                  <th>Název</th>
+                  <th style="width:100px">Kategorie</th>
+                  <th style="width:50px">P</th>
+                  <th style="width:50px">I</th>
+                  <th style="width:70px">Skóre</th>
+                  <th style="width:110px">Owner</th>
+                  <th style="width:100px">Status</th>
+                  <th style="width:100px">Review datum</th>
+                  <th style="width:80px">Akce</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-if="!filteredRisks.length">
+                  <tr><td colspan="10" class="text-center py-10 text-gray-400">Žádná rizika. Přidejte první pomocí tlačítka "＋ Nové riziko".</td></tr>
+                </template>
+                <template x-for="r in filteredRisks" :key="r.id">
+                  <tr>
+                    <td class="font-mono text-xs text-gray-400" x-text="'R-' + String(r.id).padStart(3,'0')"></td>
+                    <td>
+                      <div class="font-semibold" x-text="r.title"></div>
+                      <div x-show="r.description" class="text-xs text-gray-400" x-text="r.description?.slice(0,80)"></div>
+                    </td>
+                    <td><span class="badge badge-blue" x-text="r.category"></span></td>
+                    <td class="text-center font-bold" x-text="r.probability"></td>
+                    <td class="text-center font-bold" x-text="r.impact"></td>
+                    <td class="text-center">
+                      <span class="badge font-bold text-sm" :style="riskScoreStyle(r.score)" x-text="r.score"></span>
+                    </td>
+                    <td x-text="r.owner?.name ?? '—'"></td>
+                    <td><span class="badge" :class="riskStatusBadge(r.status)" x-text="r.status"></span></td>
+                    <td class="text-xs" x-text="r.reviewDate ? fmtDate(r.reviewDate) : '—'"></td>
+                    <td>
+                      <button class="btn-icon" @click="openEditRisk(r)" title="Editovat">✏️</button>
+                      <button class="btn-icon" @click="deleteRisk(r.id)" title="Smazat" style="color:#D40511">🗑</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MATRIX TAB -->
+      <div x-show="riskTab==='matrix'">
+        <div class="chart-card p-6">
+          <div class="text-sm font-bold mb-4 text-gray-600">Risk Heatmap — Pravděpodobnost (osa Y) × Dopad (osa X)</div>
+          <div style="display:grid;grid-template-columns:40px repeat(5,1fr);gap:4px;max-width:600px">
+            <!-- Header row -->
+            <div></div>
+            <template x-for="i in [1,2,3,4,5]" :key="'hi'+i">
+              <div class="text-center text-xs font-bold text-gray-500" x-text="'Dopad ' + i"></div>
+            </template>
+            <!-- 5 rows (prob 5→1) -->
+            <template x-for="prob in [5,4,3,2,1]" :key="'row'+prob">
+              <template x-for="_dummy in [[]]" :key="'d'+prob">
+                <div class="contents">
+                  <div class="text-xs font-bold text-gray-500 flex items-center justify-end pr-2" x-text="'P' + prob"></div>
+                  <template x-for="impact in [1,2,3,4,5]" :key="'cell'+prob+'-'+impact">
+                    <div :style="riskCellStyle(prob, impact)"
+                         style="min-height:64px;border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:2px;cursor:default">
+                      <div class="text-xs font-bold text-center" x-text="prob*impact"></div>
+                      <template x-for="r in risksInCell(prob, impact)" :key="r.id">
+                        <div class="text-xs truncate font-medium" :title="r.title" x-text="r.title.slice(0,18) + (r.title.length>18?'…':'')"></div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </template>
+          </div>
+          <!-- Legend -->
+          <div class="flex gap-4 mt-4 text-xs">
+            <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;background:#d1fae5;border-radius:2px;display:inline-block"></span>Nízké (1–4)</span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;background:#fef9c3;border-radius:2px;display:inline-block"></span>Střední (5–9)</span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;background:#ffedd5;border-radius:2px;display:inline-block"></span>Vysoké (10–14)</span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;background:#fee2e2;border-radius:2px;display:inline-block"></span>Kritické (15–25)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOP 10 TAB -->
+      <div x-show="riskTab==='top10'">
+        <div class="chart-card p-4" style="max-width:700px">
+          <div style="height:320px"><canvas id="top10Chart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- TREND TAB -->
+      <div x-show="riskTab==='trend'">
+        <div class="chart-card p-4" style="max-width:800px">
+          <div class="flex gap-3 items-center mb-4">
+            <label class="form-label mb-0">Vybrat riziko:</label>
+            <select class="form-select" style="max-width:300px" x-model="riskTrendId" @change="loadRiskTrend()">
+              <option value="">— vyberte —</option>
+              <template x-for="r in risks" :key="r.id">
+                <option :value="r.id" x-text="'R-' + String(r.id).padStart(3,'0') + ' ' + r.title"></option>
+              </template>
+            </select>
+          </div>
+          <div style="height:280px"><canvas id="trendChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ISSUE TRACKER VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'issues'" class="p-6 space-y-4">
+      <div class="filter-bar" style="background:transparent;border:none;padding:0">
+        <select x-model="issueFilters.status" class="form-select" style="width:160px">
+          <option value="">Všechny statusy</option>
+          <option>Open</option><option>In progress</option><option>Escalated</option><option>Resolved</option><option>Closed</option>
+        </select>
+        <select x-model="issueFilters.severity" class="form-select" style="width:140px">
+          <option value="">Všechny závažnosti</option>
+          <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+        </select>
+        <select x-model="issueFilters.type" class="form-select" style="width:160px">
+          <option value="">Všechny typy</option>
+          <option>Bug</option><option>Operational</option><option>Blocking</option><option>Financial</option><option>Compliance</option><option>Timing</option>
+        </select>
+        <button class="btn-ghost btn-sm" @click="issueFilters={status:'',severity:'',type:''}">✕ Reset</button>
+      </div>
+      <div class="chart-card">
+        <div class="table-scroll" style="max-height:calc(100vh - 260px)">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:50px">ID</th>
+                <th>Název</th>
+                <th style="width:100px">Typ</th>
+                <th style="width:90px">Závažnost</th>
+                <th style="width:90px">Priorita</th>
+                <th style="width:90px">Status</th>
+                <th style="width:110px">Owner</th>
+                <th style="width:100px">Due date</th>
+                <th style="width:130px">Linked Risk</th>
+                <th style="width:80px">Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-if="!filteredIssues.length">
+                <tr><td colspan="10" class="text-center py-10 text-gray-400">Žádné issues. Přidejte první pomocí tlačítka "＋ Nový issue".</td></tr>
+              </template>
+              <template x-for="iss in filteredIssues" :key="iss.id">
+                <tr>
+                  <td class="font-mono text-xs text-gray-400" x-text="'I-' + String(iss.id).padStart(3,'0')"></td>
+                  <td>
+                    <div class="font-semibold" x-text="iss.title"></div>
+                    <div x-show="iss.rootCause" class="text-xs text-gray-400" x-text="'Příčina: ' + (iss.rootCause?.slice(0,60) ?? '')"></div>
+                  </td>
+                  <td><span class="badge badge-blue" x-text="iss.type"></span></td>
+                  <td><span class="badge" :class="severityBadge(iss.severity)" x-text="iss.severity"></span></td>
+                  <td><span class="badge" :class="severityBadge(iss.priority)" x-text="iss.priority"></span></td>
+                  <td><span class="badge" :class="issueStatusBadge(iss.status)" x-text="iss.status"></span></td>
+                  <td x-text="iss.owner?.name ?? '—'"></td>
+                  <td class="text-xs" :class="iss.dueDate && new Date(iss.dueDate) < new Date() ? 'deadline-urgent' : ''" x-text="iss.dueDate ? fmtDate(iss.dueDate) : '—'"></td>
+                  <td class="text-xs" x-text="iss.linkedRisk ? ('R-' + String(iss.linkedRisk.id).padStart(3,'0') + ' ' + iss.linkedRisk.title.slice(0,20)) : '—'"></td>
+                  <td>
+                    <button class="btn-icon" @click="openEditIssue(iss)" title="Editovat">✏️</button>
+                    <button class="btn-icon" @click="deleteIssue(iss.id)" title="Smazat" style="color:#D40511">🗑</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- CHANGE MANAGEMENT VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'changes'" class="p-6 space-y-4">
+      <div class="filter-bar" style="background:transparent;border:none;padding:0">
+        <select x-model="changeFilters.approvalStatus" class="form-select" style="width:180px">
+          <option value="">Všechny statusy</option>
+          <option>Draft</option><option>Submitted</option><option>Approved</option><option>Rejected</option><option>Implemented</option>
+        </select>
+        <select x-model="changeFilters.changeType" class="form-select" style="width:160px">
+          <option value="">Všechny typy</option>
+          <option>Scope</option><option>Budget</option><option>Timeline</option><option>Technical</option>
+        </select>
+        <button class="btn-ghost btn-sm" @click="changeFilters={approvalStatus:'',changeType:''}">✕ Reset</button>
+      </div>
+      <div class="chart-card">
+        <div class="table-scroll" style="max-height:calc(100vh - 260px)">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:50px">ID</th>
+                <th>Název</th>
+                <th style="width:100px">Typ změny</th>
+                <th style="width:110px">Budget impact</th>
+                <th style="width:120px">Approval status</th>
+                <th style="width:120px">Requested by</th>
+                <th style="width:120px">Approved by</th>
+                <th style="width:80px">Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-if="!filteredChanges.length">
+                <tr><td colspan="8" class="text-center py-10 text-gray-400">Žádné change requesty. Přidejte první pomocí tlačítka "＋ Nová změna".</td></tr>
+              </template>
+              <template x-for="cr in filteredChanges" :key="cr.id">
+                <tr>
+                  <td class="font-mono text-xs text-gray-400" x-text="'CR-' + String(cr.id).padStart(3,'0')"></td>
+                  <td>
+                    <div class="font-semibold" x-text="cr.title"></div>
+                    <div x-show="cr.description" class="text-xs text-gray-400" x-text="cr.description?.slice(0,70)"></div>
+                  </td>
+                  <td><span class="badge badge-purple" x-text="cr.changeType"></span></td>
+                  <td class="font-mono text-right" :class="(cr.budgetImpact ?? 0) > 0 ? 'text-red-600 font-bold' : ''"
+                    x-text="cr.budgetImpact ? fmtMoney(cr.budgetImpact) : '—'"></td>
+                  <td><span class="badge" :class="crStatusBadge(cr.approvalStatus)" x-text="cr.approvalStatus"></span></td>
+                  <td x-text="cr.requestedBy?.name ?? '—'"></td>
+                  <td x-text="cr.approvedBy?.name ?? '—'"></td>
+                  <td>
+                    <button class="btn-icon" @click="openEditChange(cr)" title="Editovat">✏️</button>
+                    <button class="btn-icon" @click="deleteChange(cr.id)" title="Smazat" style="color:#D40511">🗑</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- SETTINGS VIEW -->
     <!-- ============================================================ -->
     <div x-show="view === 'settings'" class="p-6">
@@ -1733,8 +2049,15 @@
           <div x-show="settingsSaved" class="text-green-600 text-sm font-semibold">✓ Uloženo</div>
           <div class="mt-4 p-3 rounded" style="background:#f9f9f9;border:1px solid #e0e0e0">
             <div class="text-xs text-gray-500 mb-2 font-bold uppercase tracking-wide">Aktuální přepočet</div>
-            <div class="text-sm">1 000 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(1000000/eurRate)"></b></div>
-            <div class="text-sm">100 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(100000/eurRate)"></b></div>
+            <template x-if="eurRate > 0">
+              <div>
+                <div class="text-sm">1 000 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(1000000/eurRate)"></b></div>
+                <div class="text-sm">100 000 CZK = <b x-text="new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(100000/eurRate)"></b></div>
+              </div>
+            </template>
+            <template x-if="eurRate <= 0">
+              <div class="text-sm text-gray-400">Kurz není nastaven — projekt je veden v CZK</div>
+            </template>
           </div>
         </div>
       </div>
@@ -1957,6 +2280,331 @@
 
   </div><!-- end main -->
 </div><!-- end flex -->
+
+<!-- ============================================================ -->
+<!-- RISK MODAL -->
+<!-- ============================================================ -->
+<div class="modal-overlay" x-show="riskModal.open" @click.self="riskModal.open = false" x-transition>
+  <div class="modal" @click.stop>
+    <div class="modal-header">
+      <h2><span class="accent">Risk</span> / <span x-text="riskModal.id ? 'Upravit riziko' : 'Nové riziko'"></span></h2>
+      <button @click="riskModal.open = false" style="color:#aaa;font-size:20px;background:none;border:none;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid grid-cols-2 gap-x-6">
+        <!-- LEFT -->
+        <div>
+          <div class="form-section">Identifikace rizika</div>
+          <div class="form-group">
+            <label class="form-label">Název *</label>
+            <input class="form-input" type="text" x-model="riskForm.title" placeholder="Stručný název rizika">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Popis</label>
+            <textarea class="form-input" rows="3" x-model="riskForm.description" placeholder="Podrobný popis..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Kategorie</label>
+            <select class="form-select" x-model="riskForm.category">
+              <option>technical</option><option>budget</option><option>resource</option><option>external</option><option>regulatory</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Pravděpodobnost (1–5)</label>
+              <select class="form-select" x-model="riskForm.probability">
+                <option value="1">1 — Velmi nízká</option>
+                <option value="2">2 — Nízká</option>
+                <option value="3">3 — Střední</option>
+                <option value="4">4 — Vysoká</option>
+                <option value="5">5 — Velmi vysoká</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dopad (1–5)</label>
+              <select class="form-select" x-model="riskForm.impact">
+                <option value="1">1 — Zanedbatelný</option>
+                <option value="2">2 — Malý</option>
+                <option value="3">3 — Střední</option>
+                <option value="4">4 — Velký</option>
+                <option value="5">5 — Katastrofický</option>
+              </select>
+            </div>
+          </div>
+          <!-- Live score -->
+          <div class="form-group">
+            <label class="form-label">Risk Score (P × D)</label>
+            <span class="badge text-base font-bold px-4 py-1" :style="riskScoreStyle(riskForm.probability * riskForm.impact)"
+              x-text="riskForm.probability * riskForm.impact"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select class="form-select" x-model="riskForm.status">
+              <option>Open</option><option>Monitoring</option><option>Mitigated</option><option>Closed</option>
+            </select>
+          </div>
+        </div>
+        <!-- RIGHT -->
+        <div>
+          <div class="form-section">Plány a odpovědnost</div>
+          <div class="form-group">
+            <label class="form-label">Owner</label>
+            <select class="form-select" x-model="riskForm.ownerId">
+              <option value="">— Nepřiřazeno —</option>
+              <template x-for="p in people" :key="p.id">
+                <option :value="p.id" x-text="p.name"></option>
+              </template>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Datum identifikace</label>
+              <input class="form-input" type="date" x-model="riskForm.dateIdentified">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Review datum</label>
+              <input class="form-input" type="date" x-model="riskForm.reviewDate">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mitigation plan</label>
+            <textarea class="form-input" rows="3" x-model="riskForm.mitigationPlan" placeholder="Jak snížíme pravděpodobnost nebo dopad?"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contingency plan</label>
+            <textarea class="form-input" rows="3" x-model="riskForm.contingencyPlan" placeholder="Co uděláme, pokud riziko nastane?"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" @click="riskModal.open = false">Zrušit</button>
+      <button class="btn-primary" @click="saveRisk()">💾 Uložit riziko</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ISSUE MODAL -->
+<!-- ============================================================ -->
+<div class="modal-overlay" x-show="issueModal.open" @click.self="issueModal.open = false" x-transition>
+  <div class="modal" @click.stop>
+    <div class="modal-header">
+      <h2><span class="accent">Issue</span> / <span x-text="issueModal.id ? 'Upravit issue' : 'Nový issue'"></span></h2>
+      <button @click="issueModal.open = false" style="color:#aaa;font-size:20px;background:none;border:none;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid grid-cols-2 gap-x-6">
+        <!-- LEFT -->
+        <div>
+          <div class="form-section">Základní informace</div>
+          <div class="form-group">
+            <label class="form-label">Název *</label>
+            <input class="form-input" type="text" x-model="issueForm.title" placeholder="Stručný název issue">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Popis</label>
+            <textarea class="form-input" rows="3" x-model="issueForm.description" placeholder="Podrobný popis..."></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Typ</label>
+              <select class="form-select" x-model="issueForm.type">
+                <option>Bug</option><option>Operational</option><option>Blocking</option><option>Financial</option><option>Compliance</option><option>Timing</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-select" x-model="issueForm.status">
+                <option>Open</option><option>In progress</option><option>Escalated</option><option>Resolved</option><option>Closed</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Závažnost</label>
+              <select class="form-select" x-model="issueForm.severity">
+                <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Priorita</label>
+              <select class="form-select" x-model="issueForm.priority">
+                <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Root cause (příčina)</label>
+            <textarea class="form-input" rows="2" x-model="issueForm.rootCause" placeholder="Kořenová příčina problému..."></textarea>
+          </div>
+        </div>
+        <!-- RIGHT -->
+        <div>
+          <div class="form-section">Odpovědnost a vazby</div>
+          <div class="form-group">
+            <label class="form-label">Owner</label>
+            <select class="form-select" x-model="issueForm.ownerId">
+              <option value="">— Nepřiřazeno —</option>
+              <template x-for="p in people" :key="p.id">
+                <option :value="p.id" x-text="p.name"></option>
+              </template>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Due date</label>
+            <input class="form-input" type="date" x-model="issueForm.dueDate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Linked Risk</label>
+            <select class="form-select" x-model="issueForm.linkedRiskId">
+              <option value="">— Bez vazby —</option>
+              <template x-for="r in risks" :key="r.id">
+                <option :value="r.id" x-text="'R-' + String(r.id).padStart(3,'0') + ' ' + r.title"></option>
+              </template>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Linked Change Request</label>
+            <select class="form-select" x-model="issueForm.linkedChangeRequestId">
+              <option value="">— Bez vazby —</option>
+              <template x-for="cr in changes" :key="cr.id">
+                <option :value="cr.id" x-text="'CR-' + String(cr.id).padStart(3,'0') + ' ' + cr.title"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" @click="issueModal.open = false">Zrušit</button>
+      <button class="btn-primary" @click="saveIssue()">💾 Uložit issue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- CHANGE REQUEST MODAL -->
+<!-- ============================================================ -->
+<div class="modal-overlay" x-show="changeModal.open" @click.self="changeModal.open = false" x-transition>
+  <div class="modal" style="width:960px;max-width:98%" @click.stop>
+    <div class="modal-header">
+      <h2><span class="accent">Change</span> / <span x-text="changeModal.id ? 'Upravit change request' : 'Nový change request'"></span></h2>
+      <button @click="changeModal.open = false" style="color:#aaa;font-size:20px;background:none;border:none;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid grid-cols-2 gap-x-6">
+        <!-- LEFT -->
+        <div>
+          <div class="form-section">Základní informace</div>
+          <div class="form-group">
+            <label class="form-label">Název *</label>
+            <input class="form-input" type="text" x-model="changeForm.title" placeholder="Název change requestu">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Popis</label>
+            <textarea class="form-input" rows="3" x-model="changeForm.description" placeholder="Co se mění a proč?"></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Typ změny</label>
+              <select class="form-select" x-model="changeForm.changeType">
+                <option>Scope</option><option>Budget</option><option>Timeline</option><option>Technical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Approval status</label>
+              <select class="form-select" x-model="changeForm.approvalStatus">
+                <option>Draft</option><option>Submitted</option><option>Approved</option><option>Rejected</option><option>Implemented</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Requested by</label>
+              <select class="form-select" x-model="changeForm.requestedById">
+                <option value="">— Vybrat —</option>
+                <template x-for="p in people" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Approved by</label>
+              <select class="form-select" x-model="changeForm.approvedById">
+                <option value="">— Vybrat —</option>
+                <template x-for="p in people" :key="p.id">
+                  <option :value="p.id" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Business justification</label>
+            <textarea class="form-input" rows="3" x-model="changeForm.businessJustification" placeholder="Proč je tato změna potřebná?"></textarea>
+          </div>
+        </div>
+        <!-- RIGHT -->
+        <div>
+          <div class="form-section">Impact analýza</div>
+          <div class="form-group">
+            <label class="form-label">Budget impact (CZK)</label>
+            <input class="form-input" type="number" x-model="changeForm.budgetImpact" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Timeline impact</label>
+            <input class="form-input" type="text" x-model="changeForm.timelineImpact" placeholder="např. +2 týdny">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Resource impact</label>
+            <input class="form-input" type="text" x-model="changeForm.resourceImpact" placeholder="Dopad na zdroje...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Risk impact</label>
+            <input class="form-input" type="text" x-model="changeForm.riskImpact" placeholder="Dopad na rizika...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Linked requirements (volný text)</label>
+            <textarea class="form-input" rows="2" x-model="changeForm.linkedRequirements" placeholder="Např. požadavky, user stories..."></textarea>
+          </div>
+          <div class="form-section">Vazby</div>
+          <div class="form-group">
+            <label class="form-label">Linked Risks (vyberte)</label>
+            <div style="max-height:100px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:4px;padding:6px">
+              <template x-for="r in risks" :key="r.id">
+                <label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer;font-size:12px">
+                  <input type="checkbox" :value="r.id" :checked="changeForm.linkedRiskIds.includes(r.id)"
+                    @change="toggleCRLink('linkedRiskIds', r.id, $event.target.checked)">
+                  <span class="badge" :style="riskScoreStyle(r.score)" x-text="r.score"></span>
+                  <span x-text="'R-' + String(r.id).padStart(3,'0') + ' ' + r.title"></span>
+                </label>
+              </template>
+              <div x-show="!risks.length" class="text-xs text-gray-400 p-1">Žádná rizika v systému</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Linked Issues (vyberte)</label>
+            <div style="max-height:100px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:4px;padding:6px">
+              <template x-for="iss in issues" :key="iss.id">
+                <label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer;font-size:12px">
+                  <input type="checkbox" :value="iss.id" :checked="changeForm.linkedIssueIds.includes(iss.id)"
+                    @change="toggleCRLink('linkedIssueIds', iss.id, $event.target.checked)">
+                  <span class="badge" :class="severityBadge(iss.severity)" x-text="iss.severity"></span>
+                  <span x-text="'I-' + String(iss.id).padStart(3,'0') + ' ' + iss.title"></span>
+                </label>
+              </template>
+              <div x-show="!issues.length" class="text-xs text-gray-400 p-1">Žádné issues v systému</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" @click="changeModal.open = false">Zrušit</button>
+      <button class="btn-primary" @click="saveChange()">💾 Uložit změnu</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============================================================ -->
 <!-- ITEM MODAL -->
@@ -2404,6 +3052,28 @@ function app() {
 
     TENDER_STATUSES,
 
+    // ── Risk Management ──────────────────────────────────────────────────────
+    risks: [],
+    riskTab: 'list',
+    riskFilters: { status: '', category: '' },
+    riskModal: { open: false, id: null },
+    riskForm: { title: '', description: '', category: 'technical', probability: 3, impact: 3, mitigationPlan: '', contingencyPlan: '', ownerId: '', status: 'Open', dateIdentified: '', reviewDate: '' },
+    riskTrendId: '',
+    _top10Chart: null,
+    _trendChart: null,
+
+    // ── Issue Tracker ─────────────────────────────────────────────────────────
+    issues: [],
+    issueFilters: { status: '', severity: '', type: '' },
+    issueModal: { open: false, id: null },
+    issueForm: { title: '', description: '', type: 'Bug', severity: 'Medium', priority: 'Medium', status: 'Open', ownerId: '', dueDate: '', rootCause: '', linkedRiskId: '', linkedChangeRequestId: '' },
+
+    // ── Change Management ─────────────────────────────────────────────────────
+    changes: [],
+    changeFilters: { approvalStatus: '', changeType: '' },
+    changeModal: { open: false, id: null },
+    changeForm: { title: '', description: '', changeType: 'Scope', businessJustification: '', budgetImpact: null, timelineImpact: '', resourceImpact: '', riskImpact: '', requestedById: '', approvedById: '', approvalStatus: 'Draft', linkedRiskIds: [], linkedIssueIds: [], linkedRequirements: '' },
+
     // ── Testing ───────────────────────────────────────────────────────────────
     testSets: [],
     testStats: null,
@@ -2435,15 +3105,16 @@ function app() {
 
     async init() {
       await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
+      await Promise.all([this.loadRisks(), this.loadIssues(), this.loadChanges()])
       this.loadDashboard()
       this.$nextTick(() => restoreColWidths())
     },
 
     viewTitle() {
-      return { dashboard: 'Dashboard', assets: 'Asset List', gantt: 'Gantt / Timeline', labor: 'Lidé / PM náklady', settings: 'Nastavení', testing: 'Test Management' }[this.view] ?? ''
+      return { dashboard: 'Dashboard', assets: 'Asset List', gantt: 'Gantt / Timeline', labor: 'Lidé / PM náklady', settings: 'Nastavení', testing: 'Test Management', risks: 'Risk Management', issues: 'Issue Tracker', changes: 'Change Management' }[this.view] ?? ''
     },
     viewSubtitle() {
-      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému', testing: 'Test sety, scénáře, kroky, defekty a statistiky' }[this.view] ?? ''
+      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému', testing: 'Test sety, scénáře, kroky, defekty a statistiky', risks: 'Registr rizik, heatmapa, trend vývoje skóre', issues: 'Sledování problémů a incidentů', changes: 'Správa změnových požadavků' }[this.view] ?? ''
     },
 
     async loadItems() {
@@ -2643,6 +3314,185 @@ function app() {
       const r = await fetch(`${API}/api/dashboard`)
       this.dash = await r.json()
       this.$nextTick(() => this.renderCharts())
+    },
+
+    // ── Risk Management ────────────────────────────────────────────────────────
+    get filteredRisks() {
+      return this.risks.filter(r =>
+        (!this.riskFilters.status   || r.status   === this.riskFilters.status) &&
+        (!this.riskFilters.category || r.category === this.riskFilters.category)
+      )
+    },
+    get filteredIssues() {
+      return this.issues.filter(i =>
+        (!this.issueFilters.status   || i.status   === this.issueFilters.status) &&
+        (!this.issueFilters.severity || i.severity === this.issueFilters.severity) &&
+        (!this.issueFilters.type     || i.type     === this.issueFilters.type)
+      )
+    },
+    get filteredChanges() {
+      return this.changes.filter(c =>
+        (!this.changeFilters.approvalStatus || c.approvalStatus === this.changeFilters.approvalStatus) &&
+        (!this.changeFilters.changeType     || c.changeType     === this.changeFilters.changeType)
+      )
+    },
+
+    async loadRisks() {
+      const r = await fetch(`${API}/api/risks`)
+      this.risks = await r.json()
+    },
+    async loadIssues() {
+      const r = await fetch(`${API}/api/issues`)
+      this.issues = await r.json()
+    },
+    async loadChanges() {
+      const r = await fetch(`${API}/api/changes`)
+      this.changes = await r.json()
+    },
+
+    openNewRisk() {
+      this.riskForm = { title: '', description: '', category: 'technical', probability: 3, impact: 3, mitigationPlan: '', contingencyPlan: '', ownerId: '', status: 'Open', dateIdentified: new Date().toISOString().slice(0,10), reviewDate: '' }
+      this.riskModal = { open: true, id: null }
+    },
+    openEditRisk(r) {
+      this.riskForm = { title: r.title, description: r.description ?? '', category: r.category, probability: r.probability, impact: r.impact, mitigationPlan: r.mitigationPlan ?? '', contingencyPlan: r.contingencyPlan ?? '', ownerId: r.ownerId ?? '', status: r.status, dateIdentified: r.dateIdentified ? r.dateIdentified.slice(0,10) : '', reviewDate: r.reviewDate ? r.reviewDate.slice(0,10) : '' }
+      this.riskModal = { open: true, id: r.id }
+    },
+    async saveRisk() {
+      if (!this.riskForm.title?.trim()) return alert('Vyplňte název rizika')
+      const payload = { ...this.riskForm, probability: parseInt(this.riskForm.probability), impact: parseInt(this.riskForm.impact), ownerId: this.riskForm.ownerId ? parseInt(this.riskForm.ownerId) : null, reviewDate: this.riskForm.reviewDate || null }
+      const method = this.riskModal.id ? 'PUT' : 'POST'
+      const path   = this.riskModal.id ? `/api/risks/${this.riskModal.id}` : '/api/risks'
+      await this.apiFetch(method, path, payload)
+      this.riskModal.open = false
+      await this.loadRisks()
+      this.loadDashboard()
+    },
+    async deleteRisk(id) {
+      if (!confirm('Opravdu smazat toto riziko?')) return
+      await this.apiFetch('DELETE', `/api/risks/${id}`)
+      await this.loadRisks()
+      this.loadDashboard()
+    },
+
+    openNewIssue() {
+      this.issueForm = { title: '', description: '', type: 'Bug', severity: 'Medium', priority: 'Medium', status: 'Open', ownerId: '', dueDate: '', rootCause: '', linkedRiskId: '', linkedChangeRequestId: '' }
+      this.issueModal = { open: true, id: null }
+    },
+    openEditIssue(iss) {
+      this.issueForm = { title: iss.title, description: iss.description ?? '', type: iss.type, severity: iss.severity, priority: iss.priority, status: iss.status, ownerId: iss.ownerId ?? '', dueDate: iss.dueDate ? iss.dueDate.slice(0,10) : '', rootCause: iss.rootCause ?? '', linkedRiskId: iss.linkedRiskId ?? '', linkedChangeRequestId: iss.linkedChangeRequestId ?? '' }
+      this.issueModal = { open: true, id: iss.id }
+    },
+    async saveIssue() {
+      if (!this.issueForm.title?.trim()) return alert('Vyplňte název issue')
+      const payload = { ...this.issueForm, ownerId: this.issueForm.ownerId ? parseInt(this.issueForm.ownerId) : null, linkedRiskId: this.issueForm.linkedRiskId ? parseInt(this.issueForm.linkedRiskId) : null, linkedChangeRequestId: this.issueForm.linkedChangeRequestId ? parseInt(this.issueForm.linkedChangeRequestId) : null, dueDate: this.issueForm.dueDate || null }
+      const method = this.issueModal.id ? 'PUT' : 'POST'
+      const path   = this.issueModal.id ? `/api/issues/${this.issueModal.id}` : '/api/issues'
+      await this.apiFetch(method, path, payload)
+      this.issueModal.open = false
+      await this.loadIssues()
+      this.loadDashboard()
+    },
+    async deleteIssue(id) {
+      if (!confirm('Opravdu smazat tento issue?')) return
+      await this.apiFetch('DELETE', `/api/issues/${id}`)
+      await this.loadIssues()
+      this.loadDashboard()
+    },
+
+    openNewChange() {
+      this.changeForm = { title: '', description: '', changeType: 'Scope', businessJustification: '', budgetImpact: null, timelineImpact: '', resourceImpact: '', riskImpact: '', requestedById: '', approvedById: '', approvalStatus: 'Draft', linkedRiskIds: [], linkedIssueIds: [], linkedRequirements: '' }
+      this.changeModal = { open: true, id: null }
+    },
+    openEditChange(cr) {
+      this.changeForm = { title: cr.title, description: cr.description ?? '', changeType: cr.changeType, businessJustification: cr.businessJustification ?? '', budgetImpact: cr.budgetImpact ?? null, timelineImpact: cr.timelineImpact ?? '', resourceImpact: cr.resourceImpact ?? '', riskImpact: cr.riskImpact ?? '', requestedById: cr.requestedById ?? '', approvedById: cr.approvedById ?? '', approvalStatus: cr.approvalStatus, linkedRiskIds: Array.isArray(cr.linkedRiskIds) ? cr.linkedRiskIds : [], linkedIssueIds: Array.isArray(cr.linkedIssueIds) ? cr.linkedIssueIds : [], linkedRequirements: cr.linkedRequirements ?? '' }
+      this.changeModal = { open: true, id: cr.id }
+    },
+    async saveChange() {
+      if (!this.changeForm.title?.trim()) return alert('Vyplňte název change requestu')
+      const payload = { ...this.changeForm, requestedById: this.changeForm.requestedById ? parseInt(this.changeForm.requestedById) : null, approvedById: this.changeForm.approvedById ? parseInt(this.changeForm.approvedById) : null, budgetImpact: this.changeForm.budgetImpact ? parseFloat(this.changeForm.budgetImpact) : null }
+      const method = this.changeModal.id ? 'PUT' : 'POST'
+      const path   = this.changeModal.id ? `/api/changes/${this.changeModal.id}` : '/api/changes'
+      await this.apiFetch(method, path, payload)
+      this.changeModal.open = false
+      await this.loadChanges()
+      this.loadDashboard()
+    },
+    async deleteChange(id) {
+      if (!confirm('Opravdu smazat tento change request?')) return
+      await this.apiFetch('DELETE', `/api/changes/${id}`)
+      await this.loadChanges()
+      this.loadDashboard()
+    },
+    toggleCRLink(field, id, checked) {
+      const num = parseInt(id)
+      if (checked) { if (!this.changeForm[field].includes(num)) this.changeForm[field].push(num) }
+      else          { this.changeForm[field] = this.changeForm[field].filter(x => x !== num) }
+    },
+
+    // Risk matrix helpers
+    risksInCell(prob, impact) {
+      return this.risks.filter(r => r.probability === prob && r.impact === impact && r.status !== 'Closed')
+    },
+    riskCellStyle(prob, impact) {
+      const score = prob * impact
+      if (score >= 15) return 'background:#fee2e2;color:#991b1b'
+      if (score >= 10) return 'background:#ffedd5;color:#9a3412'
+      if (score >= 5)  return 'background:#fef9c3;color:#854d0e'
+      return 'background:#d1fae5;color:#065f46'
+    },
+    riskScoreStyle(score) {
+      if (score >= 15) return 'background:#fee2e2;color:#991b1b'
+      if (score >= 10) return 'background:#ffedd5;color:#9a3412'
+      if (score >= 5)  return 'background:#fef9c3;color:#854d0e'
+      return 'background:#d1fae5;color:#065f46'
+    },
+    riskStatusBadge(s) {
+      return { Open: 'badge-red', Monitoring: 'badge-yellow', Mitigated: 'badge-blue', Closed: 'badge-green' }[s] ?? 'badge-grey'
+    },
+    issueStatusBadge(s) {
+      return { Open: 'badge-red', 'In progress': 'badge-blue', Escalated: 'badge-purple', Resolved: 'badge-yellow', Closed: 'badge-green' }[s] ?? 'badge-grey'
+    },
+    crStatusBadge(s) {
+      return { Draft: 'badge-grey', Submitted: 'badge-blue', Approved: 'badge-green', Rejected: 'badge-red', Implemented: 'badge-purple' }[s] ?? 'badge-grey'
+    },
+    severityBadge(s) {
+      return { Critical: 'badge-red', High: 'badge-yellow', Medium: 'badge-blue', Low: 'badge-grey' }[s] ?? 'badge-grey'
+    },
+
+    // Top 10 chart
+    renderTop10Chart() {
+      const top = [...this.risks].sort((a,b) => b.score - a.score).slice(0,10)
+      const ctx = document.getElementById('top10Chart')
+      if (!ctx) return
+      if (this._top10Chart) { this._top10Chart.destroy(); this._top10Chart = null }
+      this._top10Chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: top.map(r => r.title.slice(0,30) + (r.title.length>30?'…':'')),
+          datasets: [{ label: 'Risk Score', data: top.map(r => r.score), backgroundColor: top.map(r => r.score >= 15 ? '#fee2e2' : r.score >= 10 ? '#ffedd5' : r.score >= 5 ? '#fef9c3' : '#d1fae5'), borderColor: top.map(r => r.score >= 15 ? '#991b1b' : r.score >= 10 ? '#9a3412' : r.score >= 5 ? '#854d0e' : '#065f46'), borderWidth: 1 }],
+        },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 25 } } },
+      })
+    },
+
+    // Trend chart
+    async loadRiskTrend() {
+      if (!this.riskTrendId) return
+      const r = await fetch(`${API}/api/risks/${this.riskTrendId}/history`)
+      const history = await r.json()
+      const ctx = document.getElementById('trendChart')
+      if (!ctx) return
+      if (this._trendChart) { this._trendChart.destroy(); this._trendChart = null }
+      if (!history.length) { ctx.getContext('2d')?.clearRect(0,0,ctx.width,ctx.height); return }
+      this._trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: history.map(h => this.fmtDate(h.date)),
+          datasets: [{ label: 'Risk Score', data: history.map(h => h.score), borderColor: '#D40511', backgroundColor: 'rgba(212,5,17,0.1)', tension: 0.3, fill: true, pointRadius: 5 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 25 } } },
+      })
     },
 
     clearFilters() {

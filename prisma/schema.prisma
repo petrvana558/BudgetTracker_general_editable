@@ -57,11 +57,15 @@ model Comment {
 }
 
 model Person {
-  id         Int          @id @default(autoincrement())
-  name       String
-  email      String?
-  department String?
-  items      BudgetItem[]
+  id              Int             @id @default(autoincrement())
+  name            String
+  email           String?
+  department      String?
+  items           BudgetItem[]
+  ownedRisks      Risk[]          @relation("RiskOwner")
+  ownedIssues     Issue[]         @relation("IssueOwner")
+  requestedCRs    ChangeRequest[] @relation("CRRequestedBy")
+  approvedCRs     ChangeRequest[] @relation("CRApprovedBy")
 }
 
 model Priority {
@@ -182,4 +186,81 @@ model Defect {
   reportedBy  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ── Risk Management ───────────────────────────────────────────────────────────
+
+model Risk {
+  id              Int                @id @default(autoincrement())
+  title           String
+  description     String?
+  category        String             @default("technical")
+  probability     Int                @default(3)
+  impact          Int                @default(3)
+  score           Int                @default(9)
+  mitigationPlan  String?
+  contingencyPlan String?
+  ownerId         Int?
+  owner           Person?            @relation("RiskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  status          String             @default("Open")
+  dateIdentified  DateTime           @default(now())
+  reviewDate      DateTime?
+  scoreHistory    RiskScoreHistory[]
+  issues          Issue[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model RiskScoreHistory {
+  id     Int      @id @default(autoincrement())
+  riskId Int
+  risk   Risk     @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  score  Int
+  date   DateTime @default(now())
+}
+
+// ── Issue Tracker ─────────────────────────────────────────────────────────────
+
+model Issue {
+  id                    Int            @id @default(autoincrement())
+  title                 String
+  description           String?
+  type                  String         @default("Bug")
+  severity              String         @default("Medium")
+  priority              String         @default("Medium")
+  status                String         @default("Open")
+  ownerId               Int?
+  owner                 Person?        @relation("IssueOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  dateCreated           DateTime       @default(now())
+  dueDate               DateTime?
+  rootCause             String?
+  linkedRiskId          Int?
+  linkedRisk            Risk?          @relation(fields: [linkedRiskId], references: [id], onDelete: SetNull)
+  linkedChangeRequestId Int?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+}
+
+// ── Change Management ─────────────────────────────────────────────────────────
+
+model ChangeRequest {
+  id                    Int      @id @default(autoincrement())
+  title                 String
+  description           String?
+  changeType            String   @default("Scope")
+  businessJustification String?
+  budgetImpact          Float?
+  timelineImpact        String?
+  resourceImpact        String?
+  riskImpact            String?
+  requestedById         Int?
+  requestedBy           Person?  @relation("CRRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedById          Int?
+  approvedBy            Person?  @relation("CRApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvalStatus        String   @default("Draft")
+  linkedRiskIds         String   @default("[]")
+  linkedIssueIds        String   @default("[]")
+  linkedRequirements    String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
