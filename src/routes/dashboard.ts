@@ -3,14 +3,15 @@ import { prisma } from '../db'
 import { laborAmount } from './labor'
 
 export async function dashboardRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/dashboard', async () => {
+  fastify.get('/api/dashboard', async (req) => {
+    const projectId = (req as any).projectId ?? 1
     const [items, laborCosts, risks, issues, changes, assumptions] = await Promise.all([
-      prisma.budgetItem.findMany({ include: { responsible: true, priority: true } }),
-      prisma.laborCost.findMany(),
-      prisma.risk.findMany(),
-      prisma.issue.findMany(),
-      prisma.changeRequest.findMany(),
-      prisma.assumption.findMany(),
+      prisma.budgetItem.findMany({ where: { projectId }, include: { responsible: true, priority: true } }),
+      prisma.laborCost.findMany({ where: { projectId } }),
+      prisma.risk.findMany({ where: { projectId } }),
+      prisma.issue.findMany({ where: { projectId } }),
+      prisma.changeRequest.findMany({ where: { projectId } }),
+      prisma.assumption.findMany({ where: { projectId } }),
     ])
 
     // ── Financials ──────────────────────────────────────────────

@@ -9,8 +9,8 @@ const PrioritySchema = z.object({
   rank:  z.number().int().default(0),
 })
 
-function user(req: { user?: string }) {
-  return req.user || 'System'
+function user(req: any) {
+  return req.authUser?.name || 'System'
 }
 
 export async function priorityRoutes(fastify: FastifyInstance) {

@@ -9,8 +9,8 @@ const PersonSchema = z.object({
   department: z.string().optional().nullable(),
 })
 
-function user(req: { user?: string }) {
-  return req.user || 'System'
+function user(req: any) {
+  return req.authUser?.name || 'System'
 }
 
 export async function peopleRoutes(fastify: FastifyInstance) {

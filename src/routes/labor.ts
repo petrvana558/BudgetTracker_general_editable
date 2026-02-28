@@ -18,49 +18,57 @@ export function laborAmount(lc: { mdRate: number; mdDays: number }): number {
   return lc.mdRate * lc.mdDays
 }
 
-function user(req: { user?: string }) {
-  return req.user || 'System'
+function user(req: any) {
+  return req.authUser?.name || 'System'
 }
 
 export async function laborRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/labor', async () => {
+  fastify.get('/api/labor', async (req) => {
+    const projectId = (req as any).projectId ?? 1
     return prisma.laborCost.findMany({
+      where: { projectId },
       orderBy: { role: 'asc' },
       include: { entries: { orderBy: { date: 'desc' } } },
     })
   })
 
   fastify.post('/api/labor', async (req, reply) => {
+    const projectId = (req as any).projectId!
     const data = LaborSchema.parse(req.body)
-    const lc = await prisma.laborCost.create({ data })
+    const lc = await prisma.laborCost.create({ data: { ...data, projectId } })
     await logAudit({
       user: user(req),
       entity: 'Labor', action: 'CREATE', entityId: lc.id,
       summary: `Přidána role: "${lc.role}" · ${lc.mdRate.toLocaleString('cs-CZ')} Kč/MD × ${lc.mdDays} MD = ${laborAmount(lc).toLocaleString('cs-CZ')} Kč`,
+      projectId,
     })
     return reply.status(201).send(lc)
   })
 
   fastify.put('/api/labor/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
+    const projectId = (req as any).projectId ?? 1
     const data = LaborSchema.partial().parse(req.body)
-    const lc = await prisma.laborCost.update({ where: { id: parseInt(id) }, data })
+    const lc = await prisma.laborCost.update({ where: { id: parseInt(id), projectId }, data })
     await logAudit({
       user: user(req),
       entity: 'Labor', action: 'UPDATE', entityId: lc.id,
       summary: `Upravena role: "${lc.role}" · ${lc.mdRate.toLocaleString('cs-CZ')} Kč/MD × ${lc.mdDays} MD = ${laborAmount(lc).toLocaleString('cs-CZ')} Kč`,
+      projectId,
     })
     return lc
   })
 
   fastify.delete('/api/labor/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    const lc = await prisma.laborCost.findUnique({ where: { id: parseInt(id) } })
-    await prisma.laborCost.delete({ where: { id: parseInt(id) } })
+    const projectId = (req as any).projectId ?? 1
+    const lc = await prisma.laborCost.findFirst({ where: { id: parseInt(id), projectId } })
+    await prisma.laborCost.delete({ where: { id: parseInt(id), projectId } })
     await logAudit({
       user: user(req),
       entity: 'Labor', action: 'DELETE', entityId: parseInt(id),
       summary: `Smazána role: "${lc?.role ?? 'ID ' + id}"`,
+      projectId,
     })
     return reply.status(204).send()
   })
@@ -79,6 +87,10 @@ export async function laborRoutes(fastify: FastifyInstance) {
 
   fastify.get('/api/labor/:id/entries', async (req, reply) => {
     const { id } = req.params as { id: string }
+    const projectId = (req as any).projectId ?? 1
+    // Verify the parent LaborCost belongs to this project
+    const lc = await prisma.laborCost.findFirst({ where: { id: parseInt(id), projectId } })
+    if (!lc) return reply.status(404).send({ error: 'Not found' })
     return prisma.laborRoleEntry.findMany({
       where: { laborCostId: parseInt(id) },
       orderBy: { date: 'desc' },
@@ -88,6 +100,10 @@ export async function laborRoutes(fastify: FastifyInstance) {
   fastify.post('/api/labor/:id/entries', async (req, reply) => {
     const { id } = req.params as { id: string }
     const lcId = parseInt(id)
+    const projectId = (req as any).projectId ?? 1
+    // Verify the parent LaborCost belongs to this project
+    const lc = await prisma.laborCost.findFirst({ where: { id: lcId, projectId } })
+    if (!lc) return reply.status(404).send({ error: 'Not found' })
     const data = z.object({
       date:   z.string(),
       amount: z.number().min(0),
@@ -100,6 +116,7 @@ export async function laborRoutes(fastify: FastifyInstance) {
     await logAudit({
       user: user(req), entity: 'Labor', action: 'UPDATE', entityId: lcId,
       summary: `Přidán měsíční záznam: ${data.amount.toLocaleString('cs-CZ')} Kč · ${new Date(data.date).toLocaleDateString('cs-CZ')}`,
+      projectId,
     })
     return reply.status(201).send(entry)
   })
@@ -114,29 +131,33 @@ export async function laborRoutes(fastify: FastifyInstance) {
   })
 
   // ── Labor spent log (weekly tracking) ───────────────────────────────
-  fastify.get('/api/labor-spent', async () => {
-    return prisma.laborSpentLog.findMany({ orderBy: { date: 'desc' } })
+  fastify.get('/api/labor-spent', async (req) => {
+    const projectId = (req as any).projectId ?? 1
+    return prisma.laborSpentLog.findMany({ where: { projectId }, orderBy: { date: 'desc' } })
   })
 
   fastify.post('/api/labor-spent', async (req, reply) => {
+    const projectId = (req as any).projectId!
     const data = z.object({
       date:   z.string(),
       amount: z.number().min(0),
       note:   z.string().optional().nullable(),
     }).parse(req.body)
     const entry = await prisma.laborSpentLog.create({
-      data: { date: new Date(data.date), amount: data.amount, note: data.note },
+      data: { date: new Date(data.date), amount: data.amount, note: data.note, projectId },
     })
     await logAudit({
       user: user(req), entity: 'LaborSpent', action: 'CREATE', entityId: entry.id,
       summary: `Přidán záznam utraceno: ${entry.amount.toLocaleString('cs-CZ')} · ${new Date(entry.date).toLocaleDateString('cs-CZ')}`,
+      projectId,
     })
     return reply.status(201).send(entry)
   })
 
   fastify.delete('/api/labor-spent/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    await prisma.laborSpentLog.delete({ where: { id: parseInt(id) } })
+    const projectId = (req as any).projectId ?? 1
+    await prisma.laborSpentLog.delete({ where: { id: parseInt(id), projectId } })
     return reply.status(204).send()
   })
 }

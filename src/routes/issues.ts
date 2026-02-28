@@ -4,7 +4,7 @@ import { prisma } from '../db'
 import { logAudit } from './audit'
 
 const CAT = 'Issue Tracker'
-function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
+function user(req: any) { return req.authUser?.name || 'System' }
 function fmtDate(d: Date | null | undefined) { return d ? d.toISOString().slice(0, 10) : '—' }
 
 const IssueBody = z.object({
@@ -23,8 +23,10 @@ const IssueBody = z.object({
 
 export async function issueRoutes(fastify: FastifyInstance) {
   // GET all issues
-  fastify.get('/api/issues', async () => {
+  fastify.get('/api/issues', async (req) => {
+    const projectId = (req as any).projectId ?? 1
     return prisma.issue.findMany({
+      where: { projectId },
       include: { owner: true, linkedRisk: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -35,6 +37,7 @@ export async function issueRoutes(fastify: FastifyInstance) {
     const body = IssueBody.safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId!
     const issue = await prisma.issue.create({
       data: {
         title:                d.title,
@@ -48,10 +51,11 @@ export async function issueRoutes(fastify: FastifyInstance) {
         rootCause:            d.rootCause,
         linkedRiskId:         d.linkedRiskId ?? null,
         linkedChangeRequestId: d.linkedChangeRequestId ?? null,
+        projectId,
       },
       include: { owner: true, linkedRisk: true },
     })
-    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'CREATE', entityId: issue.id, summary: `Vytvořen issue: "${issue.title}" · Typ: ${issue.type} · Závažnost: ${issue.severity} · Status: ${issue.status}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'CREATE', entityId: issue.id, summary: `Vytvořen issue: "${issue.title}" · Typ: ${issue.type} · Závažnost: ${issue.severity} · Status: ${issue.status}`, projectId })
     return reply.code(201).send(issue)
   })
 
@@ -62,12 +66,13 @@ export async function issueRoutes(fastify: FastifyInstance) {
     const body = IssueBody.partial().safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId ?? 1
 
-    const existing = await prisma.issue.findUnique({ where: { id }, include: { owner: true, linkedRisk: true } })
+    const existing = await prisma.issue.findFirst({ where: { id, projectId }, include: { owner: true, linkedRisk: true } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
     const issue = await prisma.issue.update({
-      where: { id },
+      where: { id, projectId },
       data: {
         title:                d.title                ?? existing.title,
         description:          d.description          ?? existing.description,
@@ -117,7 +122,7 @@ export async function issueRoutes(fastify: FastifyInstance) {
     if (d.description !== undefined && d.description !== existing.description)
       ch.push(`Popis: upraven`)
 
-    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'UPDATE', entityId: id, summary: `Upraven issue: "${issue.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'UPDATE', entityId: id, summary: `Upraven issue: "${issue.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}`, projectId })
     return issue
   })
 
@@ -125,9 +130,10 @@ export async function issueRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/issues/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
-    const existing = await prisma.issue.findUnique({ where: { id } })
-    await prisma.issue.delete({ where: { id } })
-    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'DELETE', entityId: id, summary: `Smazán issue: "${existing?.title ?? 'ID ' + id}" · Závažnost: ${existing?.severity ?? '?'}` })
+    const projectId = (req as any).projectId ?? 1
+    const existing = await prisma.issue.findFirst({ where: { id, projectId } })
+    await prisma.issue.delete({ where: { id, projectId } })
+    await logAudit({ user: user(req), category: CAT, entity: 'Issue', action: 'DELETE', entityId: id, summary: `Smazán issue: "${existing?.title ?? 'ID ' + id}" · Závažnost: ${existing?.severity ?? '?'}`, projectId })
     return reply.code(204).send()
   })
 }

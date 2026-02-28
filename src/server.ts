@@ -16,6 +16,10 @@ import { riskRoutes } from './routes/risks'
 import { issueRoutes } from './routes/issues'
 import { changesRoutes } from './routes/changes'
 import { assumptionRoutes } from './routes/assumptions'
+import { authPlugin } from './plugins/auth'
+import { authRoutes } from './routes/auth'
+import { projectsRoutes } from './routes/projects'
+import { companiesRoutes } from './routes/companies'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
 
@@ -27,12 +31,16 @@ const fastify = Fastify({
 
 async function main() {
   await fastify.register(cors, { origin: true })
+  await fastify.register(authPlugin)
 
   await fastify.register(staticFiles, {
     root: path.join(__dirname, '..', 'public'),
     prefix: '/',
   })
 
+  await fastify.register(authRoutes)
+  await fastify.register(projectsRoutes)
+  await fastify.register(companiesRoutes)
   await fastify.register(itemRoutes)
   await fastify.register(peopleRoutes)
   await fastify.register(categoryRoutes)

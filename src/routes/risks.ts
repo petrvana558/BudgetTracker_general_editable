@@ -4,7 +4,7 @@ import { prisma } from '../db'
 import { logAudit } from './audit'
 
 const CAT = 'Risk Management'
-function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
+function user(req: any) { return req.authUser?.name || 'System' }
 function fmtDate(d: Date | null | undefined) { return d ? d.toISOString().slice(0, 10) : '—' }
 
 const RiskBody = z.object({
@@ -24,8 +24,10 @@ const RiskBody = z.object({
 
 export async function riskRoutes(fastify: FastifyInstance) {
   // GET all risks
-  fastify.get('/api/risks', async () => {
+  fastify.get('/api/risks', async (req) => {
+    const projectId = (req as any).projectId ?? 1
     return prisma.risk.findMany({
+      where: { projectId },
       include: { owner: true },
       orderBy: { score: 'desc' },
     })
@@ -35,6 +37,10 @@ export async function riskRoutes(fastify: FastifyInstance) {
   fastify.get('/api/risks/:id/history', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
+    const projectId = (req as any).projectId ?? 1
+    // Verify risk belongs to project
+    const risk = await prisma.risk.findFirst({ where: { id, projectId } })
+    if (!risk) return reply.code(404).send({ error: 'Not found' })
     return prisma.riskScoreHistory.findMany({
       where: { riskId: id },
       orderBy: { date: 'asc' },
@@ -47,6 +53,7 @@ export async function riskRoutes(fastify: FastifyInstance) {
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
     const score = d.probability * d.impact
+    const projectId = (req as any).projectId!
 
     const risk = await prisma.risk.create({
       data: {
@@ -64,10 +71,11 @@ export async function riskRoutes(fastify: FastifyInstance) {
         reviewDate:          d.reviewDate ? new Date(d.reviewDate) : null,
         materializationDate: d.materializationDate ? new Date(d.materializationDate) : null,
         scoreHistory: { create: { score } },
+        projectId,
       },
       include: { owner: true },
     })
-    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'CREATE', entityId: risk.id, summary: `Vytvořeno riziko: "${risk.title}" · Skóre: ${risk.score} (P${risk.probability}×D${risk.impact}) · Status: ${risk.status}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'CREATE', entityId: risk.id, summary: `Vytvořeno riziko: "${risk.title}" · Skóre: ${risk.score} (P${risk.probability}×D${risk.impact}) · Status: ${risk.status}`, projectId })
     return reply.code(201).send(risk)
   })
 
@@ -78,8 +86,9 @@ export async function riskRoutes(fastify: FastifyInstance) {
     const body = RiskBody.partial().safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId ?? 1
 
-    const existing = await prisma.risk.findUnique({ where: { id }, include: { owner: true } })
+    const existing = await prisma.risk.findFirst({ where: { id, projectId }, include: { owner: true } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
     const prob   = d.probability ?? existing.probability
@@ -104,7 +113,7 @@ export async function riskRoutes(fastify: FastifyInstance) {
     if (scoreChanged) updateData.scoreHistory = { create: { score } }
 
     const risk = await prisma.risk.update({
-      where: { id },
+      where: { id, projectId },
       data: updateData,
       include: { owner: true },
     })
@@ -138,7 +147,7 @@ export async function riskRoutes(fastify: FastifyInstance) {
     if (d.description !== undefined && d.description !== existing.description)
       ch.push(`Popis: upraven`)
 
-    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'UPDATE', entityId: id, summary: `Upraveno riziko: "${risk.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'UPDATE', entityId: id, summary: `Upraveno riziko: "${risk.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}`, projectId })
     return risk
   })
 
@@ -146,9 +155,10 @@ export async function riskRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/risks/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
-    const existing = await prisma.risk.findUnique({ where: { id } })
-    await prisma.risk.delete({ where: { id } })
-    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'DELETE', entityId: id, summary: `Smazáno riziko: "${existing?.title ?? 'ID ' + id}" · Skóre bylo: ${existing?.score ?? '?'}` })
+    const projectId = (req as any).projectId ?? 1
+    const existing = await prisma.risk.findFirst({ where: { id, projectId } })
+    await prisma.risk.delete({ where: { id, projectId } })
+    await logAudit({ user: user(req), category: CAT, entity: 'Risk', action: 'DELETE', entityId: id, summary: `Smazáno riziko: "${existing?.title ?? 'ID ' + id}" · Skóre bylo: ${existing?.score ?? '?'}`, projectId })
     return reply.code(204).send()
   })
 }

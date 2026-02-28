@@ -4,7 +4,7 @@ import { prisma } from '../db'
 import { logAudit } from './audit'
 
 const CAT = 'Change Management'
-function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
+function user(req: any) { return req.authUser?.name || 'System' }
 
 const CRBody = z.object({
   title:                 z.string().min(1),
@@ -25,8 +25,10 @@ const CRBody = z.object({
 
 export async function changesRoutes(fastify: FastifyInstance) {
   // GET all change requests
-  fastify.get('/api/changes', async () => {
+  fastify.get('/api/changes', async (req) => {
+    const projectId = (req as any).projectId ?? 1
     const crs = await prisma.changeRequest.findMany({
+      where: { projectId },
       include: { requestedBy: true, approvedBy: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -41,8 +43,9 @@ export async function changesRoutes(fastify: FastifyInstance) {
   fastify.get('/api/changes/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
-    const cr = await prisma.changeRequest.findUnique({
-      where: { id },
+    const projectId = (req as any).projectId ?? 1
+    const cr = await prisma.changeRequest.findFirst({
+      where: { id, projectId },
       include: { requestedBy: true, approvedBy: true },
     })
     if (!cr) return reply.code(404).send({ error: 'Not found' })
@@ -51,8 +54,8 @@ export async function changesRoutes(fastify: FastifyInstance) {
     const issueIds = JSON.parse(cr.linkedIssueIds || '[]') as number[]
 
     const [risks, issues] = await Promise.all([
-      riskIds.length  ? prisma.risk.findMany({ where: { id: { in: riskIds } } })  : [],
-      issueIds.length ? prisma.issue.findMany({ where: { id: { in: issueIds } } }) : [],
+      riskIds.length  ? prisma.risk.findMany({ where: { id: { in: riskIds }, projectId } })  : [],
+      issueIds.length ? prisma.issue.findMany({ where: { id: { in: issueIds }, projectId } }) : [],
     ])
 
     return {
@@ -69,6 +72,7 @@ export async function changesRoutes(fastify: FastifyInstance) {
     const body = CRBody.safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId!
 
     const cr = await prisma.changeRequest.create({
       data: {
@@ -86,10 +90,11 @@ export async function changesRoutes(fastify: FastifyInstance) {
         linkedRiskIds:         JSON.stringify(d.linkedRiskIds),
         linkedIssueIds:        JSON.stringify(d.linkedIssueIds),
         linkedRequirements:    d.linkedRequirements,
+        projectId,
       },
       include: { requestedBy: true, approvedBy: true },
     })
-    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'CREATE', entityId: cr.id, summary: `Vytvořen CR: "${cr.title}" · Typ: ${cr.changeType} · Status: ${cr.approvalStatus}${cr.budgetImpact ? ' · Budget impact: ' + cr.budgetImpact.toLocaleString('cs-CZ') + ' Kč' : ''}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'CREATE', entityId: cr.id, summary: `Vytvořen CR: "${cr.title}" · Typ: ${cr.changeType} · Status: ${cr.approvalStatus}${cr.budgetImpact ? ' · Budget impact: ' + cr.budgetImpact.toLocaleString('cs-CZ') + ' Kč' : ''}`, projectId })
     return reply.code(201).send({
       ...cr,
       linkedRiskIds:  d.linkedRiskIds,
@@ -104,15 +109,16 @@ export async function changesRoutes(fastify: FastifyInstance) {
     const body = CRBody.partial().safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId ?? 1
 
-    const existing = await prisma.changeRequest.findUnique({ where: { id }, include: { requestedBy: true, approvedBy: true } })
+    const existing = await prisma.changeRequest.findFirst({ where: { id, projectId }, include: { requestedBy: true, approvedBy: true } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
     const riskIds  = d.linkedRiskIds  !== undefined ? d.linkedRiskIds  : JSON.parse(existing.linkedRiskIds  || '[]')
     const issueIds = d.linkedIssueIds !== undefined ? d.linkedIssueIds : JSON.parse(existing.linkedIssueIds || '[]')
 
     const cr = await prisma.changeRequest.update({
-      where: { id },
+      where: { id, projectId },
       data: {
         title:                 d.title                 ?? existing.title,
         description:           d.description           ?? existing.description,
@@ -181,7 +187,7 @@ export async function changesRoutes(fastify: FastifyInstance) {
     if (d.description !== undefined && d.description !== existing.description)
       ch.push(`Popis: upraven`)
 
-    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'UPDATE', entityId: id, summary: `Upraven CR: "${cr.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'UPDATE', entityId: id, summary: `Upraven CR: "${cr.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}`, projectId })
     return { ...cr, linkedRiskIds: riskIds, linkedIssueIds: issueIds }
   })
 
@@ -189,9 +195,10 @@ export async function changesRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/changes/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
-    const existing = await prisma.changeRequest.findUnique({ where: { id } })
-    await prisma.changeRequest.delete({ where: { id } })
-    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'DELETE', entityId: id, summary: `Smazán CR: "${existing?.title ?? 'ID ' + id}" · Byl ve stavu: ${existing?.approvalStatus ?? '?'}` })
+    const projectId = (req as any).projectId ?? 1
+    const existing = await prisma.changeRequest.findFirst({ where: { id, projectId } })
+    await prisma.changeRequest.delete({ where: { id, projectId } })
+    await logAudit({ user: user(req), category: CAT, entity: 'ChangeRequest', action: 'DELETE', entityId: id, summary: `Smazán CR: "${existing?.title ?? 'ID ' + id}" · Byl ve stavu: ${existing?.approvalStatus ?? '?'}`, projectId })
     return reply.code(204).send()
   })
 }

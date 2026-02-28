@@ -4,7 +4,7 @@ import { prisma } from '../db'
 import { logAudit } from './audit'
 
 const CAT = 'Assumption Log'
-function user(req: any) { return (req.headers?.['x-user'] as string) || 'System' }
+function user(req: any) { return req.authUser?.name || 'System' }
 function fmtDate(d: Date | null | undefined) { return d ? d.toISOString().slice(0, 10) : '—' }
 
 // exposureScore = invalidationProbability × scopeImpactValue (Low=1, Medium=2, High=3)
@@ -33,8 +33,10 @@ const AssumptionBody = z.object({
 
 export async function assumptionRoutes(fastify: FastifyInstance) {
   // GET all assumptions
-  fastify.get('/api/assumptions', async () => {
+  fastify.get('/api/assumptions', async (req) => {
+    const projectId = (req as any).projectId ?? 1
     return prisma.assumption.findMany({
+      where: { projectId },
       include: { owner: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -44,7 +46,8 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
   fastify.get('/api/assumptions/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
-    const a = await prisma.assumption.findUnique({ where: { id }, include: { owner: true } })
+    const projectId = (req as any).projectId ?? 1
+    const a = await prisma.assumption.findFirst({ where: { id, projectId }, include: { owner: true } })
     if (!a) return reply.code(404).send({ error: 'Not found' })
     return a
   })
@@ -54,10 +57,11 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     const body = AssumptionBody.safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId!
     const exposureScore = calcExposure(d.invalidationProbability, d.scopeImpact)
 
-    // Auto-generate code: count existing + 1
-    const count = await prisma.assumption.count()
+    // Auto-generate code: count existing per project + 1
+    const count = await prisma.assumption.count({ where: { projectId } })
     const code  = `A-${(count + 1).toString().padStart(3, '0')}`
 
     const assumption = await prisma.assumption.create({
@@ -79,10 +83,11 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
         invalidationProbability: d.invalidationProbability,
         exposureScore,
         notes:                   d.notes,
+        projectId,
       },
       include: { owner: true },
     })
-    await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'CREATE', entityId: assumption.id, summary: `Vytvořena assumption: ${assumption.code} "${assumption.title}" · Kategorie: ${assumption.category} · Fáze: ${assumption.phase} · Exposure: ${exposureScore}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'CREATE', entityId: assumption.id, summary: `Vytvořena assumption: ${assumption.code} "${assumption.title}" · Kategorie: ${assumption.category} · Fáze: ${assumption.phase} · Exposure: ${exposureScore}`, projectId })
 
     // Auto-create risk if created directly with Invalid status
     if (assumption.status === 'Invalid') {
@@ -100,22 +105,23 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
           ownerId:      assumption.ownerId,
           status:       'Open',
           scoreHistory: { create: { score: riskScore } },
+          projectId,
         },
       })
       await prisma.assumption.update({
-        where: { id: assumption.id },
+        where: { id: assumption.id, projectId },
         data: { status: 'Converted to Risk', convertedRiskId: risk.id },
       })
       assumption.status          = 'Converted to Risk'
       assumption.convertedRiskId = risk.id
-      await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'UPDATE', entityId: assumption.id, summary: `Assumption ${assumption.code} "${assumption.title}" vytvořena jako Invalid → automaticky vytvořeno riziko #${risk.id} "${risk.title}"` })
-      await logAudit({ user: user(req), category: 'Risk Management', entity: 'Risk', action: 'CREATE', entityId: risk.id, summary: `Vytvořeno riziko z assumption ${assumption.code}: "${risk.title}" · Skóre: ${riskScore} (P${riskProb}×D${riskImpact})` })
+      await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'UPDATE', entityId: assumption.id, summary: `Assumption ${assumption.code} "${assumption.title}" vytvořena jako Invalid → automaticky vytvořeno riziko #${risk.id} "${risk.title}"`, projectId })
+      await logAudit({ user: user(req), category: 'Risk Management', entity: 'Risk', action: 'CREATE', entityId: risk.id, summary: `Vytvořeno riziko z assumption ${assumption.code}: "${risk.title}" · Skóre: ${riskScore} (P${riskProb}×D${riskImpact})`, projectId })
     }
 
     // Lock if created directly as Validated
     if (assumption.status === 'Validated') {
       await prisma.assumption.update({
-        where: { id: assumption.id },
+        where: { id: assumption.id, projectId },
         data: { isLocked: true, validatedAt: new Date() },
       })
       assumption.isLocked    = true
@@ -132,8 +138,9 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     const body = AssumptionBody.partial().safeParse(req.body)
     if (!body.success) return reply.code(400).send(body.error)
     const d = body.data
+    const projectId = (req as any).projectId ?? 1
 
-    const existing = await prisma.assumption.findUnique({ where: { id }, include: { owner: true } })
+    const existing = await prisma.assumption.findFirst({ where: { id, projectId }, include: { owner: true } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
     // Locked: only allow status and notes changes
@@ -182,7 +189,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     }
 
     const assumption = await prisma.assumption.update({
-      where: { id },
+      where: { id, projectId },
       data: updateData,
       include: { owner: true },
     })
@@ -203,16 +210,17 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
           ownerId:        assumption.ownerId,
           status:         'Open',
           scoreHistory:   { create: { score: riskScore } },
+          projectId,
         },
       })
       await prisma.assumption.update({
-        where: { id },
+        where: { id, projectId },
         data: { status: 'Converted to Risk', convertedRiskId: risk.id },
       })
       assumption.status          = 'Converted to Risk'
       assumption.convertedRiskId = risk.id
-      await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'UPDATE', entityId: id, summary: `Assumption ${assumption.code} "${assumption.title}" označena jako Invalid → automaticky vytvořeno riziko #${risk.id} "${risk.title}"` })
-      await logAudit({ user: user(req), category: 'Risk Management', entity: 'Risk', action: 'CREATE', entityId: risk.id, summary: `Vytvořeno riziko z assumption ${assumption.code}: "${risk.title}" · Skóre: ${riskScore} (P${riskProb}×D${riskImpact})` })
+      await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'UPDATE', entityId: id, summary: `Assumption ${assumption.code} "${assumption.title}" označena jako Invalid → automaticky vytvořeno riziko #${risk.id} "${risk.title}"`, projectId })
+      await logAudit({ user: user(req), category: 'Risk Management', entity: 'Risk', action: 'CREATE', entityId: risk.id, summary: `Vytvořeno riziko z assumption ${assumption.code}: "${risk.title}" · Skóre: ${riskScore} (P${riskProb}×D${riskImpact})`, projectId })
       return assumption
     }
 
@@ -255,7 +263,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     if (d.notes !== undefined && d.notes !== existing.notes)
       ch.push(`Poznámky: upraven`)
 
-    await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'UPDATE', entityId: id, summary: `Upravena assumption: ${assumption.code} "${assumption.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}` })
+    await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'UPDATE', entityId: id, summary: `Upravena assumption: ${assumption.code} "${assumption.title}"${ch.length ? ' · ' + ch.join(' · ') : ''}`, projectId })
     return assumption
   })
 
@@ -263,10 +271,11 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/assumptions/:id', async (req, reply) => {
     const id = parseInt((req.params as any).id)
     if (isNaN(id)) return reply.code(400).send({ error: 'Invalid id' })
-    const existing = await prisma.assumption.findUnique({ where: { id } })
+    const projectId = (req as any).projectId ?? 1
+    const existing = await prisma.assumption.findFirst({ where: { id, projectId } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
-    await prisma.assumption.delete({ where: { id } })
-    await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'DELETE', entityId: id, summary: `Smazána assumption: ${existing.code} "${existing.title}" · Byl ve stavu: ${existing.status}` })
+    await prisma.assumption.delete({ where: { id, projectId } })
+    await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'DELETE', entityId: id, summary: `Smazána assumption: ${existing.code} "${existing.title}" · Byl ve stavu: ${existing.status}`, projectId })
     return reply.code(204).send()
   })
 }

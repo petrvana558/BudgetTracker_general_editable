@@ -24,6 +24,9 @@
     html, body { height: 100%; overflow: hidden; }
     body { background: var(--dhl-light); font-family: 'Segoe UI', Arial, sans-serif; }
 
+    /* Login screen */
+    .login-screen { position:fixed;inset:0;z-index:9999;background:var(--dhl-light);display:flex;align-items:center;justify-content:center; }
+
     /* Sidebar */
     .sidebar { width: 220px; background: var(--dhl-dark); height: 100vh; overflow-y: auto; flex-shrink: 0; }
     .sidebar-logo { background: var(--dhl-yellow); padding: 14px 20px; display: flex; flex-direction: column; gap: 4px; }
@@ -215,7 +218,80 @@
 </head>
 <body x-data="app()" x-init="init()" x-cloak>
 
-<div class="flex" style="height: 100vh;">
+<!-- LOGIN / PROJECT PICKER SCREEN -->
+<div x-show="!token || !activeProjectId" class="login-screen">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.12);padding:40px 48px;width:380px;max-width:95vw">
+
+    <!-- FÁZE 1: Přihlašovací formulář -->
+    <div x-show="loginStep === 'credentials'">
+      <div style="text-align:center;margin-bottom:28px">
+        <div style="width:56px;height:56px;background:var(--dhl-accent,#FFCC00);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px">🗂️</div>
+        <div style="font-size:22px;font-weight:700;color:#1a1a1a">PM Tool</div>
+        <div style="font-size:13px;color:#666;margin-top:2px">Přihlašte se pro pokračování</div>
+      </div>
+      <form @submit.prevent="login()">
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#444;margin-bottom:4px">E-mail</label>
+          <input type="text" x-model="loginForm.email" required autocomplete="username"
+            style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:9px 12px;font-size:14px;outline:none"
+            placeholder="admin@local">
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#444;margin-bottom:4px">Heslo</label>
+          <input type="password" x-model="loginForm.password" required autocomplete="current-password"
+            style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:9px 12px;font-size:14px;outline:none"
+            placeholder="••••••••">
+        </div>
+        <div x-show="loginForm.error" x-text="loginForm.error"
+          style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:16px"></div>
+        <button type="submit" :disabled="loginForm.loading"
+          style="width:100%;background:var(--dhl-accent,#FFCC00);color:#1a1a1a;border:none;border-radius:6px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s"
+          :style="loginForm.loading ? 'opacity:0.6' : ''">
+          <span x-show="!loginForm.loading">Přihlásit se</span>
+          <span x-show="loginForm.loading">Ověřuji…</span>
+        </button>
+      </form>
+    </div>
+
+    <!-- FÁZE 2: Výběr projektu (po přihlášení) -->
+    <div x-show="loginStep === 'projects'">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="width:56px;height:56px;background:var(--dhl-accent,#FFCC00);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px">📁</div>
+        <div style="font-size:20px;font-weight:700;color:#1a1a1a">Vyberte projekt</div>
+        <div style="font-size:13px;color:#666;margin-top:4px">
+          Přihlášen jako <strong x-text="authUser?.name"></strong>
+        </div>
+      </div>
+
+      <template x-for="p in projects" :key="p.id">
+        <button @click="selectProject(p.id)"
+          style="display:block;width:100%;text-align:left;padding:14px 18px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;background:#fff;transition:all .15s"
+          onmouseover="this.style.borderColor='var(--dhl-accent,#FFCC00)';this.style.background='#fffbeb'"
+          onmouseout="this.style.borderColor='#e5e7eb';this.style.background='#fff'">
+          <span style="margin-right:10px">📁</span>
+          <span x-text="p.name"></span>
+          <span x-show="authUser?.role === 'superadmin' && p.companyName" x-text="' — ' + (p.companyName || '')" style="font-size:11px;color:#aaa;font-weight:400"></span>
+          <span style="float:right;font-size:12px;color:#aaa">→</span>
+        </button>
+      </template>
+
+      <div x-show="projects.length === 0"
+        style="text-align:center;color:#999;padding:20px 0;font-size:13px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">
+        Nejste přiřazeni k žádnému projektu.<br>
+        <span style="font-size:12px">Kontaktujte administrátora.</span>
+      </div>
+
+      <button @click="logout()"
+        style="width:100%;margin-top:12px;padding:8px;color:#888;font-size:12px;background:none;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='none'">
+        ← Odhlásit se / jiný účet
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<div x-show="token && activeProjectId" class="flex" style="height: 100vh;">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
@@ -223,6 +299,18 @@
       <div class="logo-sub">PM Tool</div>
       <div x-show="projectName" class="logo-date" style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px" x-text="projectName"></div>
       <div class="logo-date" x-text="new Date().toLocaleDateString('cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
+    </div>
+
+    <!-- Project switcher -->
+    <div x-show="projects.length > 1" @click="activeProjectId = null; loginStep = 'projects'; localStorage.removeItem('bt-project-id')"
+      style="padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.15);transition:background .15s"
+      onmouseover="this.style.background='rgba(0,0,0,0.25)'" onmouseout="this.style.background='rgba(0,0,0,0.15)'">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px">&#128193;</span>
+        <span x-text="projects.find(p=>p.id===activeProjectId)?.name || 'Projekt'"
+          style="flex:1;font-size:12px;font-weight:600;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+        <span style="font-size:10px;color:#888">&#8964;</span>
+      </div>
     </div>
 
     <div class="nav-section">Přehled</div>
@@ -233,49 +321,62 @@
       <span class="nav-icon">📅</span> Gantt / Timeline
     </div>
 
-    <div class="nav-section">Data</div>
-    <div class="nav-item" :class="{ active: view === 'assets' }" @click="view = 'assets'; loadItems(); $nextTick(() => restoreColWidths())">
+    <div class="nav-section" x-show="can('assets','read')">Data</div>
+    <div x-show="can('assets','read')" class="nav-item" :class="{ active: view === 'assets' }" @click="view = 'assets'; loadItems(); $nextTick(() => restoreColWidths())">
       <span class="nav-icon">📋</span> Asset List
     </div>
 
-    <div class="nav-section">Projekt</div>
-    <div class="nav-item" :class="{ active: view === 'labor' }" @click="view = 'labor'; loadLabor().then(() => $nextTick(() => renderLaborChart()))">
+    <div class="nav-section" x-show="can('labor','read')">Projekt</div>
+    <div x-show="can('labor','read')" class="nav-item" :class="{ active: view === 'labor' }" @click="view = 'labor'; loadLabor().then(() => $nextTick(() => renderLaborChart()))">
       <span class="nav-icon">👥</span> Lidé / PM náklady
     </div>
 
-    <div class="nav-section">Testování</div>
-    <div class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; testingTab='stats'; loadTestSets().then(() => { loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() }) })">
+    <div class="nav-section" x-show="can('testing','read')">Testování</div>
+    <div x-show="can('testing','read')" class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; testingTab='stats'; loadTestSets().then(() => { loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() }) })">
       <span class="nav-icon">🧪</span> Test Management
     </div>
 
-    <div class="nav-section">PM / Řízení rizik</div>
-    <div class="nav-item" :class="{ active: view === 'risks' }" @click="view = 'risks'; loadRisks()">
+    <div class="nav-section" x-show="can('risks','read') || can('issues','read') || can('changes','read') || can('assumptions','read')">PM / Řízení rizik</div>
+    <div x-show="can('risks','read')" class="nav-item" :class="{ active: view === 'risks' }" @click="view = 'risks'; loadRisks()">
       <span class="nav-icon">⚠️</span> Risk Management
     </div>
-    <div class="nav-item" :class="{ active: view === 'issues' }" @click="view = 'issues'; loadIssues()">
+    <div x-show="can('issues','read')" class="nav-item" :class="{ active: view === 'issues' }" @click="view = 'issues'; loadIssues()">
       <span class="nav-icon">🐛</span> Issue Tracker
     </div>
-    <div class="nav-item" :class="{ active: view === 'changes' }" @click="view = 'changes'; loadChanges()">
+    <div x-show="can('changes','read')" class="nav-item" :class="{ active: view === 'changes' }" @click="view = 'changes'; loadChanges()">
       <span class="nav-icon">🔄</span> Change Management
     </div>
-    <div class="nav-item" :class="{ active: view === 'assumptions' }" @click="view = 'assumptions'; loadAssumptions()">
+    <div x-show="can('assumptions','read')" class="nav-item" :class="{ active: view === 'assumptions' }" @click="view = 'assumptions'; loadAssumptions()">
       <span class="nav-icon">📝</span> Assumption Log
     </div>
 
     <div class="nav-section">Solution design</div>
     <div class="nav-item" :class="{ active: view === 'pallet-calc' }" @click="view = 'pallet-calc'">
-      <span class="nav-icon">📦</span> Pallet Storage Calculation
+      <span class="nav-icon">📦</span> Storage Calculation
     </div>
 
-    <div class="nav-section">Konfigurace</div>
-    <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
+    <div x-show="authUser?.role === 'admin' || authUser?.role === 'superadmin'" class="nav-section">Konfigurace</div>
+    <div x-show="authUser?.role === 'admin' || authUser?.role === 'superadmin'" class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
       <span class="nav-icon">⚙️</span> Nastavení
     </div>
 
-    <div style="padding: 24px 20px; margin-top: auto;">
-      <div style="font-size: 10px; color: #444; line-height: 1.6;">
-        <span style="color: var(--dhl-yellow)">●</span> PM Tool v2.0<br>
-        Lokální instance
+    <div style="padding: 16px 20px; margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1);text-align:center">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px" x-show="authUser">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--dhl-accent,#FFCC00);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#1a1a1a"
+          x-text="(authUser?.name || 'A').charAt(0).toUpperCase()"></div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#f0f0f0" x-text="authUser?.name"></div>
+          <div x-show="authUser?.role === 'superadmin'" style="font-size:10px;background:#7c3aed;color:#fff;padding:1px 8px;border-radius:10px;font-weight:700;letter-spacing:.5px;display:inline-block">SUPER</div>
+          <div x-show="authUser?.role === 'admin'" style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px">ADMIN</div>
+          <div x-show="authUser?.role === 'user'" style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px" x-text="authUser?.companyName || 'USER'"></div>
+        </div>
+      </div>
+      <button @click="logout()" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#ccc;border-radius:6px;padding:6px;font-size:11px;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+        ⎋ Odhlásit
+      </button>
+      <div style="font-size:10px;color:#666;line-height:1.6;margin-top:10px">
+        <span style="color: var(--dhl-yellow)">●</span> PM Tool v2.0 · Lokální instance
       </div>
     </div>
   </aside>
@@ -290,7 +391,7 @@
         <div class="subtitle" x-text="viewSubtitle()"></div>
       </div>
       <div class="flex gap-2 items-center">
-        <template x-if="view === 'assets'">
+        <template x-if="view === 'assets' && can('assets','write')">
           <button class="btn-primary" @click="openNewItem()">
             <span>＋</span> Přidat položku
           </button>
@@ -323,28 +424,28 @@
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportRisksPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
+            <button x-show="can('risks','write')" class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
           </div>
         </template>
         <template x-if="view === 'issues'">
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportIssuesPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
+            <button x-show="can('issues','write')" class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
           </div>
         </template>
         <template x-if="view === 'changes'">
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportChangesPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
+            <button x-show="can('changes','write')" class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
           </div>
         </template>
         <template x-if="view === 'assumptions'">
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportAssumptionsPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewAssumption()"><span>＋</span> Nová assumption</button>
+            <button x-show="can('assumptions','write')" class="btn-primary" @click="openNewAssumption()"><span>＋</span> Nová assumption</button>
           </div>
         </template>
         <!-- Currency toggle (hidden when eurRate=0) -->
@@ -668,6 +769,7 @@
                 </td>
                 <td>
                   <select class="inline-select" :style="statusStyle(item.tenderStatus)"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'tenderStatus', $event.target.value || null)">
                     <option value="" :selected="!item.tenderStatus">— Status —</option>
                     <template x-for="s in TENDER_STATUSES" :key="s">
@@ -678,6 +780,7 @@
                 <td>
                   <select class="inline-select"
                     :style="item.priority ? 'background:' + item.priority.color + '20;color:' + item.priority.color : 'background:#f3f4f6;color:#9ca3af'"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'priorityId', $event.target.value ? parseInt($event.target.value) : null)">
                     <option value="" :selected="!item.priorityId">— Priorita —</option>
                     <template x-for="p in priorities" :key="p.id">
@@ -687,6 +790,7 @@
                 </td>
                 <td>
                   <select class="inline-select" style="background:#f3f4f6;color:#1a1a1a;min-width:110px"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'responsibleId', $event.target.value ? parseInt($event.target.value) : null)">
                     <option value="" :selected="!item.responsibleId">— Nepřiřazeno —</option>
                     <template x-for="p in people" :key="p.id">
@@ -696,16 +800,19 @@
                 </td>
                 <td>
                   <input type="date" class="inline-date" :class="deadlineClass(item.tenderDeadline)"
+                    :disabled="!can('assets','write')"
                     :value="isoDate(item.tenderDeadline)"
                     @change="quickPatch(item.id, 'tenderDeadline', $event.target.value || null)">
                 </td>
                 <td>
                   <input type="date" class="inline-date"
+                    :disabled="!can('assets','write')"
                     :value="isoDate(item.deliveryDate)"
                     @change="quickPatch(item.id, 'deliveryDate', $event.target.value || null)">
                 </td>
                 <td>
                   <select class="inline-select" :style="approvalStyle(item.approval)"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'approval', $event.target.value || null)">
                     <option value="" :selected="!item.approval">— Schválení —</option>
                     <option :selected="item.approval === 'Approved'">Approved</option>
@@ -727,7 +834,7 @@
                   </template>
                 </td>
                 <td>
-                  <button class="btn-icon" title="Smazat" @click="deleteItem(item.id)">🗑️</button>
+                  <button x-show="can('assets','write')" class="btn-icon" title="Smazat" @click="deleteItem(item.id)">🗑️</button>
                 </td>
               </tr>
             </template>
@@ -807,7 +914,7 @@
         <div class="chart-card lg:col-span-2">
           <div class="chart-header">
             <span>Role & náklady</span>
-            <button class="btn-primary btn-sm" @click="openLaborForm()">＋ Přidat roli</button>
+            <button x-show="can('labor','write')" class="btn-primary btn-sm" @click="openLaborForm()">＋ Přidat roli</button>
           </div>
           <div class="table-scroll" style="max-height:520px">
             <table class="data-table">
@@ -903,7 +1010,7 @@
                     :class="laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{}) ? 'text-red-600' : laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{})*(laborWarningPct/100) ? 'text-yellow-500' : 'text-green-700'"
                     x-text="fmtMoney(entry.amount)"></span>
                   <span class="text-gray-400" style="font-size:11px;flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="entry.note || ''"></span>
-                  <button class="btn-icon" style="padding:2px 5px;color:#ccc;flex-shrink:0" @click="deleteLaborEntry(entry.id)" title="Smazat">✕</button>
+                  <button x-show="can('labor','write')" class="btn-icon" style="padding:2px 5px;color:#ccc;flex-shrink:0" @click="deleteLaborEntry(entry.id)" title="Smazat">✕</button>
                 </div>
               </template>
               <p x-show="!laborFormEntries.length" class="text-xs text-gray-400 py-2">Zatím žádné záznamy.</p>
@@ -917,14 +1024,14 @@
                   <label class="form-label" style="font-size:10px" x-text="'Částka (' + currency + ')'"></label>
                   <input class="form-input" type="number" x-model="laborEntryForm.amount" min="0" step="1" style="font-size:12px;padding:4px 8px" placeholder="0">
                 </div>
-                <button class="btn-primary btn-sm" @click="addLaborEntry()" :disabled="!laborEntryForm.amount">＋</button>
+                <button x-show="can('labor','write')" class="btn-primary btn-sm" @click="addLaborEntry()" :disabled="!laborEntryForm.amount">＋</button>
               </div>
               <input class="form-input mt-1" type="text" x-model="laborEntryForm.note" style="font-size:12px;padding:4px 8px" placeholder="Faktura, výplatní páska...">
             </div>
             <!-- Akce -->
             <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid #f0f0f0">
-              <button class="btn-ghost" style="flex:1;font-size:12px" @click="openLaborForm(laborDetail.lc)">✏️ Upravit roli</button>
-              <button class="btn-danger btn-sm" style="font-size:12px" @click="deleteLabor(laborDetail.lc?.id); laborDetail = { open: false, lc: null }">🗑️ Smazat</button>
+              <button x-show="can('labor','write')" class="btn-ghost" style="flex:1;font-size:12px" @click="openLaborForm(laborDetail.lc)">✏️ Upravit roli</button>
+              <button x-show="can('labor','write')" class="btn-danger btn-sm" style="font-size:12px" @click="deleteLabor(laborDetail.lc?.id); laborDetail = { open: false, lc: null }">🗑️ Smazat</button>
             </div>
           </div>
         </div>
@@ -1025,7 +1132,7 @@
           </button>
         </div>
 
-        <template x-if="testingTab==='sets'">
+        <template x-if="testingTab==='sets' && can('testing','write')">
           <div class="flex gap-2">
             <button class="btn-primary btn-sm" @click="openTsForm()">＋ Test Set</button>
             <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=null;csvImport.setName='';csvImport.raw='';csvImport.fileName='';csvImport.error=''">⬆ Import CSV</button>
@@ -1264,10 +1371,10 @@
                 <span style="font-size:10px;font-weight:700;color:#3b82f6" x-text="'⟳' + ts.testCases.filter(c=>c.status==='WIP').length"></span>
               </div>
               <div class="flex gap-2" @click.stop>
-                <button class="btn-ghost btn-sm" @click="openTcForm(ts.id)" title="Přidat test case">＋ Test</button>
-                <button class="btn-ghost btn-sm" @click="openTsForm(ts)" title="Upravit test set">✏️</button>
-                <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.fileName='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
-                <button class="btn-danger btn-sm" @click="deleteTestSet(ts.id)" title="Smazat test set">✕</button>
+                <button x-show="can('testing','write')" class="btn-ghost btn-sm" @click="openTcForm(ts.id)" title="Přidat test case">＋ Test</button>
+                <button x-show="can('testing','write')" class="btn-ghost btn-sm" @click="openTsForm(ts)" title="Upravit test set">✏️</button>
+                <button x-show="can('testing','write')" class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.fileName='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
+                <button x-show="can('testing','write')" class="btn-danger btn-sm" @click="deleteTestSet(ts.id)" title="Smazat test set">✕</button>
               </div>
             </div>
 
@@ -1299,8 +1406,8 @@
                     </select>
 
                     <div class="flex gap-1" @click.stop>
-                      <button class="btn-ghost btn-sm" style="font-size:10px" @click="openTcForm(ts.id, tc)">✏️</button>
-                      <button class="btn-danger btn-sm" style="font-size:10px" @click="deleteTestCase(tc.id, ts.id)">✕</button>
+                      <button x-show="can('testing','write')" class="btn-ghost btn-sm" style="font-size:10px" @click="openTcForm(ts.id, tc)">✏️</button>
+                      <button x-show="can('testing','write')" class="btn-danger btn-sm" style="font-size:10px" @click="deleteTestCase(tc.id, ts.id)">✕</button>
                     </div>
                   </div>
 
@@ -1357,8 +1464,8 @@
                             </div>
                           </div>
                           <div class="flex gap-1" style="flex-shrink:0">
-                            <button class="btn-icon" style="font-size:11px;color:#888" @click="openStepEdit(step)" title="Upravit krok">✏️</button>
-                            <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                            <button x-show="can('testing','write')" class="btn-icon" style="font-size:11px;color:#888" @click="openStepEdit(step)" title="Upravit krok">✏️</button>
+                            <button x-show="can('testing','write')" class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
                           </div>
                         </div>
                       </div>
@@ -1395,13 +1502,13 @@
                           <input type="date" x-model="getStepForm(tc.id).testedAt"
                             style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box">
                         </div>
-                        <button class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
+                        <button x-show="can('testing','write')" class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
                       </div>
                     </div>
 
                     <!-- DEFECTS -->
                     <div style="font-size:11px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px">Defekty
-                      <button class="btn-ghost btn-sm" style="margin-left:8px;font-size:10px"
+                      <button x-show="can('testing','write')" class="btn-ghost btn-sm" style="margin-left:8px;font-size:10px"
                         @click="openDefectForm(tc.id)">＋ Defekt</button>
                     </div>
                     <template x-if="tc.defects.length === 0">
@@ -1422,7 +1529,7 @@
                           <option>Closed</option>
                           <option>Rejected</option>
                         </select>
-                        <button class="btn-icon" style="color:#ccc;font-size:11px" @click="deleteDefect(def.id, tc)">✕</button>
+                        <button x-show="can('testing','write')" class="btn-icon" style="color:#ccc;font-size:11px" @click="deleteDefect(def.id, tc)">✕</button>
                       </div>
                     </template>
                   </div>
@@ -1748,8 +1855,8 @@
                     <td class="text-xs" :class="r.materializationDate && new Date(r.materializationDate) <= new Date() ? 'deadline-urgent' : ''"
                       x-text="r.materializationDate ? fmtDate(r.materializationDate) : '—'"></td>
                     <td>
-                      <button class="btn-icon" @click="openEditRisk(r)" title="Editovat">✏️</button>
-                      <button class="btn-icon" @click="deleteRisk(r.id)" title="Smazat" style="color:#D40511">🗑</button>
+                      <button x-show="can('risks','write')" class="btn-icon" @click="openEditRisk(r)" title="Editovat">✏️</button>
+                      <button x-show="can('risks','write')" class="btn-icon" @click="deleteRisk(r.id)" title="Smazat" style="color:#D40511">🗑</button>
                     </td>
                   </tr>
                 </template>
@@ -1876,8 +1983,8 @@
                   <td class="text-xs" :class="iss.dueDate && new Date(iss.dueDate) < new Date() ? 'deadline-urgent' : ''" x-text="iss.dueDate ? fmtDate(iss.dueDate) : '—'"></td>
                   <td class="text-xs" x-text="iss.linkedRisk ? ('R-' + String(iss.linkedRisk.id).padStart(3,'0') + ' ' + iss.linkedRisk.title.slice(0,20)) : '—'"></td>
                   <td>
-                    <button class="btn-icon" @click="openEditIssue(iss)" title="Editovat">✏️</button>
-                    <button class="btn-icon" @click="deleteIssue(iss.id)" title="Smazat" style="color:#D40511">🗑</button>
+                    <button x-show="can('issues','write')" class="btn-icon" @click="openEditIssue(iss)" title="Editovat">✏️</button>
+                    <button x-show="can('issues','write')" class="btn-icon" @click="deleteIssue(iss.id)" title="Smazat" style="color:#D40511">🗑</button>
                   </td>
                 </tr>
               </template>
@@ -1935,8 +2042,8 @@
                   <td x-text="cr.requestedBy?.name ?? '—'"></td>
                   <td x-text="cr.approvedBy?.name ?? '—'"></td>
                   <td>
-                    <button class="btn-icon" @click="openEditChange(cr)" title="Editovat">✏️</button>
-                    <button class="btn-icon" @click="deleteChange(cr.id)" title="Smazat" style="color:#D40511">🗑</button>
+                    <button x-show="can('changes','write')" class="btn-icon" @click="openEditChange(cr)" title="Editovat">✏️</button>
+                    <button x-show="can('changes','write')" class="btn-icon" @click="deleteChange(cr.id)" title="Smazat" style="color:#D40511">🗑</button>
                   </td>
                 </tr>
               </template>
@@ -2019,8 +2126,8 @@
                         <span x-show="!a.validationDate" style="color:#aaa">—</span>
                       </td>
                       <td>
-                        <button class="btn-icon" @click="openEditAssumption(a)" title="Upravit">✏️</button>
-                        <button class="btn-icon" @click="deleteAssumption(a.id)" title="Smazat" style="color:#D40511">🗑</button>
+                        <button x-show="can('assumptions','write')" class="btn-icon" @click="openEditAssumption(a)" title="Upravit">✏️</button>
+                        <button x-show="can('assumptions','write')" class="btn-icon" @click="deleteAssumption(a.id)" title="Smazat" style="color:#D40511">🗑</button>
                       </td>
                     </tr>
                   </template>
@@ -2133,6 +2240,9 @@
         <div class="settings-tab" :class="{ active: settingsTab === 'currency' }" @click="settingsTab = 'currency'">💱 Měna / Kurz</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'branding' }" @click="settingsTab = 'branding'">🎨 Vzhled</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'log' }" @click="settingsTab = 'log'; loadAuditLog()">📋 Log změn</div>
+        <div x-show="authUser?.role === 'superadmin'" class="settings-tab" :class="{ active: settingsTab === 'companies' }" @click="settingsTab = 'companies'; loadCompanies()">🏢 Firmy</div>
+        <div x-show="authUser?.role === 'admin'" class="settings-tab" :class="{ active: settingsTab === 'users' }" @click="settingsTab = 'users'; loadUsers()">🔐 Uživatelé</div>
+        <div x-show="authUser?.role === 'admin'" class="settings-tab" :class="{ active: settingsTab === 'projects' || settingsTab === 'project-members' }" @click="settingsTab = 'projects'; loadProjects()">&#128193; Projekty</div>
       </div>
 
       <!-- Departments settings -->
@@ -2577,10 +2687,365 @@
           </div>
         </div>
       </div>
+
+      <!-- Users tab — admin only -->
+      <div x-show="settingsTab === 'users'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- User list -->
+          <div class="chart-card">
+            <div class="chart-header">Uživatelé</div>
+            <div class="p-4 space-y-2">
+              <template x-if="!users.length">
+                <div class="text-gray-400 text-sm py-4 text-center">Žádní uživatelé</div>
+              </template>
+              <template x-for="u in users" :key="u.id">
+                <div class="flex items-center justify-between p-3 rounded border transition-colors"
+                  :class="userForm.id === u.id ? 'border-yellow-400 bg-yellow-50' : 'border-gray-100 hover:border-yellow-300'">
+                  <div style="min-width:0;flex:1">
+                    <div class="font-semibold text-sm flex items-center gap-2">
+                      <span x-text="u.name"></span>
+                      <span x-show="u.role === 'admin'" style="background:#1a1a1a;color:#FFCC00;font-size:9px;padding:1px 6px;border-radius:3px;font-weight:700">ADMIN</span>
+                      <span x-show="!u.active" style="background:#fee2e2;color:#dc2626;font-size:9px;padding:1px 6px;border-radius:3px;font-weight:700">NEAKTIVNÍ</span>
+                    </div>
+                    <div class="text-xs text-gray-400" x-text="u.email"></div>
+                    <div x-show="u.role !== 'admin'" class="flex flex-wrap gap-1 mt-1">
+                      <template x-for="s in SECTIONS" :key="s">
+                        <span x-show="(JSON.parse(u.permissions||'{}')[s] ?? 'none') !== 'none'"
+                          :style="(JSON.parse(u.permissions||'{}')[s]) === 'write' ? 'background:#dcfce7;color:#166534' : 'background:#e0f2fe;color:#0369a1'"
+                          style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600;text-transform:uppercase"
+                          x-text="s + ':' + (JSON.parse(u.permissions||'{}')[s])"></span>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="flex gap-1 ml-2">
+                    <button class="btn-icon" @click="editUser(u)" title="Upravit oprávnění">✏️</button>
+                    <button class="btn-icon" x-show="u.id !== authUser?.id" @click="deactivateUser(u)" :title="u.active ? 'Deaktivovat' : 'Aktivovat'">
+                      <span x-text="u.active ? '🔒' : '🔓'"></span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Add / Edit user + Permission matrix -->
+          <div class="chart-card">
+            <div class="chart-header" x-text="userForm.id ? 'Upravit uživatele' : 'Přidat uživatele'"></div>
+            <div class="p-4 space-y-3">
+              <div class="form-group" x-show="!userForm.id">
+                <label class="form-label">E-mail *</label>
+                <input class="form-input" type="text" x-model="userForm.email" placeholder="jan@firma.cz">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Jméno *</label>
+                <input class="form-input" type="text" x-model="userForm.name" placeholder="Jan Novák">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Typ účtu</label>
+                <select class="form-input" x-model="userForm.role">
+                  <option value="user">Uživatel (řízeno oprávněními)</option>
+                  <option value="admin">Administrátor (plný přístup)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" x-text="userForm.id ? 'Nové heslo (ponechat prázdné = beze změny)' : 'Heslo *'"></label>
+                <input class="form-input" type="password" x-model="userForm.password" placeholder="••••••••">
+              </div>
+
+              <!-- Permission matrix — only for non-admin -->
+              <div x-show="userForm.role !== 'admin'" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+                <div style="background:#f9fafb;padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;border-bottom:1px solid #e5e7eb">
+                  Oprávnění per sekce
+                </div>
+                <div style="padding:8px">
+                  <template x-for="s in SECTIONS" :key="s">
+                    <div class="flex items-center justify-between py-1" style="border-bottom:1px solid #f3f4f6">
+                      <span class="text-sm font-medium" x-text="SECTION_LABELS[s]" style="min-width:160px"></span>
+                      <div class="flex gap-1">
+                        <button
+                          @click="userForm.permissions[s] = 'none'"
+                          :class="userForm.permissions[s] === 'none' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'"
+                          style="font-size:11px;padding:3px 10px">Žádný</button>
+                        <button
+                          @click="userForm.permissions[s] = 'read'"
+                          :class="userForm.permissions[s] === 'read' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'"
+                          style="font-size:11px;padding:3px 10px">Read</button>
+                        <button
+                          @click="userForm.permissions[s] = 'write'"
+                          :class="userForm.permissions[s] === 'write' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'"
+                          style="font-size:11px;padding:3px 10px">Write</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <!-- Quick presets -->
+                <div style="padding:8px 8px 6px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="font-size:11px;color:#888;align-self:center">Preset:</span>
+                  <button class="btn-ghost btn-sm" style="font-size:11px" @click="SECTIONS.forEach(s => userForm.permissions[s] = 'read')">Vše read</button>
+                  <button class="btn-ghost btn-sm" style="font-size:11px" @click="SECTIONS.forEach(s => userForm.permissions[s] = 'write')">Vše write</button>
+                  <button class="btn-ghost btn-sm" style="font-size:11px" @click="SECTIONS.forEach(s => userForm.permissions[s] = 'none')">Vše žádný</button>
+                </div>
+              </div>
+              <div x-show="userForm.role === 'admin'" style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:10px 12px;font-size:12px;color:#713f12">
+                ⭐ Administrátor má plný přístup ke všem sekcím — oprávnění se nenastavují.
+              </div>
+
+              <div x-show="userForm.error" x-text="userForm.error" style="color:#dc2626;font-size:12px"></div>
+              <div class="flex gap-2">
+                <button class="btn-primary" @click="saveUser()" x-text="userForm.id ? 'Uložit změny' : '＋ Přidat uživatele'"></button>
+                <button x-show="userForm.id" class="btn-ghost" @click="resetUserForm()">Zrušit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Projects settings -->
+      <div x-show="settingsTab === 'projects'">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 class="font-bold text-base">Správa projektů</h3>
+          <button @click="resetProjectForm(); projectForm._showCreate = true"
+            style="background:var(--dhl-yellow);border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">
+            + Nový projekt
+          </button>
+        </div>
+
+        <!-- Create/Edit form -->
+        <div x-show="projectForm.id !== null || projectForm._showCreate"
+          style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:20px">
+          <h4 style="font-weight:600;margin-bottom:12px" x-text="projectForm.id ? 'Upravit projekt' : 'Nový projekt'"></h4>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input x-model="projectForm.name" placeholder="Název projektu" class="form-input" style="flex:1;min-width:180px">
+            <input x-model="projectForm.description" placeholder="Popis (volitelný)" class="form-input" style="flex:2;min-width:200px">
+            <button @click="saveProject()" style="background:var(--dhl-yellow);border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">Uložit</button>
+            <button @click="resetProjectForm(); projectForm._showCreate = false" style="background:#e5e7eb;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">Zrušit</button>
+          </div>
+          <div x-show="projectForm.error" x-text="projectForm.error" style="color:#dc2626;font-size:13px;margin-top:8px"></div>
+        </div>
+
+        <!-- Projects list -->
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#f9fafb">
+              <tr>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Název</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Popis</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Členů</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="p in projects" :key="p.id">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:500">
+                    <span x-text="p.name"></span>
+                    <span x-show="p.id === activeProjectId" style="margin-left:6px;background:var(--dhl-yellow);font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">aktivní</span>
+                  </td>
+                  <td style="padding:10px 14px;color:#666" x-text="p.description || '—'"></td>
+                  <td style="padding:10px 14px" x-text="p.users?.length ?? '?'"></td>
+                  <td style="padding:10px 14px">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <button @click="editProject(p)" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">&#9998; Upravit</button>
+                      <button @click="loadProjectMembers(p.id); settingsTab = 'project-members'" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">&#128101; Členové</button>
+                      <button x-show="p.id !== 1" @click="deleteProject(p.id)" style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">&#128465; Smazat</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Project Members settings -->
+      <div x-show="settingsTab === 'project-members'">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <button @click="settingsTab = 'projects'" style="background:#f3f4f6;border:none;border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer">&#8592; Zpět</button>
+          <h3 class="font-bold text-base">Členové projektu</h3>
+        </div>
+
+        <!-- Add member -->
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Přidat uživatele do projektu</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select x-ref="addMemberSelect" class="form-input" style="flex:1;min-width:180px">
+              <template x-for="u in users.filter(u => !projectMembers.find(m => m.userId === u.id))" :key="u.id">
+                <option :value="u.id" x-text="u.name + ' (' + u.email + ')'"></option>
+              </template>
+            </select>
+            <button @click="addProjectMember(projectMembersProjectId, parseInt($refs.addMemberSelect.value))"
+              style="background:var(--dhl-yellow);border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">
+              Přidat
+            </button>
+          </div>
+        </div>
+
+        <!-- Members list -->
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#f9fafb">
+              <tr>
+                <th style="padding:10px 14px;text-align:left">Jméno</th>
+                <th style="padding:10px 14px;text-align:left">E-mail</th>
+                <th style="padding:10px 14px;text-align:left">Role</th>
+                <th style="padding:10px 14px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="m in projectMembers" :key="m.userId">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:500" x-text="m.user.name"></td>
+                  <td style="padding:10px 14px;color:#666" x-text="m.user.email"></td>
+                  <td style="padding:10px 14px" x-text="m.user.role"></td>
+                  <td style="padding:10px 14px">
+                    <button @click="removeProjectMember(projectMembersProjectId, m.userId)"
+                      style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">
+                      Odebrat
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="projectMembers.length === 0">
+                <td colspan="4" style="padding:20px;text-align:center;color:#999;font-size:13px">Žádní členové</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Companies settings (superadmin only) -->
+      <div x-show="settingsTab === 'companies'">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 class="font-bold text-base">Správa firem</h3>
+          <button @click="resetCompanyForm(); companyForm._showCreate = true"
+            style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">
+            + Nová firma
+          </button>
+        </div>
+
+        <!-- Create/Edit form -->
+        <div x-show="companyForm.id !== null || companyForm._showCreate"
+          style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;padding:20px;margin-bottom:20px">
+          <h4 style="font-weight:600;margin-bottom:12px;color:#7c3aed" x-text="companyForm.id ? 'Upravit firmu' : 'Nová firma'"></h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Název firmy</label>
+              <input x-model="companyForm.name" placeholder="Firma ABC" class="form-input">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Slug (URL)</label>
+              <input x-model="companyForm.slug" placeholder="firma-abc" class="form-input">
+            </div>
+          </div>
+          <div x-show="!companyForm.id" style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:14px;margin-bottom:10px">
+            <div style="font-size:12px;font-weight:600;color:#444;margin-bottom:8px">Účet administrátora firmy</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <input x-model="companyForm.adminName" placeholder="Jméno admina" class="form-input">
+              <input x-model="companyForm.adminEmail" placeholder="email@firma.cz" class="form-input">
+              <input type="password" x-model="companyForm.adminPassword" placeholder="Heslo (min 6 znaků)" class="form-input">
+            </div>
+          </div>
+          <div x-show="companyForm.error" x-text="companyForm.error" style="color:#dc2626;font-size:13px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <button @click="saveCompany()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">Uložit</button>
+            <button @click="resetCompanyForm(); companyForm._showCreate = false" style="background:#e5e7eb;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">Zrušit</button>
+          </div>
+        </div>
+
+        <!-- Companies list -->
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#faf5ff">
+              <tr>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Firma</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Slug</th>
+                <th style="padding:10px 14px;text-align:center;font-weight:600">Uživatelů</th>
+                <th style="padding:10px 14px;text-align:center;font-weight:600">Projektů</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Stav</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="c in companies" :key="c.id">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:600" x-text="c.name"></td>
+                  <td style="padding:10px 14px;color:#888;font-family:monospace;font-size:12px" x-text="c.slug"></td>
+                  <td style="padding:10px 14px;text-align:center" x-text="c._count?.users ?? 0"></td>
+                  <td style="padding:10px 14px;text-align:center" x-text="c._count?.projects ?? 0"></td>
+                  <td style="padding:10px 14px">
+                    <span :style="c.active ? 'background:#dcfce7;color:#16a34a' : 'background:#f3f4f6;color:#6b7280'"
+                      style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">
+                      <span x-text="c.active ? 'Aktivní' : 'Neaktivní'"></span>
+                    </span>
+                  </td>
+                  <td style="padding:10px 14px">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <button @click="editCompany(c)" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">✏️ Upravit</button>
+                      <button @click="viewCompanyOverview(c.id)" style="background:#ede9fe;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#7c3aed">🔍 Detail</button>
+                      <button x-show="c.id !== 1" @click="deleteCompany(c.id)" style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">🗑 Smazat</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="companies.length === 0">
+                <td colspan="6" style="padding:20px;text-align:center;color:#999;font-size:13px">Žádné firmy</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Company Detail / Overview (superadmin support view) -->
+      <div x-show="settingsTab === 'company-overview'">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <button @click="settingsTab = 'companies'" style="background:#f3f4f6;border:none;border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer">← Zpět</button>
+          <h3 class="font-bold text-base" x-text="companyOverview?.company?.name + ' — přehled'"></h3>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <h4 style="font-weight:600;margin-bottom:10px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px">Uživatelé</h4>
+            <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <tbody>
+                  <template x-for="u in companyOverview?.users ?? []" :key="u.id">
+                    <tr style="border-top:1px solid #e5e7eb">
+                      <td style="padding:8px 12px;font-weight:500" x-text="u.name"></td>
+                      <td style="padding:8px 12px;color:#666" x-text="u.email"></td>
+                      <td style="padding:8px 12px"><span x-text="u.role" style="font-size:11px;background:#f3f4f6;padding:1px 6px;border-radius:8px"></span></td>
+                    </tr>
+                  </template>
+                  <tr x-show="!companyOverview?.users?.length">
+                    <td colspan="3" style="padding:12px;text-align:center;color:#999">Žádní uživatelé</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h4 style="font-weight:600;margin-bottom:10px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px">Projekty</h4>
+            <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <tbody>
+                  <template x-for="p in companyOverview?.projects ?? []" :key="p.id">
+                    <tr style="border-top:1px solid #e5e7eb">
+                      <td style="padding:8px 12px;font-weight:500">📁 <span x-text="p.name"></span></td>
+                      <td style="padding:8px 12px;color:#999;font-size:11px" x-text="new Date(p.createdAt).toLocaleDateString('cs-CZ')"></td>
+                    </tr>
+                  </template>
+                  <tr x-show="!companyOverview?.projects?.length">
+                    <td colspan="2" style="padding:12px;text-align:center;color:#999">Žádné projekty</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </div><!-- end main -->
-</div><!-- end flex -->
+</div><!-- end flex / token guard -->
 
 <!-- ============================================================ -->
 <!-- RISK MODAL -->
@@ -3381,6 +3846,30 @@
 <script>
 const API = ''
 
+// ── Auth: intercept all /api/* fetch calls to inject Bearer token ─────────────
+;(function () {
+  const _fetch = window.fetch
+  window.fetch = function (url, opts = {}) {
+    if (typeof url === 'string' && url.includes('/api/') && !url.includes('/api/auth/login')) {
+      const token = localStorage.getItem('bt-token')
+      if (token) {
+        const projectId = localStorage.getItem('bt-project-id')
+        const extraHeaders = { 'Authorization': `Bearer ${token}` }
+        if (projectId) extraHeaders['X-Project-Id'] = projectId
+        opts = { ...opts, headers: { ...extraHeaders, ...(opts.headers || {}) } }
+      }
+    }
+    return _fetch.call(this, url, opts).then(r => {
+      if (r.status === 401 && typeof url === 'string' && url.includes('/api/') && localStorage.getItem('bt-token')) {
+        // Token expired / invalid — clear and reload to show login screen
+        localStorage.removeItem('bt-token')
+        localStorage.removeItem('bt-auth-user')
+        location.reload()
+      }
+      return r
+    })
+  }
+})()
 
 // Chart instances stored OUTSIDE Alpine reactivity — Alpine's Proxy corrupts Chart.js internal state
 const _charts = {}
@@ -3497,6 +3986,17 @@ function app() {
     currency: 'CZK',
     eurRate: 25,
 
+    // Auth
+    token: localStorage.getItem('bt-token') || null,
+    authUser: JSON.parse(localStorage.getItem('bt-auth-user') || 'null'),
+    loginForm: { email: '', password: '', error: '', loading: false },
+    loginStep: 'credentials',  // 'credentials' | 'projects'
+
+    // Projects (multi-project workspace)
+    projects: JSON.parse(localStorage.getItem('bt-projects') || '[]'),
+    activeProjectId: parseInt(localStorage.getItem('bt-project-id') || '0') || null,
+    showProjectPicker: false,
+
     // Current user (for audit log)
     currentUser: 'Admin',
 
@@ -3504,6 +4004,25 @@ function app() {
     auditLog: [],
     auditFilter: '',
     auditCategory: 'Budget Tracker',
+
+    // Users (admin)
+    users: [],
+    SECTIONS: ['assets','labor','testing','risks','issues','changes','assumptions'],
+    SECTION_LABELS: { assets:'Assets / Budget', labor:'Lidé / PM náklady', testing:'Test Management', risks:'Risk Management', issues:'Issue Tracker', changes:'Change Management', assumptions:'Assumption Log' },
+    userForm: {
+      id: null, email: '', name: '', password: '', error: '', role: 'user',
+      permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+    },
+
+    // Project management (admin)
+    projectForm: { id: null, name: '', description: '', error: '' },
+    projectMembers: [],
+    projectMembersProjectId: null,
+
+    // Company management (superadmin)
+    companies: [],
+    companyOverview: null,
+    companyForm: { id: null, name: '', slug: '', adminEmail: '', adminName: '', adminPassword: '', error: '', _showCreate: false },
 
     ganttFilter: 'all',
 
@@ -3571,6 +4090,12 @@ function app() {
       // Apply cached palette immediately to avoid color flash before settings load
       const cachedPalette = localStorage.getItem('colorPalette') || 'dhl'
       this.applyPalette(cachedPalette)
+      if (!this.token) return  // not logged in — show login screen, don't fetch
+      // If token but no project selected and multiple projects exist, show picker
+      if (!this.activeProjectId && this.projects.length > 1) {
+        this.showProjectPicker = true
+        return
+      }
       await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
       await Promise.all([this.loadRisks(), this.loadIssues(), this.loadChanges(), this.loadAssumptions()])
       this.loadDashboard()
@@ -3664,14 +4189,83 @@ function app() {
       this.priorities = await r.json()
     },
 
-    // --- Generic fetch helper (adds X-User header on mutations) ---
-    apiFetch(method, path, body = null, extraHeaders = {}) {
+    // --- Generic fetch helper (adds Authorization + Content-Type) ---
+    async apiFetch(method, path, body = null, extraHeaders = {}) {
       const opts = {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-User': this.currentUser || 'Admin', ...extraHeaders },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+          ...extraHeaders,
+        },
       }
       if (body !== null) opts.body = JSON.stringify(body)
       return fetch(`${API}${path}`, opts)
+    },
+
+    // --- Auth methods ---
+    async login() {
+      this.loginForm.loading = true
+      this.loginForm.error = ''
+      try {
+        const r = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.loginForm.email, password: this.loginForm.password }),
+        })
+        if (!r.ok) { this.loginForm.error = 'Nesprávný email nebo heslo'; return }
+        const data = await r.json()
+        this.token = data.token
+        this.authUser = data.user
+        this.currentUser = data.user.name
+        localStorage.setItem('bt-token', data.token)
+        localStorage.setItem('bt-auth-user', JSON.stringify(data.user))
+        this.projects = data.projects || []
+        localStorage.setItem('bt-projects', JSON.stringify(this.projects))
+        if (this.projects.length === 1) {
+          this.activeProjectId = this.projects[0].id
+          localStorage.setItem('bt-project-id', String(this.projects[0].id))
+          await this.init()
+        } else if (this.projects.length > 1) {
+          this.loginStep = 'projects'  // show project picker in login card
+        } else {
+          // 0 projects (admin with no project assigned) — load app directly
+          await this.init()
+        }
+      } finally {
+        this.loginForm.loading = false
+      }
+    },
+
+    selectProject(id) {
+      this.activeProjectId = id
+      localStorage.setItem('bt-project-id', String(id))
+      this.showProjectPicker = false
+      this.init()
+    },
+
+    logout() {
+      this.token = null
+      this.authUser = null
+      localStorage.removeItem('bt-token')
+      localStorage.removeItem('bt-auth-user')
+      localStorage.removeItem('bt-projects')
+      localStorage.removeItem('bt-project-id')
+      this.projects = []
+      this.activeProjectId = null
+      this.loginStep = 'credentials'
+    },
+
+    // Permission check helper
+    can(section, access = 'read') {
+      if (!this.authUser) return false
+      if (this.authUser.role === 'admin' || this.authUser.role === 'superadmin') return true
+      let perms = {}
+      try { perms = JSON.parse(this.authUser.permissions || '{}') } catch {}
+      const level = perms[section] ?? 'none'
+      if (access === 'read')  return level === 'read' || level === 'write'
+      if (access === 'write') return level === 'write'
+      return false
     },
 
     async loadSettings() {
@@ -3741,6 +4335,144 @@ function app() {
       const params = new URLSearchParams({ category: this.auditCategory })
       await fetch(`${API}/api/audit?${params}`, { method: 'DELETE' })
       this.auditLog = []
+    },
+
+    // --- User management (admin only) ---
+    async loadUsers() {
+      const r = await fetch(`${API}/api/users`)
+      if (!r.ok) return
+      this.users = await r.json()
+    },
+
+    editUser(u) {
+      let perms = { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+      try { perms = { ...perms, ...JSON.parse(u.permissions || '{}') } } catch {}
+      this.userForm = { id: u.id, email: u.email, name: u.name, role: u.role, password: '', error: '', permissions: perms }
+    },
+
+    resetUserForm() {
+      this.userForm = {
+        id: null, email: '', name: '', password: '', error: '', role: 'user',
+        permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+      }
+    },
+
+    async saveUser() {
+      this.userForm.error = ''
+      if (!this.userForm.name) { this.userForm.error = 'Vyplňte jméno'; return }
+      if (!this.userForm.id && !this.userForm.email) { this.userForm.error = 'Vyplňte e-mail'; return }
+      if (!this.userForm.id && !this.userForm.password) { this.userForm.error = 'Vyplňte heslo'; return }
+
+      const body = { name: this.userForm.name, role: this.userForm.role, permissions: this.userForm.permissions }
+      if (!this.userForm.id) body.email = this.userForm.email
+      if (this.userForm.password) body.password = this.userForm.password
+
+      const r = this.userForm.id
+        ? await this.apiFetch('PUT', `/api/users/${this.userForm.id}`, body)
+        : await this.apiFetch('POST', '/api/users', body)
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        this.userForm.error = err.error || 'Chyba při ukládání'
+        return
+      }
+      await this.loadUsers()
+      this.resetUserForm()
+    },
+
+    async deactivateUser(u) {
+      const action = u.active ? 'deaktivovat' : 'aktivovat'
+      if (!confirm(`Opravdu chcete ${action} uživatele "${u.name}"?`)) return
+      const r = u.active
+        ? await this.apiFetch('DELETE', `/api/users/${u.id}`)
+        : await this.apiFetch('PUT', `/api/users/${u.id}`, { active: true })
+      if (r.ok) await this.loadUsers()
+    },
+
+    // --- Project management methods ---
+    async loadProjects() {
+      const r = await fetch(`${API}/api/projects`)
+      if (!r.ok) return
+      this.projects = await r.json()
+    },
+    resetProjectForm() {
+      this.projectForm = { id: null, name: '', description: '', error: '' }
+    },
+    editProject(p) {
+      this.projectForm = { id: p.id, name: p.name, description: p.description || '', error: '' }
+    },
+    async saveProject() {
+      this.projectForm.error = ''
+      const isNew = !this.projectForm.id
+      const url = isNew ? '/api/projects' : `/api/projects/${this.projectForm.id}`
+      const method = isNew ? 'POST' : 'PUT'
+      const r = await this.apiFetch(method, url, { name: this.projectForm.name, description: this.projectForm.description })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        this.projectForm.error = err.error || 'Chyba při ukládání'
+        return
+      }
+      await this.loadProjects()
+      this.resetProjectForm()
+    },
+    async deleteProject(id) {
+      if (!confirm('Smazat projekt? Tím smažete VŠECHNA jeho data!')) return
+      await this.apiFetch('DELETE', `/api/projects/${id}`)
+      await this.loadProjects()
+    },
+    async loadProjectMembers(projectId) {
+      this.projectMembersProjectId = projectId
+      const r = await fetch(`${API}/api/projects/${projectId}/users`)
+      this.projectMembers = r.ok ? await r.json() : []
+    },
+    async addProjectMember(projectId, userId) {
+      await this.apiFetch('POST', `/api/projects/${projectId}/users`, { userId })
+      await this.loadProjectMembers(projectId)
+    },
+    async removeProjectMember(projectId, userId) {
+      await this.apiFetch('DELETE', `/api/projects/${projectId}/users/${userId}`)
+      await this.loadProjectMembers(projectId)
+    },
+
+    // --- Company management methods (superadmin) ---
+    async loadCompanies() {
+      const r = await this.apiFetch('GET', '/api/companies')
+      if (r.ok) this.companies = await r.json()
+    },
+    resetCompanyForm() {
+      this.companyForm = { id: null, name: '', slug: '', adminEmail: '', adminName: '', adminPassword: '', error: '', _showCreate: false }
+    },
+    editCompany(c) {
+      this.companyForm = { id: c.id, name: c.name, slug: c.slug, adminEmail: '', adminName: '', adminPassword: '', error: '', _showCreate: false }
+    },
+    async saveCompany() {
+      this.companyForm.error = ''
+      const isNew = !this.companyForm.id
+      const url = isNew ? '/api/companies' : `/api/companies/${this.companyForm.id}`
+      const method = isNew ? 'POST' : 'PUT'
+      const body = isNew
+        ? { name: this.companyForm.name, slug: this.companyForm.slug, adminEmail: this.companyForm.adminEmail, adminName: this.companyForm.adminName, adminPassword: this.companyForm.adminPassword }
+        : { name: this.companyForm.name, slug: this.companyForm.slug }
+      const r = await this.apiFetch(method, url, body)
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        this.companyForm.error = err.error || 'Chyba při ukládání'
+        return
+      }
+      await this.loadCompanies()
+      this.resetCompanyForm()
+    },
+    async deleteCompany(id) {
+      if (!confirm('Smazat firmu? Tím smažete VŠECHNA její data (uživatele, projekty, záznamy)!')) return
+      await this.apiFetch('DELETE', `/api/companies/${id}`)
+      await this.loadCompanies()
+    },
+    async viewCompanyOverview(id) {
+      const r = await this.apiFetch('GET', `/api/companies/${id}/overview`)
+      if (r.ok) {
+        this.companyOverview = await r.json()
+        this.settingsTab = 'company-overview'
+      }
     },
 
     async loadLabor() {
