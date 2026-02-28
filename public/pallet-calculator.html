@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pallet Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="bg-slate-100 min-h-screen font-sans" x-data="app()" x-init="init()" x-cloak>
+
+<!-- HEADER -->
+<header class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shadow-lg">
+  <div>
+    <h1 class="text-lg font-bold tracking-wide">&#128230; Warehouse Pallet Calculator</h1>
+    <p class="text-slate-400 text-xs mt-0.5">Lokace &bull; Palety &bull; Délkové metry &bull; Floor Layout</p>
+  </div>
+  <button @click="reset()" class="text-slate-400 hover:text-red-400 text-xs border border-slate-600 hover:border-red-400 px-3 py-1.5 rounded transition">Resetovat vše</button>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 py-5">
+
+<!-- LEGENDA -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 px-5 py-3 mb-5 flex flex-wrap gap-x-5 gap-y-2 items-center text-xs text-slate-500">
+  <span class="font-semibold text-slate-600">Legenda:</span>
+  <span class="flex items-center gap-1.5"><span class="w-5 h-3 rounded bg-blue-100 border border-blue-300 inline-block"></span>EUR · single</span>
+  <span class="flex items-center gap-1.5"><span class="w-5 h-3 rounded bg-blue-400 border border-blue-600 inline-block"></span>EUR · DS</span>
+  <span class="flex items-center gap-1.5"><span class="w-5 h-3 rounded bg-green-100 border border-green-300 inline-block"></span>100 cm · single</span>
+  <span class="flex items-center gap-1.5"><span class="w-5 h-3 rounded bg-orange-300 border border-orange-500 inline-block"></span>100 cm · DS</span>
+  <span class="flex items-center gap-1.5"><span class="w-5 h-3 rounded bg-slate-200 border border-slate-400 inline-block"></span>N/A (průchod/průjezd)</span>
+  <span class="text-slate-300 hidden sm:inline">|</span>
+  <span>S = single (1 pal./slot) &nbsp; DS = double stack (2 pal./slot)</span>
+</div>
+
+<!-- ═══ SEKCE CARDS ═══ -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-5 items-start">
+  <template x-for="s in sections" :key="s.id">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+         :class="dragSectionId===s.id ? 'opacity-50 ring-2 ring-blue-400' : ''"
+         draggable="true" @dragstart="dragSectionId=s.id" @dragend="dragSectionId=null">
+
+      <!-- Header (always visible) -->
+      <div class="px-3 py-2 flex items-center gap-1.5"
+           :class="s.expanded ? 'bg-slate-50 border-b border-slate-200' : ''">
+        <span class="text-slate-300 text-sm cursor-grab shrink-0 select-none">&#9868;</span>
+        <input x-model="s.name" :data-snid="s.id" placeholder="Název sekce"
+          class="font-semibold text-slate-800 bg-transparent focus:outline-none flex-1 min-w-0 placeholder-slate-400 text-sm"
+          @click.stop @mousedown.stop>
+        <!-- Quick stats when collapsed -->
+        <div x-show="!s.expanded" class="text-xs text-slate-400 flex gap-2 shrink-0 select-none">
+          <span x-text="sectionStats(s).totalPallets.toLocaleString('cs')+' pal'"></span>
+          <span class="text-slate-200">|</span>
+          <span x-text="sectionStats(s).linearMeters.toFixed(1)+' m'"></span>
+        </div>
+        <button @click.stop="addLayoutRow(s.id)" title="Přidat jako novou řadu do layoutu"
+          class="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 hover:bg-blue-50 px-1.5 py-0.5 rounded transition whitespace-nowrap shrink-0 select-none">+ Řada</button>
+        <button @click.stop="duplicateSection(s.id)"
+          class="text-xs text-slate-400 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-1.5 py-0.5 rounded transition shrink-0 select-none">dup</button>
+        <button @click.stop="s.expanded=!s.expanded"
+          class="text-slate-400 hover:text-slate-600 transition p-0.5 rounded shrink-0 select-none">
+          <svg class="w-4 h-4 transition-transform duration-150" :class="s.expanded?'':'rotate-180'"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+        <button @click.stop="removeSection(s.id)" class="text-slate-300 hover:text-red-500 text-xl leading-none transition shrink-0 select-none">&times;</button>
+      </div>
+
+      <!-- Body (collapsible) -->
+      <div x-show="s.expanded">
+
+        <!-- Params -->
+        <div class="p-4 grid grid-cols-3 gap-3 border-b border-slate-100">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Délka nosníku</label>
+            <select x-model.number="s.beamLength" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="1.8">1.80 m</option><option value="2.7">2.70 m</option><option value="3.6">3.60 m</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Výška stojky</label>
+            <select x-model.number="s.uprightHeight" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500">
+              <template x-for="h in [6,7,8,9,10,11,12,13,14]"><option :value="h" x-text="h+' m'"></option></template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Šířka stojky</label>
+            <select x-model.number="s.uprightWidth" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500">
+              <template x-for="w in [6,8,10,12,14]"><option :value="w" x-text="w+' cm'"></option></template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Polí (bays)</label>
+            <input type="number" x-model.number="s.bays" min="1" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Řad</label>
+            <input type="number" x-model.number="s.rows" min="1" class="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="flex items-end pb-1">
+            <div class="text-xs text-slate-500 space-y-0.5 leading-relaxed">
+              <div>Stojky: <span class="font-semibold text-slate-700" x-text="(Number(s.bays)*Number(s.rows)+1)*2"></span></div>
+              <div>Nosníky: <span class="font-semibold text-slate-700" x-text="(s.levels.length-1)*2*Number(s.bays)*Number(s.rows)"></span></div>
+              <div>Lin.m/řadu: <span class="font-semibold text-slate-700"
+                x-text="(Number(s.bays)*Number(s.beamLength)+(Number(s.bays)+1)*(Number(s.uprightWidth)/100)).toFixed(2)"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Level editor — displayed bottom-to-top (level 1 = ground = bottom row) -->
+        <div class="px-4 pt-3 pb-2 border-b border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-600">
+              Úrovně&nbsp;<span class="font-normal text-slate-400">(<span x-text="s.levels.length"></span>)</span>
+              <span class="font-normal text-slate-400 ml-1">· 1 = zemní dole</span>
+            </span>
+            <div class="flex gap-1">
+              <button @click="setAllLevels(s,'EUR')" class="text-xs px-2 py-0.5 rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition">Vše EUR</button>
+              <button @click="setAllLevels(s,'100')" class="text-xs px-2 py-0.5 rounded border border-green-200 text-green-700 hover:bg-green-50 transition">Vše 100</button>
+              <button @click="setAllLocTypes(s,'single')" class="text-xs px-2 py-0.5 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition">Vše S</button>
+              <button @click="setAllLocTypes(s,'double')" class="text-xs px-2 py-0.5 rounded border border-orange-200 text-orange-600 hover:bg-orange-50 transition">Vše DS</button>
+            </div>
+          </div>
+          <div class="flex items-center text-xs text-slate-400 mb-1 px-0.5 gap-1.5">
+            <span class="w-5 shrink-0 text-center">#</span>
+            <span class="w-[128px] shrink-0">Paleta</span>
+            <span class="w-[72px] shrink-0">Lokace</span>
+            <span class="w-[52px] shrink-0 text-center">Výška m</span>
+            <span class="ml-auto text-right pr-6">slot / pal</span>
+          </div>
+          <!-- Levels displayed in reverse: highest number at top, level 1 (ground) at bottom -->
+          <template x-for="(lev, ri) in [...s.levels].reverse()" :key="lev.id">
+            <div class="flex items-center gap-1.5 py-1 border-t border-slate-50">
+              <span class="w-5 shrink-0 text-center text-xs text-slate-400" x-text="s.levels.length - ri"></span>
+              <div class="flex rounded overflow-hidden border border-slate-200 shrink-0 w-[128px]">
+                <button @click="lev.paletType='EUR'" :class="lev.paletType==='EUR'?'bg-blue-500 text-white':'bg-white text-slate-500 hover:bg-slate-50'" class="flex-1 px-1 py-1 text-xs font-medium transition">EUR</button>
+                <button @click="lev.paletType='100'" :class="lev.paletType==='100'?'bg-green-500 text-white':'bg-white text-slate-500 hover:bg-slate-50'" class="flex-1 px-1 py-1 text-xs font-medium border-l border-slate-200 transition">100</button>
+                <button @click="lev.paletType='NA'" :class="lev.paletType==='NA'?'bg-slate-500 text-white':'bg-white text-slate-500 hover:bg-slate-50'" class="flex-1 px-1 py-1 text-xs font-medium border-l border-slate-200 transition">N/A</button>
+              </div>
+              <div class="w-[72px] shrink-0">
+                <div x-show="lev.paletType!=='NA'" class="flex rounded overflow-hidden border border-slate-200">
+                  <button @click="lev.locationType='single'" :class="lev.locationType==='single'?'bg-slate-700 text-white':'bg-white text-slate-500 hover:bg-slate-50'" class="flex-1 py-1 text-xs font-medium transition">S</button>
+                  <button @click="lev.locationType='double'" :class="lev.locationType==='double'?'bg-orange-500 text-white':'bg-white text-slate-500 hover:bg-slate-50'" class="flex-1 py-1 text-xs font-medium border-l border-slate-200 transition">DS</button>
+                </div>
+                <div x-show="lev.paletType==='NA'" class="text-xs text-slate-300 text-center py-1.5 italic">—</div>
+              </div>
+              <input type="number" x-model.number="lev.heightM" min="0.5" max="10" step="0.1"
+                class="w-[52px] shrink-0 border border-slate-200 rounded px-1 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-400 text-center">
+              <div class="ml-auto text-xs text-right" x-show="lev.paletType!=='NA'">
+                <span class="text-slate-500" x-text="palletsInSlot(s.beamLength,lev.paletType)"></span>
+                <span class="text-slate-300 mx-0.5">/</span>
+                <span class="font-bold text-slate-800" x-text="palletsPerLevel(s.beamLength,lev)"></span>
+                <span x-show="lev.locationType==='double'" class="text-orange-500 ml-0.5">DS</span>
+              </div>
+              <div class="ml-auto text-xs text-slate-300 italic" x-show="lev.paletType==='NA'">průchod</div>
+              <button @click="removeLevel(s, s.levels.length-1-ri)" x-show="s.levels.length>1"
+                class="text-slate-200 hover:text-red-400 text-lg leading-none transition ml-1 shrink-0">&times;</button>
+            </div>
+          </template>
+          <button @click="addLevel(s)" class="mt-2 text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 transition py-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            Přidat úroveň
+          </button>
+        </div>
+
+        <!-- Rack visualizer — level 1 at bottom -->
+        <div class="px-4 py-3 border-b border-slate-100">
+          <div class="text-xs text-slate-400 mb-2">Profil 1 pole &nbsp;&#183;&nbsp; &#8593; úroveň 1 = zemní (dole)</div>
+          <div class="flex flex-col-reverse gap-px">
+            <template x-for="(lev,li) in s.levels" :key="'v'+lev.id">
+              <div class="flex items-center gap-px">
+                <span class="text-slate-300 text-xs shrink-0 mr-1" style="width:18px;text-align:right" x-text="li+1"></span>
+                <span class="text-slate-400 text-xs shrink-0 mr-1" style="width:32px;text-align:right"
+                  x-text="lev.heightM ? Number(lev.heightM).toFixed(1)+'m' : ''"></span>
+                <template x-if="lev.paletType==='NA'">
+                  <div class="h-5 bg-slate-100 border border-slate-300 rounded-sm flex items-center justify-center"
+                       :style="`width:${maxSlotsForSection(s)*34}px`">
+                    <span style="font-size:8px" class="text-slate-400 font-medium tracking-wide">N/A</span>
+                  </div>
+                </template>
+                <template x-if="lev.paletType!=='NA'">
+                  <div class="flex items-center gap-px">
+                    <template x-for="p in palletsInSlot(s.beamLength,lev.paletType)" :key="p">
+                      <div :class="{'bg-blue-100 border-blue-300 text-blue-600':lev.paletType==='EUR'&&lev.locationType==='single','bg-blue-400 border-blue-600 text-blue-900':lev.paletType==='EUR'&&lev.locationType==='double','bg-green-100 border-green-300 text-green-700':lev.paletType==='100'&&lev.locationType==='single','bg-orange-300 border-orange-500 text-orange-900':lev.paletType==='100'&&lev.locationType==='double'}"
+                        class="w-8 h-5 border rounded-sm shrink-0 flex items-center justify-center" style="font-size:8px;font-weight:700"
+                        x-text="lev.locationType==='double'?'×2':''"></div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <div class="h-1.5 bg-slate-400 rounded-sm mt-px" style="margin-left:56px" :style="`width:${maxSlotsForSection(s)*34}px`"></div>
+          </div>
+        </div>
+
+        <!-- Stats bar -->
+        <div class="grid grid-cols-3 gap-3 px-4 py-3 bg-slate-50 text-center">
+          <div>
+            <div class="text-lg font-bold text-blue-700" x-text="sectionStats(s).totalLocations.toLocaleString('cs')"></div>
+            <div class="text-xs text-slate-500">lokací</div>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-green-700" x-text="sectionStats(s).totalPallets.toLocaleString('cs')"></div>
+            <div class="text-xs text-slate-500">palet</div>
+          </div>
+          <div>
+            <div class="text-lg font-bold text-slate-700" x-text="sectionStats(s).linearMeters.toFixed(1)+' m'"></div>
+            <div class="text-xs text-slate-500">lin. metrů</div>
+          </div>
+        </div>
+
+      </div><!-- /body -->
+    </div>
+  </template>
+
+  <!-- Add section button -->
+  <div @click="addSection()"
+    class="bg-white rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 cursor-pointer flex items-center justify-center min-h-[52px] transition group">
+    <div class="text-slate-400 group-hover:text-blue-500 transition select-none flex items-center gap-2 px-4 py-3">
+      <div class="text-3xl leading-none font-light">+</div>
+      <div class="text-sm font-medium">Přidat sekci</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SOUHRNNÁ TABULKA (sekce) ═══ -->
+<div x-show="sections.length>0" x-transition class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-5">
+  <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+    <h2 class="font-semibold text-slate-800">Souhrnná tabulka sekcí</h2>
+    <span class="text-xs text-slate-400"><span x-text="sections.length"></span> sekcí</span>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm whitespace-nowrap">
+      <thead>
+        <tr class="border-b border-slate-200 text-left text-xs text-slate-500 uppercase tracking-wider bg-slate-50">
+          <th class="px-4 py-3 font-medium">Sekce</th>
+          <th class="px-4 py-3 font-medium">Nosník</th>
+          <th class="px-4 py-3 font-medium">Stojka (v/š)</th>
+          <th class="px-4 py-3 font-medium">Úrovně</th>
+          <th class="px-4 py-3 font-medium">Pole × Řady</th>
+          <th class="px-4 py-3 font-medium text-right">Stojky</th>
+          <th class="px-4 py-3 font-medium text-right">Nosníky</th>
+          <th class="px-4 py-3 font-medium text-right">Lokace</th>
+          <th class="px-4 py-3 font-medium text-right">Palety</th>
+          <th class="px-4 py-3 font-medium text-right">Lin. m</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <template x-for="s in sections" :key="s.id">
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-4 py-3 font-medium text-slate-800" x-text="s.name||'Sekce'"></td>
+            <td class="px-4 py-3 text-slate-600" x-text="Number(s.beamLength).toFixed(2)+' m'"></td>
+            <td class="px-4 py-3 text-slate-600"><span x-text="s.uprightHeight"></span>m / <span x-text="s.uprightWidth"></span>cm</td>
+            <td class="px-4 py-3 text-slate-600" x-text="s.levels.length"></td>
+            <td class="px-4 py-3 text-slate-600" x-text="s.bays+' \u00d7 '+s.rows"></td>
+            <td class="px-4 py-3 text-right text-slate-600" x-text="sectionStats(s).uprights"></td>
+            <td class="px-4 py-3 text-right text-slate-600" x-text="sectionStats(s).beams"></td>
+            <td class="px-4 py-3 text-right font-semibold text-slate-800" x-text="sectionStats(s).totalLocations.toLocaleString('cs')"></td>
+            <td class="px-4 py-3 text-right font-bold text-green-700" x-text="sectionStats(s).totalPallets.toLocaleString('cs')"></td>
+            <td class="px-4 py-3 text-right text-slate-600" x-text="sectionStats(s).linearMeters.toFixed(1)"></td>
+          </tr>
+        </template>
+      </tbody>
+      <tfoot>
+        <tr class="border-t-2 border-slate-300 bg-slate-50 font-bold">
+          <td colspan="5" class="px-4 py-3 text-right text-xs text-slate-500 uppercase tracking-wider">Celkem</td>
+          <td class="px-4 py-3 text-right text-slate-700" x-text="totals.uprights"></td>
+          <td class="px-4 py-3 text-right text-slate-700" x-text="totals.beams"></td>
+          <td class="px-4 py-3 text-right text-slate-900 text-base" x-text="totals.totalLocations.toLocaleString('cs')"></td>
+          <td class="px-4 py-3 text-right text-green-700 text-base" x-text="totals.totalPallets.toLocaleString('cs')"></td>
+          <td class="px-4 py-3 text-right text-slate-700" x-text="totals.linearMeters.toFixed(1)"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 p-5 bg-slate-50 border-t border-slate-200">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-slate-900" x-text="totals.totalLocations.toLocaleString('cs')"></div>
+      <div class="text-xs text-slate-500 mt-1">Celkem lokací</div>
+    </div>
+    <div class="bg-green-50 rounded-xl border border-green-100 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-green-700" x-text="totals.totalPallets.toLocaleString('cs')"></div>
+      <div class="text-xs text-green-600 mt-1">Celkem palet</div>
+    </div>
+    <div class="bg-blue-50 rounded-xl border border-blue-100 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-blue-700" x-text="totals.uprights"></div>
+      <div class="text-xs text-blue-600 mt-1">Stojek celkem</div>
+    </div>
+    <div class="bg-indigo-50 rounded-xl border border-indigo-100 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-indigo-700" x-text="totals.beams"></div>
+      <div class="text-xs text-indigo-600 mt-1">Nosníků celkem</div>
+    </div>
+    <div class="bg-slate-100 rounded-xl border border-slate-200 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-slate-700" x-text="totals.linearMeters.toFixed(1)+' m'"></div>
+      <div class="text-xs text-slate-600 mt-1">Délkové metry</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STATISTIKY LAYOUTU ═══ -->
+<div x-show="layoutRows.length>0" x-transition class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-5">
+  <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
+    <h2 class="font-semibold text-slate-800">Statistiky layoutu</h2>
+    <span class="text-xs text-slate-400">klikni na řadu pro detail sekcí · kapacita zdvojena pro zádové řady</span>
+    <button @click="expandAllRows()" class="ml-auto text-xs text-slate-400 hover:text-slate-600 border border-slate-200 hover:border-slate-300 px-2 py-0.5 rounded transition">Rozbalit vše</button>
+    <button @click="collapseAllRows()" class="text-xs text-slate-400 hover:text-slate-600 border border-slate-200 hover:border-slate-300 px-2 py-0.5 rounded transition">Sbalit vše</button>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm whitespace-nowrap">
+      <thead>
+        <tr class="border-b border-slate-200 text-left text-xs text-slate-500 uppercase tracking-wider bg-slate-50">
+          <th class="px-4 py-3 font-medium">Řada / Sekce</th>
+          <th class="px-4 py-3 font-medium text-center">Počet</th>
+          <th class="px-4 py-3 font-medium text-right">Délka</th>
+          <th class="px-4 py-3 font-medium text-right">Lokace</th>
+          <th class="px-4 py-3 font-medium text-right">Palety</th>
+        </tr>
+      </thead>
+      <!-- One <tbody> per layout row -->
+      <template x-for="row in layoutRows" :key="row.id">
+        <tbody x-show="row.blocks.length > 0">
+          <!-- Row header — clickable to expand/collapse -->
+          <tr class="bg-slate-50 border-t-2 border-slate-200 cursor-pointer hover:bg-slate-100 transition select-none"
+              @click="rowExpanded[row.id] = !rowExpanded[row.id]">
+            <td class="px-4 py-2.5 font-semibold text-slate-700">
+              <div class="flex items-center gap-2">
+                <!-- Expand/collapse chevron -->
+                <svg class="w-3.5 h-3.5 text-slate-400 transition-transform duration-150 shrink-0"
+                     :class="rowExpanded[row.id] ? 'rotate-90' : ''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                </svg>
+                <span x-text="row.name||'Řada'"></span>
+                <span x-show="!row.double" class="text-xs font-normal px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">Jednořadá</span>
+                <span x-show="row.double" class="text-xs font-normal px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-200">Zádová ×2</span>
+              </div>
+            </td>
+            <!-- Total block count -->
+            <td class="px-4 py-2.5 text-center text-slate-500 text-xs">
+              <span x-text="row.blocks.length+' bl.'"></span>
+            </td>
+            <!-- Total length (corrected for shared uprights at junctions) -->
+            <td class="px-4 py-2.5 text-right text-slate-600"
+                :title="'Sdílené stojky na stycích sekcí odečteny. Samostatně: '+row.blocks.reduce((s,b)=>s+getBlockLengthM(b),0).toFixed(2)+' m'"
+                x-text="rowBlocks_totalLength(row).toFixed(1)+' m'"></td>
+            <td class="px-4 py-2.5 text-right font-semibold text-slate-800"
+                x-text="rowTotals(row).totalLocations.toLocaleString('cs')"></td>
+            <td class="px-4 py-2.5 text-right font-bold text-green-700"
+                x-text="rowTotals(row).totalPallets.toLocaleString('cs')"></td>
+          </tr>
+          <!-- Grouped section detail rows (visible when expanded) -->
+          <template x-if="rowExpanded[row.id]">
+            <template x-for="grp in groupedBlocks(row)" :key="grp.sectionId">
+              <tr class="hover:bg-slate-50 transition border-t border-slate-100">
+                <td class="px-4 py-2 pl-10">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-sm shrink-0" :style="`background:${sectionColorHex(grp.sectionId)}`"></span>
+                    <span class="text-slate-700 font-medium" x-text="getSectionName(grp.sectionId)"></span>
+                  </div>
+                </td>
+                <!-- Count badge -->
+                <td class="px-4 py-2 text-center">
+                  <span class="inline-flex items-center justify-center bg-slate-100 text-slate-600 text-xs font-semibold rounded-full px-2 py-0.5 min-w-[28px]"
+                        x-text="'×'+grp.count"></span>
+                </td>
+                <!-- Length: count × lengthM -->
+                <td class="px-4 py-2 text-right text-slate-500 text-xs">
+                  <span x-show="grp.count > 1" class="text-slate-400" x-text="grp.count+' × '+grp.lengthM.toFixed(1)+' = '"></span>
+                  <span x-text="(grp.count * grp.lengthM).toFixed(1)+' m'"></span>
+                </td>
+                <td class="px-4 py-2 text-right text-slate-700"
+                    x-text="(grp.count * grp.locEach).toLocaleString('cs')"></td>
+                <td class="px-4 py-2 text-right font-medium text-green-600"
+                    x-text="(grp.count * grp.palEach).toLocaleString('cs')"></td>
+              </tr>
+            </template>
+          </template>
+        </tbody>
+      </template>
+      <tfoot>
+        <tr class="border-t-2 border-slate-300 bg-slate-50 font-bold">
+          <td colspan="3" class="px-4 py-3 text-right text-xs text-slate-500 uppercase tracking-wider">Celkem v layoutu</td>
+          <td class="px-4 py-3 text-right text-slate-900 text-base" x-text="layoutTotals.totalLocations.toLocaleString('cs')"></td>
+          <td class="px-4 py-3 text-right text-green-700 text-base" x-text="layoutTotals.totalPallets.toLocaleString('cs')"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <div class="grid grid-cols-2 gap-4 p-5 bg-slate-50 border-t border-slate-200 max-w-sm">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-slate-900" x-text="layoutTotals.totalLocations.toLocaleString('cs')"></div>
+      <div class="text-xs text-slate-500 mt-1">Lokací v layoutu</div>
+    </div>
+    <div class="bg-green-50 rounded-xl border border-green-100 p-4 text-center shadow-sm">
+      <div class="text-2xl font-bold text-green-700" x-text="layoutTotals.totalPallets.toLocaleString('cs')"></div>
+      <div class="text-xs text-green-600 mt-1">Palet v layoutu</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FLOOR LAYOUT ═══ -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+
+  <!-- Layout header -->
+  <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center gap-4">
+    <h2 class="font-semibold text-slate-800 mr-auto">&#127759; Floor Layout
+      <span class="text-xs font-normal text-slate-400 ml-2">řady zleva doprava · sekce shora dolů</span>
+    </h2>
+    <label class="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
+      <input type="checkbox" x-model="layoutSettings.showGrid" class="rounded"> Mřížka
+    </label>
+    <div class="flex items-center gap-2 text-xs text-slate-500">
+      <span>Měřítko:</span>
+      <input type="range" x-model.number="layoutSettings.pxPerMeter" min="10" max="80" step="5" class="w-24">
+      <span class="w-14" x-text="layoutSettings.pxPerMeter+' px/m'"></span>
+    </div>
+    <button @click="layoutRows=[]; save()" class="text-xs text-slate-400 hover:text-red-400 border border-slate-200 hover:border-red-300 px-2 py-1 rounded transition">Vymazat layout</button>
+  </div>
+
+  <div class="flex" style="min-height:520px">
+
+    <!-- ── Sidebar ── -->
+    <div class="w-72 border-r border-slate-200 flex flex-col shrink-0">
+
+      <div class="p-3 bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+        Přetáhni sekci <strong>na řadu</strong> níže nebo <strong>+ Řada</strong> pro novou
+      </div>
+
+      <!-- Layout rows list -->
+      <div class="flex-1 overflow-y-auto">
+        <div x-show="layoutRows.length===0" class="text-center py-10 text-slate-400">
+          <div class="text-3xl mb-2">&#128208;</div>
+          <div class="text-sm">Zatím prázdné</div>
+        </div>
+
+        <template x-for="(row, ri) in layoutRows" :key="row.id">
+          <div class="border-b border-slate-200 transition-colors"
+            :class="dropTargetRowId===row.id && dragSectionId ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : ''"
+            @dragover.prevent="if(dragSectionId) dropTargetRowId=row.id"
+            @dragleave.self="dropTargetRowId=null"
+            @drop.prevent="onDropToRow(row.id)">
+
+            <!-- Row header -->
+            <div class="px-2 py-2 bg-slate-50 flex items-center gap-1">
+              <div class="flex flex-col shrink-0">
+                <button @click="moveLayoutRow(row.id,-1)" :disabled="ri===0"
+                  class="text-slate-300 hover:text-slate-700 disabled:opacity-25 text-xs leading-tight">▲</button>
+                <button @click="moveLayoutRow(row.id,1)" :disabled="ri===layoutRows.length-1"
+                  class="text-slate-300 hover:text-slate-700 disabled:opacity-25 text-xs leading-tight">▼</button>
+              </div>
+              <input x-model="row.name" placeholder="Název řady"
+                class="flex-1 min-w-0 text-xs font-semibold text-slate-700 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none placeholder-slate-400">
+              <button @click="removeLayoutRow(row.id)" class="text-slate-300 hover:text-red-400 text-base leading-none shrink-0 ml-1">&times;</button>
+            </div>
+
+            <!-- Row config: single/zadova + depth + aisle -->
+            <div class="px-2 pb-2 space-y-1.5">
+              <div class="flex rounded overflow-hidden border border-slate-200 text-xs">
+                <button @click="row.double=false" :class="!row.double?'bg-blue-500 text-white':'bg-white text-slate-500 hover:bg-slate-50'"
+                  class="flex-1 py-1 font-medium transition">Jednořadá</button>
+                <button @click="row.double=true" :class="row.double?'bg-purple-600 text-white':'bg-white text-slate-500 hover:bg-slate-50'"
+                  class="flex-1 py-1 font-medium border-l border-slate-200 transition">Zádová</button>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5 text-xs">
+                <div>
+                  <label class="block text-slate-400 mb-0.5">Hloubka</label>
+                  <select x-model.number="row.rackDepth" class="w-full border border-slate-200 rounded px-1.5 py-1 bg-white outline-none text-xs">
+                    <option value="0.8">0.80 m</option>
+                    <option value="1.0">1.00 m</option>
+                    <option value="1.1">1.10 m</option>
+                    <option value="1.35">1.35 m</option>
+                  </select>
+                  <div x-show="row.double" class="text-slate-400 text-xs mt-0.5">× 2 = <span x-text="(Number(row.rackDepth)*2).toFixed(2)"></span> m</div>
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-0.5">Ulička za</label>
+                  <div class="flex items-center gap-1">
+                    <input type="number" x-model.number="row.aisleWidth" min="0" max="30" step="0.5"
+                      class="w-full border border-slate-200 rounded px-1.5 py-1 text-xs outline-none">
+                    <span class="text-slate-400 shrink-0">m</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section blocks within this row -->
+            <div class="px-2 pb-1 space-y-1">
+              <div class="text-xs text-slate-400 mb-1" x-show="row.blocks.length>0">Sekce v řadě:</div>
+              <template x-for="block in row.blocks" :key="block.id">
+                <div class="flex items-center gap-1 bg-white border border-slate-100 rounded px-1.5 py-1 text-xs">
+                  <span class="w-2 h-2 rounded-sm shrink-0" :style="`background:${sectionColorHex(block.sectionId)}`"></span>
+                  <select x-model.number="block.sectionId"
+                    class="flex-1 min-w-0 text-xs bg-transparent outline-none cursor-pointer">
+                    <template x-for="s in sections" :key="s.id">
+                      <option :value="s.id" x-text="s.name||'Sekce'"></option>
+                    </template>
+                  </select>
+                  <span class="text-slate-400 shrink-0 text-xs" x-text="getBlockLengthM(block).toFixed(1)+'m'"></span>
+                  <button @click="removeBlockFromRow(row.id, block.id)"
+                    class="text-slate-300 hover:text-red-400 text-base leading-none shrink-0">&times;</button>
+                </div>
+              </template>
+            </div>
+
+            <!-- Add section to this row -->
+            <div class="px-2 pb-2.5 flex gap-1" x-show="sections.length>0">
+              <select x-model.number="pendingAdd[row.id]"
+                class="flex-1 min-w-0 text-xs border border-slate-200 rounded px-1.5 py-1 bg-white outline-none">
+                <template x-for="s in sections" :key="s.id">
+                  <option :value="s.id" x-text="s.name||'Sekce'"></option>
+                </template>
+              </select>
+              <button @click="addBlockToRow(row.id, pendingAdd[row.id])"
+                class="text-xs text-blue-600 border border-blue-200 hover:bg-blue-50 px-2 py-1 rounded transition shrink-0 whitespace-nowrap">+ sekci</button>
+            </div>
+
+          </div>
+        </template>
+      </div>
+
+      <!-- Add row + quick section buttons -->
+      <div class="border-t border-slate-200 shrink-0">
+        <div class="p-2">
+          <button @click="addLayoutRow(null)"
+            class="w-full text-xs text-blue-600 border border-blue-200 hover:bg-blue-50 rounded py-1.5 transition font-medium">
+            + Přidat prázdnou řadu
+          </button>
+        </div>
+        <div class="border-t border-slate-100 p-2 bg-slate-50">
+          <div class="text-xs font-medium text-slate-600 mb-1.5">Sekce → nová řada:</div>
+          <div class="space-y-1 max-h-36 overflow-y-auto">
+            <template x-for="s in sections" :key="s.id">
+              <button @click="addLayoutRow(s.id)"
+                class="w-full text-left text-xs px-2 py-1.5 bg-white border border-slate-200 rounded hover:border-blue-300 hover:bg-blue-50 transition flex items-center justify-between gap-2">
+                <span class="flex items-center gap-1.5 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-sm shrink-0" :style="`background:${sectionColorHex(s.id)}`"></span>
+                  <span class="truncate" x-text="s.name||'Sekce'"></span>
+                </span>
+                <span class="text-slate-400 shrink-0" x-text="sectionStats(s).linearMeters.toFixed(1)+'m'"></span>
+              </button>
+            </template>
+            <div x-show="sections.length===0" class="text-xs text-slate-400 text-center py-2">Nejprve vytvoř sekci nahoře</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Canvas ── -->
+    <div class="flex-1 overflow-auto bg-slate-50 p-4"
+      :class="isDragOver?'bg-blue-50':''"
+      @dragover.prevent="isDragOver=true"
+      @dragleave.self="isDragOver=false"
+      @drop.prevent="isDragOver=false; if(dragSectionId){ addLayoutRow(dragSectionId); } dragSectionId=null">
+
+      <div x-show="layoutRows.length===0"
+        class="h-full min-h-80 flex items-center justify-center rounded-xl border-2 border-dashed transition"
+        :class="isDragOver?'border-blue-400 bg-blue-100':'border-slate-300'">
+        <div class="text-center text-slate-400 select-none">
+          <div class="text-6xl mb-3">&#127959;</div>
+          <div class="text-base font-medium mb-1" :class="isDragOver?'text-blue-500':''">
+            <span x-show="isDragOver">Pusť sekci sem!</span>
+            <span x-show="!isDragOver">Přetáhni sem sekci</span>
+          </div>
+          <div class="text-xs">nebo klikni <strong>+ Řada</strong> na kartě sekce</div>
+        </div>
+      </div>
+
+      <div x-show="layoutRows.length>0" x-html="renderedSvg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Empty state -->
+<div x-show="sections.length===0" class="text-center py-20 text-slate-400 mt-5">
+  <div class="text-7xl mb-4">&#127981;</div>
+  <div class="text-xl font-semibold mb-2 text-slate-500">Zatím žádné sekce</div>
+  <div class="text-sm">Klikni na <strong class="text-slate-600">+ Přidat sekci</strong></div>
+</div>
+
+</div><!-- /max-w -->
+
+<script>
+let _lid = 300;
+function mkLid(){ return ++_lid; }
+function mkLevel(p,l,h){ return { id:mkLid(), paletType:p||'EUR', locationType:l||'single', heightM:h!=null?h:2.0 }; }
+
+const SCHEMES = [
+  { hex:'#3b82f6', fill:'#dbeafe', stroke:'#3b82f6', text:'#1e3a8a' },
+  { hex:'#16a34a', fill:'#dcfce7', stroke:'#16a34a', text:'#14532d' },
+  { hex:'#9333ea', fill:'#f3e8ff', stroke:'#9333ea', text:'#581c87' },
+  { hex:'#f97316', fill:'#ffedd5', stroke:'#f97316', text:'#7c2d12' },
+  { hex:'#0891b2', fill:'#cffafe', stroke:'#0891b2', text:'#164e63' },
+  { hex:'#db2777', fill:'#fce7f3', stroke:'#db2777', text:'#831843' },
+  { hex:'#ca8a04', fill:'#fef9c3', stroke:'#ca8a04', text:'#713f12' },
+];
+
+function app(){
+  return {
+    sections: [],
+    nextId: 1,
+    // layoutRows: [{ id, name, double, rackDepth, aisleWidth, blocks:[{id, sectionId}] }]
+    layoutRows: [],
+    layoutSettings: { pxPerMeter:30, showGrid:true },
+    pendingAdd: {},     // { [rowId]: selectedSectionId } — UI state only
+    rowExpanded: {},    // { [rowId]: boolean } — UI state only
+    dragSectionId: null,
+    isDragOver: false,
+    dropTargetRowId: null,
+
+    // ── Init / Persist ──────────────────────────────────────────────────────
+
+    init(){
+      // Try v5 first
+      let raw = localStorage.getItem('pallet-calc-v5');
+
+      // Migrate from v4 (flat layoutBlocks[])
+      if(!raw){
+        const v4 = localStorage.getItem('pallet-calc-v4');
+        if(v4){
+          try {
+            const st = JSON.parse(v4);
+            const newRows = (st.layoutBlocks||[]).map(lb => ({
+              id: lb.id || mkLid(),
+              name: lb.name || '',
+              double: lb.double || false,
+              rackDepth: lb.rackDepth || 1.1,
+              aisleWidth: lb.aisleWidth != null ? lb.aisleWidth : 3.0,
+              blocks: [{ id: mkLid(), sectionId: lb.sectionId }]
+            }));
+            raw = JSON.stringify({ ...st, layoutRows: newRows });
+          } catch(e){}
+        }
+      }
+
+      // Migrate from v3 (layoutRows with blocks already)
+      if(!raw){
+        const v3 = localStorage.getItem('pallet-calc-v3');
+        if(v3){
+          try {
+            const st = JSON.parse(v3);
+            const newRows = (st.layoutRows||[]).map(row => ({
+              id: row.id || mkLid(),
+              name: row.name || '',
+              double: row.double || false,
+              rackDepth: row.rackDepth || 1.1,
+              aisleWidth: row.aisleWidth != null ? row.aisleWidth : 3.0,
+              blocks: (row.blocks||[]).map(b => ({ id: b.id || mkLid(), sectionId: b.sectionId }))
+            }));
+            raw = JSON.stringify({ ...st, layoutRows: newRows });
+          } catch(e){}
+        }
+      }
+
+      if(raw){
+        try {
+          const st = JSON.parse(raw);
+          this.sections = (st.sections||[]).map(s => ({
+            expanded: true, ...s,
+            levels:(s.levels||[]).map(l=>({ heightM:2.0, ...l, id:mkLid() }))
+          }));
+          this.nextId = st.nextId || (this.sections.length + 1);
+          this.layoutRows = (st.layoutRows||[]).map(row => ({
+            name:'', aisleWidth:3.0, rackDepth:1.1,
+            ...row,
+            blocks:(row.blocks||[]).map(b=>({...b}))
+          }));
+          this.layoutSettings = { ...this.layoutSettings, ...(st.layoutSettings||{}) };
+        } catch(e){}
+      }
+      this.$watch('sections',      ()=>this.save(), {deep:true});
+      this.$watch('layoutRows',    ()=>this.save(), {deep:true});
+      this.$watch('layoutSettings',()=>this.save(), {deep:true});
+    },
+
+    save(){
+      localStorage.setItem('pallet-calc-v5', JSON.stringify({
+        sections: this.sections,
+        nextId: this.nextId,
+        layoutRows: this.layoutRows,
+        layoutSettings: this.layoutSettings,
+      }));
+    },
+
+    // ── Sections ────────────────────────────────────────────────────────────
+
+    addSection(){
+      const newId = this.nextId++;
+      this.sections.push({
+        id: newId, name: '', expanded: true,
+        beamLength:2.7, uprightHeight:8, uprightWidth:10, bays:10, rows:1,
+        levels:[mkLevel('EUR'),mkLevel('EUR'),mkLevel('EUR'),mkLevel('EUR')],
+      });
+      this.$nextTick(()=>{
+        const el = document.querySelector(`[data-snid="${newId}"]`);
+        if(el) el.focus();
+      });
+    },
+
+    duplicateSection(id){
+      const src = this.sections.find(s=>s.id===id);
+      if(!src) return;
+      this.sections.push({ ...src,
+        levels:src.levels.map(l=>mkLevel(l.paletType,l.locationType,l.heightM)),
+        id:this.nextId++, name:(src.name||'Sekce')+' (kopie)', expanded:true });
+    },
+
+    removeSection(id){
+      this.sections = this.sections.filter(s=>s.id!==id);
+      // Clean up references in layout rows
+      for(const row of this.layoutRows){
+        row.blocks = row.blocks.filter(b=>b.sectionId!==id);
+      }
+    },
+
+    // ── Levels ──────────────────────────────────────────────────────────────
+
+    addLevel(sec){
+      const last=sec.levels[sec.levels.length-1];
+      sec.levels.push(mkLevel(last?.paletType,last?.locationType,last?.heightM));
+    },
+    removeLevel(sec,idx){ if(sec.levels.length>1) sec.levels.splice(idx,1); },
+    setAllLevels(sec,pt){ sec.levels.forEach(l=>{l.paletType=pt;}); },
+    setAllLocTypes(sec,lt){ sec.levels.forEach(l=>{l.locationType=lt;}); },
+
+    // ── Calculations ────────────────────────────────────────────────────────
+
+    palletsInSlot(beamLength,paletType){
+      if(paletType==='NA') return 0;
+      return Math.floor(Math.round(Number(beamLength)*1000)/(paletType==='EUR'?900:1100));
+    },
+    palletsPerLevel(beamLength,lev){
+      if(lev.paletType==='NA') return 0;
+      return this.palletsInSlot(beamLength,lev.paletType)*(lev.locationType==='double'?2:1);
+    },
+    maxSlotsForSection(s){
+      if(!s.levels?.length) return 3;
+      const vals=s.levels.filter(l=>l.paletType!=='NA').map(l=>this.palletsInSlot(s.beamLength,l.paletType));
+      return vals.length ? Math.max(...vals) : 3;
+    },
+    sectionStats(s){
+      const bays=Number(s.bays), rows=Number(s.rows);
+      const uprightM=Number(s.uprightWidth)/100;  // upright width in metres
+      let slots=0,pallets=0;
+      for(const lev of s.levels){
+        if(lev.paletType==='NA') continue;
+        const sl=this.palletsInSlot(s.beamLength,lev.paletType);
+        slots+=sl; pallets+=sl*(lev.locationType==='double'?2:1);
+      }
+      const totalLocations=slots*bays*rows, totalPallets=pallets*bays*rows;
+      // Rows are stacked in the same run direction → (rows-1) shared uprights at junctions
+      // Each upright position has front + back post → ×2
+      const uprights=(bays*rows+1)*2;
+      // Beams: ground level has no beams (pallets on floor); each elevated level needs 2 beams/bay (front+back)
+      const beams=(s.levels.length-1)*2*bays*rows;
+      const lmPerRow=bays*Number(s.beamLength)+(bays+1)*uprightM;
+      // Total lm: rows × lmPerRow minus shared upright at each row junction
+      const linearMeters=Math.round((lmPerRow*rows-(rows-1)*uprightM)*100)/100;
+      return { totalLocations,totalPallets,uprights,beams,linearMeters };
+    },
+    get totals(){
+      return this.sections.reduce((acc,s)=>{
+        const st=this.sectionStats(s);
+        acc.totalLocations+=st.totalLocations; acc.totalPallets+=st.totalPallets;
+        acc.uprights+=st.uprights; acc.beams+=st.beams;
+        acc.linearMeters=Math.round((acc.linearMeters+st.linearMeters)*100)/100;
+        return acc;
+      },{totalLocations:0,totalPallets:0,uprights:0,beams:0,linearMeters:0});
+    },
+
+    // ── Layout rows ─────────────────────────────────────────────────────────
+
+    addLayoutRow(sectionId){
+      const newRow = {
+        id: this.nextId++,
+        name: `Řada ${this.layoutRows.length+1}`,
+        double: false, rackDepth: 1.1, aisleWidth: 3.0,
+        blocks: [],
+      };
+      if(sectionId){
+        newRow.blocks.push({ id: this.nextId++, sectionId: Number(sectionId) });
+      }
+      this.layoutRows.push(newRow);
+    },
+
+    addBlockToRow(rowId, sectionId){
+      const row = this.layoutRows.find(r=>r.id===rowId);
+      if(!row) return;
+      const sid = Number(sectionId) || this.sections[0]?.id;
+      if(!sid) return;
+      row.blocks.push({ id: this.nextId++, sectionId: sid });
+    },
+
+    removeLayoutRow(id){ this.layoutRows = this.layoutRows.filter(r=>r.id!==id); },
+
+    removeBlockFromRow(rowId, blockId){
+      const row = this.layoutRows.find(r=>r.id===rowId);
+      if(row) row.blocks = row.blocks.filter(b=>b.id!==blockId);
+    },
+
+    moveLayoutRow(id, dir){
+      const i = this.layoutRows.findIndex(r=>r.id===id); if(i<0) return;
+      const j = i+dir; if(j<0||j>=this.layoutRows.length) return;
+      const item = this.layoutRows.splice(i,1)[0]; this.layoutRows.splice(j,0,item);
+    },
+
+    onDropToRow(rowId){
+      if(this.dragSectionId) this.addBlockToRow(rowId, this.dragSectionId);
+      this.dragSectionId = null;
+      this.dropTargetRowId = null;
+    },
+
+    // ── Layout calcs ────────────────────────────────────────────────────────
+
+    getBlockLengthM(block){
+      const s=this.sections.find(s=>s.id===block.sectionId);
+      return s?this.sectionStats(s).linearMeters:0;
+    },
+    getBlockTotalPallets(row, block){
+      const s=this.sections.find(s=>s.id===block.sectionId);
+      if(!s) return 0;
+      return this.sectionStats(s).totalPallets*(row.double?2:1);
+    },
+    getBlockTotalLocations(row, block){
+      const s=this.sections.find(s=>s.id===block.sectionId);
+      if(!s) return 0;
+      return this.sectionStats(s).totalLocations*(row.double?2:1);
+    },
+    rowTotals(row){
+      let totalLocations=0, totalPallets=0;
+      for(const block of row.blocks){
+        totalLocations+=this.getBlockTotalLocations(row,block);
+        totalPallets+=this.getBlockTotalPallets(row,block);
+      }
+      return { totalLocations, totalPallets };
+    },
+    get layoutTotals(){
+      let totalLocations=0, totalPallets=0;
+      for(const row of this.layoutRows){
+        const t=this.rowTotals(row);
+        totalLocations+=t.totalLocations; totalPallets+=t.totalPallets;
+      }
+      return { totalLocations, totalPallets };
+    },
+
+    // Total physical length of a layout row, accounting for shared uprights at section junctions.
+    // When sections A and B are placed adjacent, their touching uprights are shared → subtract (wA+wB)/2.
+    rowBlocks_totalLength(row){
+      const valid=row.blocks
+        .map(b=>({ b, s:this.sections.find(sec=>sec.id===b.sectionId) }))
+        .filter(x=>x.s);
+      let total=valid.reduce((sum,x)=>sum+this.getBlockLengthM(x.b),0);
+      // Subtract shared upright at each junction between adjacent sections
+      for(let i=0;i<valid.length-1;i++){
+        const wA=Number(valid[i].s.uprightWidth)/100;
+        const wB=Number(valid[i+1].s.uprightWidth)/100;
+        total-=(wA+wB)/2;
+      }
+      return Math.max(0,total);
+    },
+
+    // Group row's blocks by sectionId, returning unique sections with count
+    groupedBlocks(row){
+      const mult=row.double?2:1;
+      const map={};
+      for(const block of row.blocks){
+        const s=this.sections.find(s=>s.id===block.sectionId);
+        if(!s) continue;
+        const sid=block.sectionId;
+        if(!map[sid]){
+          const st=this.sectionStats(s);
+          map[sid]={ sectionId:sid, count:0, lengthM:st.linearMeters,
+            locEach:st.totalLocations*mult, palEach:st.totalPallets*mult };
+        }
+        map[sid].count++;
+      }
+      return Object.values(map);
+    },
+
+    // Expand/collapse all rows in the stats table
+    expandAllRows(){ for(const r of this.layoutRows) this.rowExpanded[r.id]=true; },
+    collapseAllRows(){ for(const r of this.layoutRows) this.rowExpanded[r.id]=false; },
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    getSectionName(sid){ return this.sections.find(s=>s.id===sid)?.name||'Sekce'; },
+    sectionColorHex(sid){
+      const idx=this.sections.findIndex(s=>s.id===sid);
+      return SCHEMES[Math.max(0,idx)%SCHEMES.length].hex;
+    },
+    sectionScheme(sid){
+      const idx=this.sections.findIndex(s=>s.id===sid);
+      return SCHEMES[Math.max(0,idx)%SCHEMES.length];
+    },
+
+    // ── SVG Canvas ──────────────────────────────────────────────────────────
+    // Orientation: each layout row = one vertical column (width=depth, height=Σ sections)
+    // Columns go left→right. Sections stack top→bottom within a column.
+
+    get svgData(){
+      const pm=this.layoutSettings.pxPerMeter;
+      const ML=15, MT=65;   // MT=65: room for row name + depth annotation above blocks
+      let x=ML;
+      const rows=[];
+
+      for(const row of this.layoutRows){
+        const mult=row.double?2:1;
+        const depthM=Number(row.rackDepth)*mult;
+        const colW=Math.round(depthM*pm);
+
+        let y=MT;
+        const blockItems=[];
+
+        for(const block of row.blocks){
+          const s=this.sections.find(sec=>sec.id===block.sectionId);
+          if(!s) continue;
+          const lm=this.sectionStats(s).linearMeters;
+          const h=Math.round(lm*pm);
+          const totalBays=Number(s.bays)*Number(s.rows);
+          const totalPallets=this.sectionStats(s).totalPallets*mult;
+          const totalLocations=this.sectionStats(s).totalLocations*mult;
+          blockItems.push({
+            id:block.id, x, y, w:colW, h,
+            sectionId:block.sectionId,
+            label:s.name||'Sekce',
+            lengthM:lm, totalBays,
+            info:`${totalLocations.toLocaleString('cs')} lok · ${totalPallets.toLocaleString('cs')} pal`
+          });
+          y+=h;
+        }
+
+        if(blockItems.length>0){
+          rows.push({
+            id:row.id, x, y:MT, w:colW, totalH:y-MT,
+            name:row.name||'Řada',
+            double:row.double, depthM,
+            aisleWidth:Number(row.aisleWidth),
+            blocks:blockItems,
+          });
+          x+=colW;
+          if(row.aisleWidth>0) x+=Math.round(Number(row.aisleWidth)*pm);
+        }
+      }
+      return rows;
+    },
+
+    get renderedSvg(){
+      const pm=this.layoutSettings.pxPerMeter;
+      const rows=this.svgData;
+      if(!rows.length) return '';
+
+      const MT=65, MB=40, ML=15, MR=140;
+      const maxColH=Math.max(...rows.map(r=>r.totalH));
+      const lastRow=rows[rows.length-1];
+      let svgRight=lastRow.x+lastRow.w;
+      if(lastRow.aisleWidth>0) svgRight+=Math.round(lastRow.aisleWidth*pm);
+
+      const svgW=svgRight+MR, svgH=MT+maxColH+MB;
+      const parts=[];
+
+      // Defs
+      const gridDefs=this.layoutSettings.showGrid?`
+        <pattern id="sg" width="10" height="10" patternUnits="userSpaceOnUse">
+          <path d="M10 0 L0 0 0 10" fill="none" stroke="#f1f5f9" stroke-width="0.5"/>
+        </pattern>
+        <pattern id="bg" width="${pm}" height="${pm}" patternUnits="userSpaceOnUse">
+          <rect width="${pm}" height="${pm}" fill="url(#sg)"/>
+          <path d="M${pm} 0 L0 0 0 ${pm}" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+        </pattern>`:'';
+      parts.push(`<defs>
+        <marker id="da" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto-start-reverse">
+          <polygon points="0,0 7,2.5 0,5" fill="#64748b"/>
+        </marker>
+        <marker id="db" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto-start-reverse">
+          <polygon points="0,0 7,2.5 0,5" fill="#1e40af"/>
+        </marker>${gridDefs}
+      </defs>`);
+
+      parts.push(`<rect width="${svgW}" height="${svgH}" fill="${this.layoutSettings.showGrid?'url(#bg)':'white'}"/>`);
+
+      // ── Draw each layout row (column) ──
+      for(const row of rows){
+        const colX=row.x, colW=row.w, colH=row.totalH;
+
+        // Aisle band (drawn first — background)
+        if(row.aisleWidth>0){
+          const ax=colX+colW;
+          const aw=Math.round(row.aisleWidth*pm);
+          parts.push(`<rect x="${ax}" y="${MT}" width="${aw}" height="${maxColH}" fill="#f8fafc"/>`);
+        }
+
+        // Section blocks within this row
+        for(let bi=0;bi<row.blocks.length;bi++){
+          const bl=row.blocks[bi];
+          const cs=this.sectionScheme(bl.sectionId);
+
+          // Section rectangle
+          parts.push(`<rect x="${bl.x}" y="${bl.y}" width="${bl.w}" height="${bl.h}"
+            fill="${cs.fill}" stroke="${cs.stroke}" stroke-width="1.5" rx="2"/>`);
+
+          // Bay separators (horizontal lines within this section block)
+          if(bl.totalBays>1){
+            const bayH=bl.h/bl.totalBays;
+            for(let i=1;i<bl.totalBays;i++){
+              const lineY=bl.y+Math.round(i*bayH);
+              parts.push(`<line x1="${bl.x+1}" y1="${lineY}" x2="${bl.x+bl.w-1}" y2="${lineY}"
+                stroke="${cs.stroke}60" stroke-width="0.8"/>`);
+            }
+          }
+
+          // Section separator line (between sections within the same row column)
+          if(bi<row.blocks.length-1){
+            const sepY=bl.y+bl.h;
+            parts.push(`<line x1="${bl.x}" y1="${sepY}" x2="${bl.x+bl.w}" y2="${sepY}"
+              stroke="#475569" stroke-width="2" stroke-dasharray="5,4"/>`);
+          }
+        }
+
+        // Back-to-back divider: single vertical dashed line through entire column
+        if(row.double){
+          parts.push(`<line x1="${colX+colW/2}" y1="${MT+2}" x2="${colX+colW/2}" y2="${MT+colH-2}"
+            stroke="#7c3aed88" stroke-width="1.5" stroke-dasharray="8,4"/>`);
+        }
+
+        // Labels and length annotations per section block
+        for(const bl of row.blocks){
+          const cs=this.sectionScheme(bl.sectionId);
+          const cx=bl.x+bl.w/2, cy=bl.y+bl.h/2;
+          const lblSize=Math.min(11,Math.max(7,bl.w*0.22));
+
+          if(bl.w>=20 && bl.h>=30){
+            parts.push(`<text x="${cx}" y="${cy-(bl.h>=60?10:0)}" text-anchor="middle" dominant-baseline="middle"
+              font-size="${lblSize}" font-weight="700" fill="${cs.text}" font-family="system-ui,sans-serif"
+              transform="rotate(-90,${cx},${cy-(bl.h>=60?10:0)})">${this.esc(bl.label)}</text>`);
+            if(bl.h>=60){
+              parts.push(`<text x="${cx}" y="${cy+9}" text-anchor="middle" dominant-baseline="middle"
+                font-size="${Math.max(6,lblSize-2)}" fill="${cs.stroke}" font-family="system-ui,sans-serif"
+                transform="rotate(-90,${cx},${cy+9})">${bl.lengthM.toFixed(1)} m</text>`);
+            }
+            if(bl.h>=90 && bl.w>=24){
+              parts.push(`<text x="${cx}" y="${cy+22}" text-anchor="middle" dominant-baseline="middle"
+                font-size="7" fill="${cs.stroke}bb" font-family="system-ui,sans-serif"
+                transform="rotate(-90,${cx},${cy+22})">${this.esc(bl.info)}</text>`);
+            }
+          }
+
+          // Length annotation (right side of block)
+          const rb=bl.x+bl.w;
+          const dimX=rb+18;
+          parts.push(`
+            <line x1="${rb+4}" y1="${bl.y}" x2="${rb+26}" y2="${bl.y}" stroke="#94a3b8" stroke-width="0.5"/>
+            <line x1="${rb+4}" y1="${bl.y+bl.h}" x2="${rb+26}" y2="${bl.y+bl.h}" stroke="#94a3b8" stroke-width="0.5"/>
+            <line x1="${dimX}" y1="${bl.y}" x2="${dimX}" y2="${bl.y+bl.h}"
+              stroke="#64748b" stroke-width="1" marker-start="url(#da)" marker-end="url(#da)"/>
+            <text x="${dimX+10}" y="${bl.y+bl.h/2}" text-anchor="start" dominant-baseline="middle"
+              font-size="10" fill="#475569" font-family="system-ui,sans-serif">
+              ${bl.lengthM.toFixed(2)} m</text>`);
+        }
+
+        // Total row length annotation (outermost dim — spans full column height)
+        {
+          const origRow=this.layoutRows.find(r=>r.id===row.id);
+          if(origRow){
+            const totalM=this.rowBlocks_totalLength(origRow);
+            const annX=colX+colW+58;
+            parts.push(`
+              <line x1="${colX+colW+44}" y1="${MT}" x2="${colX+colW+72}" y2="${MT}" stroke="#1e40af" stroke-width="0.7"/>
+              <line x1="${colX+colW+44}" y1="${MT+colH}" x2="${colX+colW+72}" y2="${MT+colH}" stroke="#1e40af" stroke-width="0.7"/>
+              <line x1="${annX}" y1="${MT}" x2="${annX}" y2="${MT+colH}"
+                stroke="#1e40af" stroke-width="1.5" marker-start="url(#db)" marker-end="url(#db)"/>
+              <text x="${annX+13}" y="${MT+colH/2}" text-anchor="start" dominant-baseline="middle"
+                font-size="11" font-weight="700" fill="#1e40af" font-family="system-ui,sans-serif">
+                ${totalM.toFixed(2)} m</text>`);
+          }
+        }
+
+        // Depth annotation ABOVE column
+        const kY=MT-16;
+        parts.push(`
+          <line x1="${colX+1}" y1="${kY}" x2="${colX+colW-1}" y2="${kY}"
+            stroke="#475569" stroke-width="0.8" marker-start="url(#da)" marker-end="url(#da)"/>
+          <line x1="${colX}" y1="${MT-4}" x2="${colX}" y2="${MT-30}" stroke="#475569" stroke-width="0.5"/>
+          <line x1="${colX+colW}" y1="${MT-4}" x2="${colX+colW}" y2="${MT-30}" stroke="#475569" stroke-width="0.5"/>
+          <text x="${colX+colW/2}" y="${MT-33}" text-anchor="middle" dominant-baseline="auto"
+            font-size="9" fill="#475569" font-family="system-ui,sans-serif">
+            ${row.depthM.toFixed(2)} m${row.double?' (zád.)':''}</text>`);
+
+        // Row name label (above depth annotation)
+        if(colW>=16){
+          parts.push(`<text x="${colX+colW/2}" y="${MT-46}" text-anchor="middle" dominant-baseline="auto"
+            font-size="10" font-weight="600" fill="#1e293b" font-family="system-ui,sans-serif">
+            ${this.esc(row.name)}</text>`);
+        }
+
+        // Aisle annotations (width dim lines above aisle)
+        if(row.aisleWidth>0){
+          const ax=colX+colW;
+          const aw=Math.round(row.aisleWidth*pm);
+          const acx=ax+aw/2;
+          const acy=MT+maxColH/2;
+          const atSize=Math.min(11,Math.max(7,aw*0.3));
+
+          if(aw>=18){
+            parts.push(`<text x="${acx}" y="${acy}" text-anchor="middle" dominant-baseline="middle"
+              font-size="${atSize}" fill="#94a3b8" font-family="system-ui,sans-serif"
+              transform="rotate(-90,${acx},${acy})">ulička  ${row.aisleWidth.toFixed(1)} m</text>`);
+          }
+          parts.push(`
+            <line x1="${ax+1}" y1="${MT-15}" x2="${ax+aw-1}" y2="${MT-15}"
+              stroke="#94a3b8" stroke-width="0.8" marker-start="url(#da)" marker-end="url(#da)"/>
+            <line x1="${ax}" y1="${MT-4}" x2="${ax}" y2="${MT-24}" stroke="#94a3b8" stroke-width="0.5"/>
+            <line x1="${ax+aw}" y1="${MT-4}" x2="${ax+aw}" y2="${MT-24}" stroke="#94a3b8" stroke-width="0.5"/>
+            <text x="${ax+aw/2}" y="${MT-27}" text-anchor="middle" dominant-baseline="auto"
+              font-size="8.5" fill="#94a3b8" font-family="system-ui,sans-serif">
+              ${row.aisleWidth.toFixed(1)} m</text>`);
+        }
+      }
+
+      // Scale bar
+      const sbY=svgH-20;
+      parts.push(`<g>
+        <line x1="${ML}" y1="${sbY}" x2="${ML+pm}" y2="${sbY}" stroke="#64748b" stroke-width="2.5"/>
+        <line x1="${ML}" y1="${sbY-5}" x2="${ML}" y2="${sbY+5}" stroke="#64748b" stroke-width="1.5"/>
+        <line x1="${ML+pm}" y1="${sbY-5}" x2="${ML+pm}" y2="${sbY+5}" stroke="#64748b" stroke-width="1.5"/>
+        <text x="${ML+pm/2}" y="${sbY+14}" text-anchor="middle"
+          font-size="10" fill="#64748b" font-family="system-ui,sans-serif">1 m</text>
+        <text x="${svgW-4}" y="${svgH-5}" text-anchor="end"
+          font-size="9" fill="#cbd5e1" font-family="system-ui,sans-serif">
+          ${this.layoutSettings.pxPerMeter} px/m</text>
+      </g>`);
+
+      return `<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg"
+        style="display:block;border:1px solid #e2e8f0;border-radius:8px;background:white;box-shadow:0 1px 3px rgba(0,0,0,.06)">
+        ${parts.join('\n')}
+      </svg>`;
+    },
+
+    esc(str){ return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+
+    reset(){
+      if(confirm('Smazat vše a začít znovu?')){ this.sections=[]; this.layoutRows=[]; this.nextId=1; this.save(); }
+    },
+  };
+}
+</script>
+</body>
+</html>

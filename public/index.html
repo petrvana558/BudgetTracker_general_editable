@@ -262,6 +262,11 @@
       <span class="nav-icon">📝</span> Assumption Log
     </div>
 
+    <div class="nav-section">Solution design</div>
+    <div class="nav-item" :class="{ active: view === 'pallet-calc' }" @click="view = 'pallet-calc'">
+      <span class="nav-icon">📦</span> Pallet Storage Calculation
+    </div>
+
     <div class="nav-section">Konfigurace</div>
     <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
       <span class="nav-icon">⚙️</span> Nastavení
@@ -2108,6 +2113,12 @@
           </div>
         </div>
       </template>
+    </div>
+
+    <!-- PALLET STORAGE CALCULATION VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'pallet-calc'" style="height:100%;display:flex;flex-direction:column;padding:0">
+      <iframe src="/pallet-calculator.html" style="flex:1;border:none;width:100%;height:100%"></iframe>
     </div>
 
     <!-- SETTINGS VIEW -->
