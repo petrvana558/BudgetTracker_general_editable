@@ -57,7 +57,7 @@ if (dbFile && !existsSync(dbFile)) {
 
 // ── Always sync schema (idempotent — adds missing tables, keeps existing data) ─
 console.log('⚙  Syncing database schema…')
-execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { stdio: 'inherit' })
+execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate', '--accept-data-loss'], { stdio: 'inherit' })
 console.log('✓ Schema up to date')
 
 // ── Seed default admin + default project (idempotent) ────────────────────────
