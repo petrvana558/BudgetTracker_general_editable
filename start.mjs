@@ -65,19 +65,52 @@ const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
 const prisma = new PrismaClient()
 try {
-  const hash = await bcrypt.hash('admin123', 10)
+  const hash = await bcrypt.hash('Admin1!local', 10)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@local' },
-    update: {},
+    update: { passwordHash: hash },
     create: { email: 'admin@local', name: 'Admin', passwordHash: hash, role: 'admin' },
   })
   console.log(`✓ Admin user ready (${admin.email})`)
 
+  // Seed default plans
+  const startPlan = await prisma.plan.upsert({
+    where: { slug: 'start' },
+    update: { maxProjects: 1, maxUsers: 5 },
+    create: {
+      name: 'Start', slug: 'start',
+      sections: JSON.stringify(['assets','labor']),
+      maxProjects: 1, maxUsers: 5, priceMonthly: 990,
+      description: 'Základní plán pro malé týmy', isDefault: true,
+    },
+  })
+  const advancedPlan = await prisma.plan.upsert({
+    where: { slug: 'advanced' },
+    update: { maxProjects: 3, maxUsers: 15 },
+    create: {
+      name: 'Advanced', slug: 'advanced',
+      sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions']),
+      maxProjects: 3, maxUsers: 15, priceMonthly: 2990,
+      description: 'Kompletní sada pro projektové řízení',
+    },
+  })
+  const individualPlan = await prisma.plan.upsert({
+    where: { slug: 'individual' },
+    update: {},
+    create: {
+      name: 'Individual', slug: 'individual',
+      sections: JSON.stringify([]),
+      maxProjects: 0, maxUsers: 0, priceMonthly: 0,
+      description: 'Individuální nastavení na míru',
+    },
+  })
+  console.log(`✓ Plans ready (${startPlan.name}, ${advancedPlan.name}, ${individualPlan.name})`)
+
   // Seed default company
   const company = await prisma.company.upsert({
     where: { id: 1 },
-    update: {},
-    create: { id: 1, name: 'Hlavní firma', slug: 'hlavni-firma' },
+    update: { planId: advancedPlan.id, status: 'active' },
+    create: { id: 1, name: 'Hlavní firma', slug: 'hlavni-firma', planId: advancedPlan.id, status: 'active' },
   })
   console.log(`✓ Default company ready (${company.name})`)
 
@@ -101,10 +134,10 @@ try {
   console.log('✓ Admin assigned to default project')
 
   // Seed superadmin (no company — global support account)
-  const superHash = await bcrypt.hash('super123', 10)
+  const superHash = await bcrypt.hash('Super1!admin', 10)
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@local' },
-    update: {},
+    update: { passwordHash: superHash },
     create: { email: 'superadmin@local', name: 'Super Admin', passwordHash: superHash, role: 'superadmin' },
   })
   console.log(`✓ Superadmin ready (${superAdmin.email})`)

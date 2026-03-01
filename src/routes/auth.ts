@@ -7,6 +7,12 @@ import { requireRole } from '../lib/rbac'
 const SECTIONS = ['assets', 'labor', 'testing', 'risks', 'issues', 'changes', 'assumptions'] as const
 const DEFAULT_PERMISSIONS = Object.fromEntries(SECTIONS.map(s => [s, 'none']))
 
+// Password must have: min 6 chars, uppercase, lowercase, digit, special char
+const passwordSchema = z.string().min(6).regex(
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/,
+  'Heslo musí obsahovat velké písmeno, malé písmeno, číslici a speciální znak'
+)
+
 const LoginBody = z.object({
   email:    z.string().min(1),
   password: z.string().min(1),
@@ -17,7 +23,7 @@ const PermissionsSchema = z.record(z.enum(['none', 'read', 'write'])).optional()
 const CreateUserBody = z.object({
   email:       z.string().min(3),
   name:        z.string().min(1),
-  password:    z.string().min(6),
+  password:    passwordSchema,
   role:        z.enum(['admin', 'user']).default('user'),
   permissions: PermissionsSchema,
   companyId:   z.number().int().optional(),  // superadmin can assign to specific company
@@ -26,7 +32,7 @@ const CreateUserBody = z.object({
 const UpdateUserBody = z.object({
   name:        z.string().min(1).optional(),
   role:        z.enum(['admin', 'user']).optional(),
-  password:    z.string().min(6).optional(),
+  password:    passwordSchema.optional(),
   active:      z.boolean().optional(),
   permissions: PermissionsSchema,
   companyId:   z.number().int().optional(),
@@ -69,15 +75,31 @@ export async function authRoutes(fastify: FastifyInstance) {
       companyName: p.company?.name ?? null,
     }))
 
-    // Company name for this user
+    // Company + plan info for this user
     const company = user.companyId
-      ? await prisma.company.findUnique({ where: { id: user.companyId }, select: { id: true, name: true } })
+      ? await prisma.company.findUnique({
+          where: { id: user.companyId },
+          select: { id: true, name: true, status: true, trialEndsAt: true, plan: { select: { name: true, sections: true } } },
+        })
       : null
+
+    let planSections: string[] = []
+    if (company?.plan) {
+      try { planSections = JSON.parse(company.plan.sections) } catch {}
+    }
+    // Superadmin gets all sections
+    if (user.role === 'superadmin') {
+      planSections = ['assets', 'labor', 'testing', 'risks', 'issues', 'changes', 'assumptions']
+    }
 
     return {
       token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role, permissions: user.permissions, companyId: user.companyId, companyName: company?.name ?? null },
       projects: projectList,
+      companyStatus: company?.status ?? 'active',
+      trialEndsAt: company?.trialEndsAt?.toISOString() ?? null,
+      planSections,
+      planName: company?.plan?.name ?? null,
     }
   })
 
@@ -104,14 +126,32 @@ export async function authRoutes(fastify: FastifyInstance) {
     const existing = await prisma.user.findUnique({ where: { email: body.data.email } })
     if (existing) return reply.code(409).send({ error: 'Email already exists' })
 
+    const companyId = req.authUser?.role === 'superadmin'
+      ? (body.data.companyId ?? null)
+      : req.authUser!.companyId
+
+    // Plan limit check for user count (superadmin bypasses)
+    if (req.authUser?.role !== 'superadmin' && companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        include: { plan: { select: { maxUsers: true } } },
+      })
+      if (company?.plan) {
+        const maxUsers = company.maxUsersOverride ?? company.plan.maxUsers
+        const currentCount = await prisma.user.count({ where: { companyId, active: true } })
+        if (currentCount >= maxUsers) {
+          return reply.code(403).send({
+            error: 'plan_limit',
+            message: `Váš tarif umožňuje max. ${maxUsers} uživatelů. Kontaktujte podporu pro navýšení.`,
+          })
+        }
+      }
+    }
+
     const passwordHash = await bcrypt.hash(body.data.password, 10)
     const perms = body.data.role === 'admin'
       ? {}
       : { ...DEFAULT_PERMISSIONS, ...(body.data.permissions ?? {}) }
-
-    const companyId = req.authUser?.role === 'superadmin'
-      ? (body.data.companyId ?? null)
-      : req.authUser!.companyId
 
     const user = await prisma.user.create({
       data: {

@@ -5,15 +5,20 @@ import { prisma } from '../db'
 import { requireRole } from '../lib/rbac'
 
 const CompanyBody = z.object({
-  name:   z.string().min(1),
-  slug:   z.string().min(1).regex(/^[a-z0-9-]+$/, 'Slug: only lowercase letters, numbers, hyphens'),
-  active: z.boolean().optional(),
+  name:                z.string().min(1),
+  slug:                z.string().min(1).regex(/^[a-z0-9-]+$/, 'Slug: only lowercase letters, numbers, hyphens'),
+  active:              z.boolean().optional(),
+  planId:              z.number().int().optional(),
+  status:              z.string().optional(),
+  maxProjectsOverride: z.number().int().nullable().optional(),
+  maxUsersOverride:    z.number().int().nullable().optional(),
 })
 
 const CreateCompanyBody = CompanyBody.extend({
   adminEmail:    z.string().min(3),
   adminName:     z.string().min(1),
   adminPassword: z.string().min(6),
+  planId:        z.number().int().optional(),
 })
 
 export async function companiesRoutes(fastify: FastifyInstance) {
@@ -21,6 +26,7 @@ export async function companiesRoutes(fastify: FastifyInstance) {
   fastify.get('/api/companies', { preHandler: requireRole('superadmin') }, async () => {
     return prisma.company.findMany({
       include: {
+        plan: { select: { name: true, maxProjects: true, maxUsers: true } },
         _count: { select: { users: true, projects: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -40,8 +46,13 @@ export async function companiesRoutes(fastify: FastifyInstance) {
     if (existingEmail) return reply.code(409).send({ error: 'Admin email already exists' })
 
     // Create company
+    const trialEndsAt = new Date()
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14)
     const company = await prisma.company.create({
-      data: { name: body.data.name, slug: body.data.slug },
+      data: {
+        name: body.data.name, slug: body.data.slug,
+        planId: body.data.planId, status: 'trial', trialEndsAt,
+      },
     })
 
     // Create default project for this company
@@ -74,7 +85,15 @@ export async function companiesRoutes(fastify: FastifyInstance) {
     const { id } = req.params as { id: string }
     const body = CompanyBody.partial().safeParse(req.body)
     if (!body.success) return reply.code(400).send({ error: 'Invalid input' })
-    const company = await prisma.company.update({ where: { id: parseInt(id) }, data: body.data })
+    const data: Record<string, unknown> = {}
+    if (body.data.name !== undefined) data.name = body.data.name
+    if (body.data.slug !== undefined) data.slug = body.data.slug
+    if (body.data.active !== undefined) data.active = body.data.active
+    if (body.data.planId !== undefined) data.planId = body.data.planId
+    if (body.data.status !== undefined) data.status = body.data.status
+    if (body.data.maxProjectsOverride !== undefined) data.maxProjectsOverride = body.data.maxProjectsOverride
+    if (body.data.maxUsersOverride !== undefined) data.maxUsersOverride = body.data.maxUsersOverride
+    const company = await prisma.company.update({ where: { id: parseInt(id) }, data })
     return company
   })
 
@@ -88,6 +107,28 @@ export async function companiesRoutes(fastify: FastifyInstance) {
     await prisma.user.deleteMany({ where: { companyId: cid } })
     await prisma.company.delete({ where: { id: cid } })
     return reply.code(204).send()
+  })
+
+  // GET /api/companies/my/limits — admin: get own company plan limits + current usage
+  fastify.get('/api/companies/my/limits', { preHandler: requireRole('admin') }, async (req, reply) => {
+    const companyId = req.authUser!.companyId
+    if (!companyId) return reply.code(400).send({ error: 'No company' })
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: { plan: { select: { maxProjects: true, maxUsers: true, name: true } } },
+    })
+    if (!company) return reply.code(404).send({ error: 'Company not found' })
+    const projectCount = await prisma.project.count({ where: { companyId } })
+    const userCount = await prisma.user.count({ where: { companyId, active: true } })
+    const maxProjects = company.maxProjectsOverride ?? company.plan?.maxProjects ?? 999
+    const maxUsers = company.maxUsersOverride ?? company.plan?.maxUsers ?? 999
+    return {
+      maxProjects,
+      maxUsers,
+      currentProjects: projectCount,
+      currentUsers: userCount,
+      planName: company.plan?.name ?? null,
+    }
   })
 
   // GET /api/companies/:id/overview — superadmin only (support view)

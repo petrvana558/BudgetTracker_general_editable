@@ -47,6 +47,25 @@ export async function projectsRoutes(fastify: FastifyInstance) {
     const companyId = req.authUser?.role === 'superadmin'
       ? (body.data.companyId ?? 1)
       : req.authUser!.companyId!
+
+    // Plan limit check (superadmin bypasses)
+    if (req.authUser?.role !== 'superadmin') {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        include: { plan: { select: { maxProjects: true } } },
+      })
+      if (company?.plan) {
+        const maxProjects = company.maxProjectsOverride ?? company.plan.maxProjects
+        const currentCount = await prisma.project.count({ where: { companyId } })
+        if (currentCount >= maxProjects) {
+          return reply.code(403).send({
+            error: 'plan_limit',
+            message: `Váš tarif umožňuje max. ${maxProjects} projektů. Kontaktujte podporu pro navýšení.`,
+          })
+        }
+      }
+    }
+
     const project = await prisma.project.create({ data: { name: body.data.name, description: body.data.description, companyId } })
     return reply.code(201).send(project)
   })

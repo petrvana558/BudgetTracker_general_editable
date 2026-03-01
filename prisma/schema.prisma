@@ -357,12 +357,54 @@ model ProjectUser {
 // ── Companies ─────────────────────────────────────────────────────────────────
 
 model Company {
-  id          Int       @id @default(autoincrement())
-  name        String
-  slug        String    @unique
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  users       User[]
-  projects    Project[]
+  id                  Int       @id @default(autoincrement())
+  name                String
+  slug                String    @unique
+  active              Boolean   @default(true)
+  planId              Int?
+  plan                Plan?     @relation(fields: [planId], references: [id])
+  trialEndsAt         DateTime?
+  status              String    @default("trial") // trial | active | expired | blocked
+  maxProjectsOverride Int?      // superadmin can override plan limit (null = use plan default)
+  maxUsersOverride    Int?      // superadmin can override plan limit (null = use plan default)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  users               User[]
+  projects            Project[]
+  invoices            Invoice[]
+}
+
+// ── Plans ────────────────────────────────────────────────────────────────────
+
+model Plan {
+  id           Int       @id @default(autoincrement())
+  name         String    @unique
+  slug         String    @unique
+  sections     String    @default("[]")
+  maxProjects  Int       @default(1)
+  maxUsers     Int       @default(5)
+  priceMonthly Float     @default(0)
+  description  String?
+  isDefault    Boolean   @default(false)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  companies    Company[]
+}
+
+// ── Invoices ─────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id             Int       @id @default(autoincrement())
+  companyId      Int
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  amount         Float
+  variableSymbol String    @unique
+  status         String    @default("pending")
+  issuedAt       DateTime  @default(now())
+  dueDate        DateTime
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }

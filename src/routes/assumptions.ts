@@ -109,7 +109,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
         },
       })
       await prisma.assumption.update({
-        where: { id: assumption.id, projectId },
+        where: { id: assumption.id },
         data: { status: 'Converted to Risk', convertedRiskId: risk.id },
       })
       assumption.status          = 'Converted to Risk'
@@ -121,7 +121,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     // Lock if created directly as Validated
     if (assumption.status === 'Validated') {
       await prisma.assumption.update({
-        where: { id: assumption.id, projectId },
+        where: { id: assumption.id },
         data: { isLocked: true, validatedAt: new Date() },
       })
       assumption.isLocked    = true
@@ -189,7 +189,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     }
 
     const assumption = await prisma.assumption.update({
-      where: { id, projectId },
+      where: { id },
       data: updateData,
       include: { owner: true },
     })
@@ -214,7 +214,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
         },
       })
       await prisma.assumption.update({
-        where: { id, projectId },
+        where: { id },
         data: { status: 'Converted to Risk', convertedRiskId: risk.id },
       })
       assumption.status          = 'Converted to Risk'
@@ -274,7 +274,7 @@ export async function assumptionRoutes(fastify: FastifyInstance) {
     const projectId = (req as any).projectId ?? 1
     const existing = await prisma.assumption.findFirst({ where: { id, projectId } })
     if (!existing) return reply.code(404).send({ error: 'Not found' })
-    await prisma.assumption.delete({ where: { id, projectId } })
+    await prisma.assumption.delete({ where: { id } })
     await logAudit({ user: user(req), category: CAT, entity: 'Assumption', action: 'DELETE', entityId: id, summary: `Smazána assumption: ${existing.code} "${existing.title}" · Byl ve stavu: ${existing.status}`, projectId })
     return reply.code(204).send()
   })

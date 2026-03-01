@@ -20,6 +20,11 @@ import { authPlugin } from './plugins/auth'
 import { authRoutes } from './routes/auth'
 import { projectsRoutes } from './routes/projects'
 import { companiesRoutes } from './routes/companies'
+import { plansRoutes } from './routes/plans'
+import { invoicesRoutes } from './routes/invoices'
+import { registrationRoutes } from './routes/registration'
+import { adminStatsRoutes } from './routes/admin-stats'
+import { startTrialChecker } from './lib/trial-checker'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
 
@@ -41,6 +46,10 @@ async function main() {
   await fastify.register(authRoutes)
   await fastify.register(projectsRoutes)
   await fastify.register(companiesRoutes)
+  await fastify.register(plansRoutes)
+  await fastify.register(invoicesRoutes)
+  await fastify.register(registrationRoutes)
+  await fastify.register(adminStatsRoutes)
   await fastify.register(itemRoutes)
   await fastify.register(peopleRoutes)
   await fastify.register(categoryRoutes)
@@ -58,6 +67,9 @@ async function main() {
 
   await fastify.listen({ port: PORT, host: '0.0.0.0' })
   console.log(`PM Tool running on http://localhost:${PORT}`)
+
+  // Start trial expiration checker
+  startTrialChecker()
 }
 
 main().catch(err => {

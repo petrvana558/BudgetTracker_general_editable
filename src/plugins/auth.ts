@@ -32,6 +32,9 @@ export const authPlugin = fp(async (fastify: FastifyInstance) => {
   fastify.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.url.startsWith('/api/')) return
     if (req.url.startsWith('/api/auth/login')) return
+    if (req.url.startsWith('/api/auth/register')) return
+    if (req.url.startsWith('/api/auth/captcha')) return
+    if (req.url.startsWith('/api/plans/public')) return
 
     // 1. Verify JWT
     try {
@@ -44,6 +47,36 @@ export const authPlugin = fp(async (fastify: FastifyInstance) => {
     const { role } = req.authUser!
     const method = req.method.toUpperCase()
     const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+
+    // 1a. Company status check (superadmin bypasses — no company)
+    if (role !== 'superadmin' && req.authUser!.companyId) {
+      // Skip for auth/projects/companies/plans/invoices/admin endpoints
+      const skipStatusCheck = ['/api/auth', '/api/projects', '/api/companies', '/api/plans', '/api/invoices', '/api/admin'].some(p => req.url.startsWith(p))
+      if (!skipStatusCheck) {
+        const company = await prisma.company.findUnique({ where: { id: req.authUser!.companyId }, select: { status: true, trialEndsAt: true, planId: true, plan: { select: { sections: true } } } })
+        if (company) {
+          // Auto-expire trial
+          if (company.status === 'trial' && company.trialEndsAt && company.trialEndsAt < new Date()) {
+            await prisma.company.update({ where: { id: req.authUser!.companyId }, data: { status: 'expired' } })
+            return reply.code(403).send({ error: 'company_blocked', message: 'Trial period expired' })
+          }
+          if (company.status === 'expired' || company.status === 'blocked') {
+            return reply.code(403).send({ error: 'company_blocked', message: 'Account is blocked' })
+          }
+          // Plan section gating
+          if (company.plan) {
+            const section = urlToSection(req.url)
+            if (section) {
+              let planSections: string[] = []
+              try { planSections = JSON.parse(company.plan.sections) } catch {}
+              if (!planSections.includes(section)) {
+                return reply.code(403).send({ error: 'plan_restricted', section, message: `Section '${section}' is not included in your plan` })
+              }
+            }
+          }
+        }
+      }
+    }
 
     // 2. Inject + validate projectId from X-Project-Id header
     if (!req.url.startsWith('/api/auth') && !req.url.startsWith('/api/projects') && !req.url.startsWith('/api/companies')) {
