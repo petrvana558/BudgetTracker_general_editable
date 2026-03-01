@@ -2510,6 +2510,12 @@
             style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
             📝 Assumption Log
           </button>
+          <button
+            @click="auditCategory='Správa uživatelů'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Správa uživatelů' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            👥 Správa uživatelů
+          </button>
         </div>
 
         <div class="chart-card">
@@ -3301,6 +3307,13 @@
               </template>
             </div>
           </div>
+          <div style="margin-bottom:12px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" x-model="planForm.isPublic">
+              <span style="font-weight:600;color:#444">Viditelný v registraci</span>
+              <span style="font-size:11px;color:#94a3b8">(veřejné plány se zobrazují novým zákazníkům)</span>
+            </label>
+          </div>
           <div x-show="planForm.error" x-text="planForm.error" style="color:#dc2626;font-size:13px;margin-bottom:8px"></div>
           <div style="display:flex;gap:8px">
             <button @click="savePlan()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">Uložit</button>
@@ -3320,7 +3333,9 @@
               <template x-for="p in plans" :key="p.id">
                 <tr style="border-top:1px solid #e5e7eb">
                   <td style="padding:10px 14px;font-weight:600"><span x-text="p.name"></span>
-                    <span x-show="p.isDefault" style="font-size:10px;background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:8px;margin-left:6px">výchozí</span></td>
+                    <span x-show="p.isDefault" style="font-size:10px;background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:8px;margin-left:6px">výchozí</span>
+                    <span x-show="p.isPublic" style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px;margin-left:4px">veřejný</span>
+                    <span x-show="!p.isPublic" style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:8px;margin-left:4px">skrytý</span></td>
                   <td style="padding:10px 14px"><div style="display:flex;flex-wrap:wrap;gap:3px">
                     <template x-for="s in JSON.parse(p.sections || '[]')" :key="s">
                       <span style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px" x-text="s"></span>
@@ -4432,7 +4447,7 @@ function app() {
     planName: localStorage.getItem('bt-plan-name') || null,
     companyBlocked: false,
     plans: [],
-    planForm: { id: null, name: '', slug: '', sections: [], maxProjects: 1, maxUsers: 5, priceMonthly: 0, description: '', isDefault: false, error: '', _showCreate: false },
+    planForm: { id: null, name: '', slug: '', sections: [], maxProjects: 1, maxUsers: 5, priceMonthly: 0, description: '', isDefault: false, isPublic: false, error: '', _showCreate: false },
     publicPlans: [],
     invoices: [],
     saasStats: null,
@@ -4531,7 +4546,9 @@ function app() {
       if (this.filters.priorityId) params.set('priorityId', this.filters.priorityId)
       if (this.filters.capexOnly) params.set('capexNeeded', 'true')
       const r = await fetch(`${API}/api/items?` + params)
-      this.items = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.items = Array.isArray(data) ? data : []
     },
 
     handleLogoUpload(event) {
@@ -4589,17 +4606,23 @@ function app() {
 
     async loadPeople() {
       const r = await fetch(`${API}/api/people`)
-      this.people = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.people = Array.isArray(d) ? d : []
     },
 
     async loadCategories() {
       const r = await fetch(`${API}/api/categories`)
-      this.categories = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.categories = Array.isArray(d) ? d : []
     },
 
     async loadPriorities() {
       const r = await fetch(`${API}/api/priorities`)
-      this.priorities = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.priorities = Array.isArray(d) ? d : []
     },
 
     // --- Generic fetch helper (adds Authorization + Content-Type) ---
@@ -4650,6 +4673,9 @@ function app() {
         localStorage.setItem('bt-trial-ends-at', this.trialEndsAt || '')
         localStorage.setItem('bt-plan-sections', JSON.stringify(this.planSections))
         localStorage.setItem('bt-plan-name', this.planName || '')
+        // Reset view to dashboard on login (avoid stale view from previous session)
+        this.view = 'dashboard'
+        this.settingsTab = 'people'
         this.projects = data.projects || []
         localStorage.setItem('bt-projects', JSON.stringify(this.projects))
         if (this.projects.length === 1) {
@@ -4824,6 +4850,9 @@ function app() {
         localStorage.setItem('bt-trial-ends-at', this.trialEndsAt || '')
         localStorage.setItem('bt-plan-sections', JSON.stringify(this.planSections))
         localStorage.setItem('bt-plan-name', this.planName || '')
+        // Reset view to dashboard after registration (avoid lingering superadmin view)
+        this.view = 'dashboard'
+        this.settingsTab = 'people'
         if (this.projects.length >= 1) {
           this.activeProjectId = this.projects[0].id
           localStorage.setItem('bt-project-id', String(this.projects[0].id))
@@ -4907,7 +4936,9 @@ function app() {
       const params = new URLSearchParams({ category: this.auditCategory })
       if (this.auditFilter) params.set('entity', this.auditFilter)
       const r = await fetch(`${API}/api/audit?${params}`)
-      this.auditLog = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.auditLog = Array.isArray(d) ? d : []
     },
 
     async clearAuditLog() {
@@ -5087,17 +5118,17 @@ function app() {
       if (r.ok) this.plans = await r.json()
     },
     resetPlanForm() {
-      this.planForm = { id: null, name: '', slug: '', sections: [], maxProjects: 1, maxUsers: 5, priceMonthly: 0, description: '', isDefault: false, error: '', _showCreate: false }
+      this.planForm = { id: null, name: '', slug: '', sections: [], maxProjects: 1, maxUsers: 5, priceMonthly: 0, description: '', isDefault: false, isPublic: false, error: '', _showCreate: false }
     },
     editPlan(p) {
-      this.planForm = { id: p.id, name: p.name, slug: p.slug, sections: JSON.parse(p.sections || '[]'), maxProjects: p.maxProjects, maxUsers: p.maxUsers, priceMonthly: p.priceMonthly, description: p.description || '', isDefault: p.isDefault, error: '', _showCreate: false }
+      this.planForm = { id: p.id, name: p.name, slug: p.slug, sections: JSON.parse(p.sections || '[]'), maxProjects: p.maxProjects, maxUsers: p.maxUsers, priceMonthly: p.priceMonthly, description: p.description || '', isDefault: p.isDefault, isPublic: p.isPublic ?? true, error: '', _showCreate: false }
     },
     async savePlan() {
       this.planForm.error = ''
       const isNew = !this.planForm.id
       const url = isNew ? '/api/plans' : `/api/plans/${this.planForm.id}`
       const method = isNew ? 'POST' : 'PUT'
-      const body = { name: this.planForm.name, slug: this.planForm.slug, sections: this.planForm.sections, maxProjects: this.planForm.maxProjects, maxUsers: this.planForm.maxUsers, priceMonthly: this.planForm.priceMonthly, description: this.planForm.description, isDefault: this.planForm.isDefault }
+      const body = { name: this.planForm.name, slug: this.planForm.slug, sections: this.planForm.sections, maxProjects: this.planForm.maxProjects, maxUsers: this.planForm.maxUsers, priceMonthly: this.planForm.priceMonthly, description: this.planForm.description, isDefault: this.planForm.isDefault, isPublic: this.planForm.isPublic }
       const r = await this.apiFetch(method, url, body)
       if (!r.ok) { const err = await r.json().catch(() => ({})); this.planForm.error = err.error || 'Chyba'; return }
       await this.loadPlans()
@@ -5131,8 +5162,8 @@ function app() {
         fetch(`${API}/api/labor`),
         fetch(`${API}/api/labor-spent`),
       ])
-      this.labor = await lr.json()
-      this.laborSpent = await sr.json()
+      if (lr.ok) { const d = await lr.json(); this.labor = Array.isArray(d) ? d : [] }
+      if (sr.ok) { const d = await sr.json(); this.laborSpent = Array.isArray(d) ? d : [] }
     },
 
     async addLaborEntry() {
@@ -5170,18 +5201,19 @@ function app() {
       })
       this.laborSpentForm = { date: new Date().toISOString().slice(0, 10), amount: '', note: '' }
       const r = await fetch(`${API}/api/labor-spent`)
-      this.laborSpent = await r.json()
+      if (r.ok) { const d = await r.json(); this.laborSpent = Array.isArray(d) ? d : [] }
     },
 
     async deleteLaborSpent(id) {
       if (!confirm('Smazat tento záznam?')) return
       await this.apiFetch('DELETE', `/api/labor-spent/${id}`)
       const r = await fetch(`${API}/api/labor-spent`)
-      this.laborSpent = await r.json()
+      if (r.ok) { const d = await r.json(); this.laborSpent = Array.isArray(d) ? d : [] }
     },
 
     async loadDashboard() {
       const r = await fetch(`${API}/api/dashboard`)
+      if (!r.ok) return
       this.dash = await r.json()
       this.$nextTick(() => this.renderCharts())
     },
@@ -5216,19 +5248,27 @@ function app() {
 
     async loadRisks() {
       const r = await fetch(`${API}/api/risks`)
-      this.risks = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.risks = Array.isArray(data) ? data : []
     },
     async loadIssues() {
       const r = await fetch(`${API}/api/issues`)
-      this.issues = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.issues = Array.isArray(data) ? data : []
     },
     async loadChanges() {
       const r = await fetch(`${API}/api/changes`)
-      this.changes = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.changes = Array.isArray(data) ? data : []
     },
     async loadAssumptions() {
       const r = await fetch(`${API}/api/assumptions`)
-      this.assumptions = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.assumptions = Array.isArray(data) ? data : []
     },
 
     openNewAssumption() {

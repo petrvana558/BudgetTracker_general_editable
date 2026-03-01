@@ -12,20 +12,21 @@ const PlanBody = z.object({
   priceMonthly: z.number().min(0).default(0),
   description:  z.string().optional(),
   isDefault:    z.boolean().optional(),
+  isPublic:     z.boolean().optional(),
   active:       z.boolean().optional(),
 })
 
 export async function plansRoutes(fastify: FastifyInstance) {
-  // GET /api/plans/public — public (for registration page)
+  // GET /api/plans/public — public (for registration page) — only isPublic plans
   fastify.get('/api/plans/public', async () => {
     return prisma.plan.findMany({
-      where: { active: true },
+      where: { active: true, isPublic: true },
       select: { id: true, name: true, slug: true, sections: true, maxProjects: true, maxUsers: true, priceMonthly: true, description: true, isDefault: true },
       orderBy: { priceMonthly: 'asc' },
     })
   })
 
-  // GET /api/plans — superadmin only
+  // GET /api/plans — superadmin only (all plans)
   fastify.get('/api/plans', { preHandler: requireRole('superadmin') }, async () => {
     return prisma.plan.findMany({
       include: { _count: { select: { companies: true } } },
@@ -42,7 +43,11 @@ export async function plansRoutes(fastify: FastifyInstance) {
     if (existing) return reply.code(409).send({ error: 'Slug already exists' })
 
     const plan = await prisma.plan.create({
-      data: { ...body.data, sections: JSON.stringify(body.data.sections) },
+      data: {
+        ...body.data,
+        sections: JSON.stringify(body.data.sections),
+        isPublic: body.data.isPublic ?? false, // new plans default to hidden
+      },
     })
     return reply.code(201).send(plan)
   })

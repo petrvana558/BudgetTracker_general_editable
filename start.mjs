@@ -76,32 +76,32 @@ try {
   // Seed default plans
   const startPlan = await prisma.plan.upsert({
     where: { slug: 'start' },
-    update: { maxProjects: 1, maxUsers: 5 },
+    update: { maxProjects: 1, maxUsers: 5, isPublic: true },
     create: {
       name: 'Start', slug: 'start',
       sections: JSON.stringify(['assets','labor']),
       maxProjects: 1, maxUsers: 5, priceMonthly: 990,
-      description: 'Základní plán pro malé týmy', isDefault: true,
+      description: 'Základní plán pro malé týmy', isDefault: true, isPublic: true,
     },
   })
   const advancedPlan = await prisma.plan.upsert({
     where: { slug: 'advanced' },
-    update: { maxProjects: 3, maxUsers: 15 },
+    update: { maxProjects: 3, maxUsers: 15, isPublic: true },
     create: {
       name: 'Advanced', slug: 'advanced',
       sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions']),
       maxProjects: 3, maxUsers: 15, priceMonthly: 2990,
-      description: 'Kompletní sada pro projektové řízení',
+      description: 'Kompletní sada pro projektové řízení', isPublic: true,
     },
   })
   const individualPlan = await prisma.plan.upsert({
     where: { slug: 'individual' },
-    update: {},
+    update: { isPublic: true },
     create: {
       name: 'Individual', slug: 'individual',
       sections: JSON.stringify([]),
       maxProjects: 0, maxUsers: 0, priceMonthly: 0,
-      description: 'Individuální nastavení na míru',
+      description: 'Individuální nastavení na míru', isPublic: true,
     },
   })
   console.log(`✓ Plans ready (${startPlan.name}, ${advancedPlan.name}, ${individualPlan.name})`)

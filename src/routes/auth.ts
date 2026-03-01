@@ -3,6 +3,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { prisma } from '../db'
 import { requireRole } from '../lib/rbac'
+import { logAudit } from './audit'
 
 const SECTIONS = ['assets', 'labor', 'testing', 'risks', 'issues', 'changes', 'assumptions'] as const
 const DEFAULT_PERMISSIONS = Object.fromEntries(SECTIONS.map(s => [s, 'none']))
@@ -164,6 +165,18 @@ export async function authRoutes(fastify: FastifyInstance) {
       },
       select: userSelect(),
     })
+
+    const permLabels = body.data.role === 'admin' ? 'admin (plný přístup)' : Object.entries(perms).filter(([,v]) => v !== 'none').map(([k,v]) => `${k}:${v}`).join(', ') || 'žádná'
+    await logAudit({
+      user: req.authUser?.name || 'System',
+      category: 'Správa uživatelů',
+      entity: 'User',
+      action: 'CREATE',
+      entityId: user.id,
+      summary: `Vytvořen uživatel: "${user.name}" (${user.email}) · Role: ${user.role} · Oprávnění: ${permLabels}`,
+      projectId: (req as any).projectId ?? 1,
+    })
+
     return reply.code(201).send(user)
   })
 
@@ -185,7 +198,33 @@ export async function authRoutes(fastify: FastifyInstance) {
       data.permissions = JSON.stringify({ ...DEFAULT_PERMISSIONS, ...body.data.permissions })
     }
 
+    const existing = await prisma.user.findUnique({ where: { id: parseInt(id) }, select: { name: true, email: true, role: true, permissions: true, active: true } })
     const user = await prisma.user.update({ where: { id: parseInt(id) }, data, select: userSelect() })
+
+    // Build change log
+    const ch: string[] = []
+    if (body.data.name !== undefined && body.data.name !== existing?.name) ch.push(`Jméno: "${existing?.name}" → "${body.data.name}"`)
+    if (body.data.role !== undefined && body.data.role !== existing?.role) ch.push(`Role: ${existing?.role} → ${body.data.role}`)
+    if (body.data.active !== undefined && body.data.active !== existing?.active) ch.push(body.data.active ? 'Aktivován' : 'Deaktivován')
+    if (body.data.password) ch.push('Heslo změněno')
+    if (body.data.permissions !== undefined) {
+      const oldPerms: Record<string, string> = JSON.parse(existing?.permissions || '{}')
+      const newPerms: Record<string, string> = { ...DEFAULT_PERMISSIONS, ...body.data.permissions }
+      const permChanges = Object.keys(newPerms).filter(k => oldPerms[k] !== newPerms[k]).map(k => `${k}: ${oldPerms[k] || 'none'} → ${newPerms[k]}`)
+      if (permChanges.length) ch.push(`Oprávnění: ${permChanges.join(', ')}`)
+    }
+    if (ch.length) {
+      await logAudit({
+        user: req.authUser?.name || 'System',
+        category: 'Správa uživatelů',
+        entity: 'User',
+        action: 'UPDATE',
+        entityId: parseInt(id),
+        summary: `Upraven uživatel: "${user.name}" (${user.email}) · ${ch.join(' · ')}`,
+        projectId: (req as any).projectId ?? 1,
+      })
+    }
+
     return user
   })
 
@@ -195,7 +234,19 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (parseInt(id) === req.authUser?.id) {
       return reply.code(400).send({ error: 'Cannot deactivate your own account' })
     }
+    const target = await prisma.user.findUnique({ where: { id: parseInt(id) }, select: { name: true, email: true } })
     await prisma.user.update({ where: { id: parseInt(id) }, data: { active: false } })
+
+    await logAudit({
+      user: req.authUser?.name || 'System',
+      category: 'Správa uživatelů',
+      entity: 'User',
+      action: 'DELETE',
+      entityId: parseInt(id),
+      summary: `Deaktivován uživatel: "${target?.name}" (${target?.email})`,
+      projectId: (req as any).projectId ?? 1,
+    })
+
     return reply.code(204).send()
   })
 }
