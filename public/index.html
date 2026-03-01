@@ -24,6 +24,37 @@
     html, body { height: 100%; overflow: hidden; }
     body { background: var(--dhl-light); font-family: 'Segoe UI', Arial, sans-serif; }
 
+    /* Login screen */
+    .login-screen { position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#f0f4ff 0%,#e8edf5 100%);display:flex;align-items:center;justify-content:center; }
+
+    /* Plan card active states */
+    .plan-card-active-blue { border-color:#2563eb !important; background:linear-gradient(180deg,#eff6ff,#dbeafe) !important; box-shadow:0 0 0 2px rgba(37,99,235,0.18), 0 4px 16px rgba(37,99,235,0.12) !important; transform:translateY(-2px) !important; }
+    .plan-card-active-purple { border-color:#7c3aed !important; background:linear-gradient(180deg,#faf5ff,#f3e8ff) !important; box-shadow:0 0 0 2px rgba(124,58,237,0.18), 0 4px 16px rgba(124,58,237,0.12) !important; transform:translateY(-2px) !important; }
+
+    /* Login/Register buttons — override Tailwind preflight */
+    .btn-login {
+      display:block !important; width:100% !important; box-sizing:border-box !important;
+      background:linear-gradient(135deg,#2563eb,#1d4ed8) !important; color:#fff !important;
+      border:none !important; border-radius:10px !important; padding:14px 24px !important;
+      font-size:16px !important; font-weight:700 !important; cursor:pointer !important;
+      text-align:center !important; letter-spacing:0.2px;
+      box-shadow:0 4px 14px rgba(37,99,235,0.35); transition:all .2s;
+      -webkit-appearance:none !important; appearance:none !important;
+    }
+    .btn-login:hover { box-shadow:0 6px 24px rgba(37,99,235,0.5); transform:translateY(-1px); }
+    .btn-login:disabled { opacity:0.6; }
+    .btn-register {
+      display:block !important; width:100% !important; box-sizing:border-box !important;
+      background:linear-gradient(135deg,#2563eb,#1d4ed8) !important; color:#fff !important;
+      border:none !important; border-radius:10px !important; padding:16px 24px !important;
+      font-size:17px !important; font-weight:700 !important; cursor:pointer !important;
+      text-align:center !important; letter-spacing:0.3px;
+      box-shadow:0 4px 16px rgba(37,99,235,0.35); transition:all .2s;
+      -webkit-appearance:none !important; appearance:none !important;
+    }
+    .btn-register:hover { box-shadow:0 6px 24px rgba(37,99,235,0.5); transform:translateY(-1px); }
+    .btn-register:disabled { opacity:0.6; }
+
     /* Sidebar */
     .sidebar { width: 220px; background: var(--dhl-dark); height: 100vh; overflow-y: auto; flex-shrink: 0; }
     .sidebar-logo { background: var(--dhl-yellow); padding: 14px 20px; display: flex; flex-direction: column; gap: 4px; }
@@ -215,14 +246,234 @@
 </head>
 <body x-data="app()" x-init="init()" x-cloak>
 
-<div class="flex" style="height: 100vh;">
+<!-- COMPANY BLOCKED SCREEN -->
+<div x-show="companyBlocked" class="login-screen" style="z-index:9998">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.12);padding:40px 48px;width:440px;text-align:center">
+    <div style="font-size:48px;margin-bottom:16px">🔒</div>
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:8px">Zkušební doba vypršela</h2>
+    <p style="color:#666;font-size:14px;margin-bottom:20px">Vaše data jsou v bezpečí. Pro obnovení přístupu kontaktujte podporu nebo uhraďte fakturu.</p>
+    <p style="font-size:13px;color:#888">Kontaktujte nás: <strong>podpora@pmtool.cz</strong></p>
+    <button @click="logout()" style="margin-top:16px;background:#e5e7eb;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer">Odhlásit se</button>
+  </div>
+</div>
+
+<!-- LOGIN / PROJECT PICKER SCREEN -->
+<div x-show="!token || !activeProjectId" class="login-screen">
+  <div :style="loginStep === 'register' ? 'width:580px' : 'width:400px'"
+    style="background:#fff;border-radius:18px;box-shadow:0 10px 50px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06);padding:40px 48px;max-width:95vw;transition:width .3s">
+
+    <!-- FÁZE 1: Přihlašovací formulář -->
+    <div x-show="loginStep === 'credentials'">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:60px;height:60px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px;box-shadow:0 4px 12px rgba(37,99,235,0.25)">🗂️</div>
+        <div style="font-size:24px;font-weight:800;color:#1a1a1a;letter-spacing:-0.3px">PM Tool</div>
+        <div style="font-size:14px;color:#64748b;margin-top:4px">Přihlašte se pro pokračování</div>
+      </div>
+      <form @submit.prevent="login()">
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#444;margin-bottom:5px">E-mail</label>
+          <input type="text" x-model="loginForm.email" required autocomplete="username"
+            style="width:100%;box-sizing:border-box;border:1.5px solid #d1d5db;border-radius:10px;padding:11px 14px;font-size:14px;outline:none;transition:border-color .15s"
+            onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,0.08)'" onblur="this.style.borderColor='#d1d5db';this.style.boxShadow='none'"
+            placeholder="admin@local">
+        </div>
+        <div style="margin-bottom:24px">
+          <label style="display:block;font-size:12px;font-weight:600;color:#444;margin-bottom:5px">Heslo</label>
+          <input type="password" x-model="loginForm.password" required autocomplete="current-password"
+            style="width:100%;box-sizing:border-box;border:1.5px solid #d1d5db;border-radius:10px;padding:11px 14px;font-size:14px;outline:none;transition:border-color .15s"
+            onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,0.08)'" onblur="this.style.borderColor='#d1d5db';this.style.boxShadow='none'"
+            placeholder="••••••••">
+        </div>
+        <div x-show="loginForm.error" x-text="loginForm.error"
+          style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px"></div>
+        <button type="submit" :disabled="loginForm.loading" class="btn-login">
+          <span x-show="!loginForm.loading">Přihlásit se</span>
+          <span x-show="loginForm.loading">Ověřuji…</span>
+        </button>
+        <div style="text-align:center;margin-top:16px">
+          <span style="font-size:13px;color:#94a3b8">Nemáte účet?</span>
+          <a href="#" @click.prevent="loginStep = 'register'; loadPublicPlans()"
+            style="display:inline-block;margin-left:6px;font-size:13px;color:#2563eb;font-weight:700;text-decoration:none;background:#eff6ff;padding:4px 14px;border-radius:6px;border:1px solid #bfdbfe;transition:all .15s"
+            onmouseover="this.style.background='#dbeafe';this.style.borderColor='#93c5fd'" onmouseout="this.style.background='#eff6ff';this.style.borderColor='#bfdbfe'">Registrovat se</a>
+        </div>
+      </form>
+    </div>
+
+    <!-- FÁZE 2: Výběr projektu (po přihlášení) -->
+    <div x-show="loginStep === 'projects'">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="width:56px;height:56px;background:var(--dhl-accent,#FFCC00);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px">📁</div>
+        <div style="font-size:20px;font-weight:700;color:#1a1a1a">Vyberte projekt</div>
+        <div style="font-size:13px;color:#666;margin-top:4px">
+          Přihlášen jako <strong x-text="authUser?.name"></strong>
+        </div>
+      </div>
+
+      <template x-for="p in projects" :key="p.id">
+        <button @click="selectProject(p.id)"
+          style="display:block;width:100%;text-align:left;padding:14px 18px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;background:#fff;transition:all .15s"
+          onmouseover="this.style.borderColor='var(--dhl-accent,#FFCC00)';this.style.background='#fffbeb'"
+          onmouseout="this.style.borderColor='#e5e7eb';this.style.background='#fff'">
+          <span style="margin-right:10px">📁</span>
+          <span x-text="p.name"></span>
+          <span x-show="authUser?.role === 'superadmin' && p.companyName" x-text="' — ' + (p.companyName || '')" style="font-size:11px;color:#aaa;font-weight:400"></span>
+          <span style="float:right;font-size:12px;color:#aaa">→</span>
+        </button>
+      </template>
+
+      <div x-show="projects.length === 0"
+        style="text-align:center;color:#999;padding:20px 0;font-size:13px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb">
+        Nejste přiřazeni k žádnému projektu.<br>
+        <span style="font-size:12px">Kontaktujte administrátora.</span>
+      </div>
+
+      <button @click="logout()"
+        style="width:100%;margin-top:12px;padding:8px;color:#888;font-size:12px;background:none;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='none'">
+        ← Odhlásit se / jiný účet
+      </button>
+    </div>
+
+    <!-- FÁZE 3: Registrace nové firmy -->
+    <div x-show="loginStep === 'register'" style="width:520px;max-width:95vw">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:24px;font-weight:800;color:#1a1a1a">Vytvořte si účet</div>
+        <div style="font-size:13px;color:#888;margin-top:4px">14 dní zdarma, bez závazků</div>
+      </div>
+
+      <!-- Plan cards -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <template x-for="pl in publicPlans" :key="pl.slug">
+          <div @click="registerForm.planSlug = pl.slug"
+            :class="{'plan-card-active-blue': registerForm.planSlug === pl.slug && pl.slug !== 'individual', 'plan-card-active-purple': registerForm.planSlug === pl.slug && pl.slug === 'individual'}"
+            style="border:2px solid #e5e7eb;border-radius:14px;padding:18px 14px 16px;cursor:pointer;transition:all .25s ease;text-align:center;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.06)"
+            onmouseover="if(!this.classList.contains('plan-card-active-blue')&&!this.classList.contains('plan-card-active-purple')){this.style.borderColor='#cbd5e1';this.style.boxShadow='0 4px 16px rgba(0,0,0,0.1)';this.style.transform='translateY(-2px)'}"
+            onmouseout="if(!this.classList.contains('plan-card-active-blue')&&!this.classList.contains('plan-card-active-purple')){this.style.borderColor='#e5e7eb';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)';this.style.transform='none'}">
+            <template x-if="pl.slug === 'advanced'">
+              <div style="display:inline-block;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-size:9px;font-weight:700;padding:3px 12px;border-radius:10px;letter-spacing:0.5px;margin-bottom:8px">NEJOBLÍBENĚJŠÍ</div>
+            </template>
+            <div style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:20px"
+              :style="pl.slug === 'start' ? 'background:#dbeafe' : pl.slug === 'advanced' ? 'background:#eff6ff' : 'background:#f3e8ff'">
+              <span x-text="pl.slug === 'start' ? '🚀' : pl.slug === 'advanced' ? '⚡' : '🎯'"></span>
+            </div>
+            <div style="font-size:16px;font-weight:800;margin-bottom:4px;color:#1a1a1a" x-text="pl.name"></div>
+            <div x-show="pl.slug !== 'individual'">
+              <span style="font-size:26px;font-weight:800;color:#2563eb;line-height:1" x-text="pl.priceMonthly"></span>
+              <span style="font-size:14px;font-weight:600;color:#2563eb"> Kč</span>
+              <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">/ měsíc</div>
+            </div>
+            <div x-show="pl.slug === 'individual'" style="font-size:20px;font-weight:700;color:#7c3aed;margin-bottom:10px;line-height:1.4">Na míru</div>
+            <div style="font-size:12px;color:#64748b;line-height:1.7;text-align:left;padding:0 4px">
+              <template x-if="pl.slug === 'start'">
+                <div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#22c55e;font-weight:700">✓</span> 1 projekt</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#22c55e;font-weight:700">✓</span> 5 uživatelů</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#22c55e;font-weight:700">✓</span> Assets + Labor</div>
+                </div>
+              </template>
+              <template x-if="pl.slug === 'advanced'">
+                <div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#22c55e;font-weight:700">✓</span> 3 projekty</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#22c55e;font-weight:700">✓</span> 15 uživatelů</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#22c55e;font-weight:700">✓</span> Kompletní funkce</div>
+                </div>
+              </template>
+              <template x-if="pl.slug === 'individual'">
+                <div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#7c3aed;font-weight:700">✓</span> Vlastní projekty</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#7c3aed;font-weight:700">✓</span> Vlastní moduly</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="color:#7c3aed;font-weight:700">✓</span> Individuální cena</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Form fields -->
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Název firmy</label>
+        <input x-model="registerForm.companyName" @input="registerForm.companySlug = registerForm.companyName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')"
+          style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'"
+          placeholder="Moje firma s.r.o.">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Vaše jméno</label>
+          <input x-model="registerForm.userName"
+            style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;outline:none;transition:border-color .15s"
+            onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'"
+            placeholder="Jan Novák">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">E-mail</label>
+          <input x-model="registerForm.userEmail"
+            style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;outline:none;transition:border-color .15s"
+            onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'"
+            placeholder="email@firma.cz">
+        </div>
+      </div>
+      <div style="margin-bottom:6px">
+        <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Heslo</label>
+        <input type="password" x-model="registerForm.userPassword"
+          style="width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;font-size:14px;outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'"
+          placeholder="Min. 6 znaků">
+      </div>
+      <div style="font-size:11px;color:#999;margin-bottom:14px">Velké + malé písmeno, číslice, speciální znak</div>
+
+      <!-- CAPTCHA -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px">
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:3px">Ověření</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b" x-text="registerForm.captchaQuestion || 'Načítám…'"></div>
+        </div>
+        <input type="number" x-model.number="registerForm.captchaAnswer" placeholder="?"
+          style="width:70px;box-sizing:border-box;border:1.5px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:16px;font-weight:700;text-align:center;outline:none"
+          onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#d1d5db'">
+      </div>
+
+      <div x-show="registerForm.error" x-text="registerForm.error"
+        style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:12px"></div>
+
+      <div x-show="registerForm.success" x-text="registerForm.success"
+        style="background:#dcfce7;border:1px solid #86efac;color:#166534;border-radius:8px;padding:14px;font-size:14px;margin-bottom:12px;text-align:center;font-weight:600"></div>
+
+      <button @click="register()" :disabled="registerForm.loading" x-show="!registerForm.success" class="btn-register">
+        <span x-show="!registerForm.loading" x-text="registerForm.planSlug === 'individual' ? 'Odeslat poptávku' : 'Zaregistrovat se — 14 dní zdarma'"></span>
+        <span x-show="registerForm.loading">Vytvářím účet…</span>
+      </button>
+
+      <button @click="loginStep = 'credentials'; registerForm.success = ''"
+        style="width:100%;margin-top:10px;padding:10px;color:#666;font-size:13px;background:none;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='none'">
+        ← Zpět na přihlášení
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<div x-show="token && activeProjectId" class="flex" style="height: 100vh;">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
-      <img :src="logoSrc" alt="Logo" :style="'width:' + logoWidth + 'px'">
-      <div class="logo-sub">PM Tool</div>
+      <div class="logo-sub" style="font-size:18px;margin-bottom:2px">Vaše logo</div>
       <div x-show="projectName" class="logo-date" style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px" x-text="projectName"></div>
       <div class="logo-date" x-text="new Date().toLocaleDateString('cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
+    </div>
+
+    <!-- Project switcher -->
+    <div x-show="projects.length > 1" @click="activeProjectId = null; loginStep = 'projects'; localStorage.removeItem('bt-project-id')"
+      style="padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.15);transition:background .15s"
+      onmouseover="this.style.background='rgba(0,0,0,0.25)'" onmouseout="this.style.background='rgba(0,0,0,0.15)'">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px">&#128193;</span>
+        <span x-text="projects.find(p=>p.id===activeProjectId)?.name || 'Projekt'"
+          style="flex:1;font-size:12px;font-weight:600;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+        <span style="font-size:10px;color:#888">&#8964;</span>
+      </div>
     </div>
 
     <div class="nav-section">Přehled</div>
@@ -233,55 +484,75 @@
       <span class="nav-icon">📅</span> Gantt / Timeline
     </div>
 
-    <div class="nav-section">Data</div>
-    <div class="nav-item" :class="{ active: view === 'assets' }" @click="view = 'assets'; loadItems(); $nextTick(() => restoreColWidths())">
-      <span class="nav-icon">📋</span> Asset List
+    <div class="nav-section" x-show="can('assets','read') || can('labor','read')">Data</div>
+    <div x-show="can('assets','read') || can('labor','read')" class="nav-item" :class="{ active: view === 'assets' || view === 'labor' }" @click="view = 'assets'; assetsSubTab = can('assets','read') ? 'items' : 'labor'; if(assetsSubTab==='items'){loadItems();$nextTick(()=>restoreColWidths())}else{loadLabor().then(()=>$nextTick(()=>renderLaborChart()))}">
+      <span class="nav-icon">📋</span> Asset a HR náklady
     </div>
 
-    <div class="nav-section">Projekt</div>
-    <div class="nav-item" :class="{ active: view === 'labor' }" @click="view = 'labor'; loadLabor().then(() => $nextTick(() => renderLaborChart()))">
-      <span class="nav-icon">👥</span> Lidé / PM náklady
-    </div>
-
-    <div class="nav-section">Testování</div>
-    <div class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; testingTab='stats'; loadTestSets().then(() => { loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() }) })">
+    <div class="nav-section" x-show="can('testing','read')">Testování</div>
+    <div x-show="can('testing','read')" class="nav-item" :class="{ active: view === 'testing' }" @click="view = 'testing'; testingTab='stats'; loadTestSets().then(() => { loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() }) })">
       <span class="nav-icon">🧪</span> Test Management
     </div>
 
-    <div class="nav-section">PM / Řízení rizik</div>
-    <div class="nav-item" :class="{ active: view === 'risks' }" @click="view = 'risks'; loadRisks()">
+    <div class="nav-section" x-show="can('risks','read') || can('issues','read') || can('changes','read') || can('assumptions','read')">PM / Řízení rizik</div>
+    <div x-show="can('risks','read')" class="nav-item" :class="{ active: view === 'risks' }" @click="view = 'risks'; loadRisks()">
       <span class="nav-icon">⚠️</span> Risk Management
     </div>
-    <div class="nav-item" :class="{ active: view === 'issues' }" @click="view = 'issues'; loadIssues()">
+    <div x-show="can('issues','read')" class="nav-item" :class="{ active: view === 'issues' }" @click="view = 'issues'; loadIssues()">
       <span class="nav-icon">🐛</span> Issue Tracker
     </div>
-    <div class="nav-item" :class="{ active: view === 'changes' }" @click="view = 'changes'; loadChanges()">
+    <div x-show="can('changes','read')" class="nav-item" :class="{ active: view === 'changes' }" @click="view = 'changes'; loadChanges()">
       <span class="nav-icon">🔄</span> Change Management
     </div>
-    <div class="nav-item" :class="{ active: view === 'assumptions' }" @click="view = 'assumptions'; loadAssumptions()">
+    <div x-show="can('assumptions','read')" class="nav-item" :class="{ active: view === 'assumptions' }" @click="view = 'assumptions'; loadAssumptions()">
       <span class="nav-icon">📝</span> Assumption Log
     </div>
 
     <div class="nav-section">Solution design</div>
     <div class="nav-item" :class="{ active: view === 'pallet-calc' }" @click="view = 'pallet-calc'">
-      <span class="nav-icon">📦</span> Pallet Storage Calculation
+      <span class="nav-icon">📦</span> Storage Calculation
     </div>
 
-    <div class="nav-section">Konfigurace</div>
-    <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
+    <div x-show="authUser?.role === 'admin' || authUser?.role === 'superadmin'" class="nav-section">Konfigurace</div>
+    <div x-show="authUser?.role === 'admin' || authUser?.role === 'superadmin'" class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; settingsTab = 'people'; loadSettings()">
       <span class="nav-icon">⚙️</span> Nastavení
     </div>
 
-    <div style="padding: 24px 20px; margin-top: auto;">
-      <div style="font-size: 10px; color: #444; line-height: 1.6;">
-        <span style="color: var(--dhl-yellow)">●</span> PM Tool v2.0<br>
-        Lokální instance
+    <div style="padding: 16px 20px; margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1);text-align:center">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px" x-show="authUser">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--dhl-accent,#FFCC00);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#1a1a1a"
+          x-text="(authUser?.name || 'A').charAt(0).toUpperCase()"></div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#f0f0f0" x-text="authUser?.name"></div>
+          <div x-show="authUser?.role === 'superadmin'" style="font-size:10px;background:#7c3aed;color:#fff;padding:1px 8px;border-radius:10px;font-weight:700;letter-spacing:.5px;display:inline-block">SUPER</div>
+          <div x-show="authUser?.role === 'admin'" style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px">ADMIN</div>
+          <div x-show="authUser?.role === 'user'" style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px" x-text="authUser?.companyName || 'USER'"></div>
+        </div>
+      </div>
+      <button @click="logout()" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#ccc;border-radius:6px;padding:6px;font-size:11px;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+        ⎋ Odhlásit
+      </button>
+      <a href="mailto:podpora@pmtool.cz" style="display:block;width:100%;text-align:center;color:#888;font-size:10px;margin-top:6px;text-decoration:none;transition:color .15s"
+        onmouseover="this.style.color='#bbb'" onmouseout="this.style.color='#888'">
+        ✉ Kontaktovat podporu
+      </a>
+      <div style="font-size:10px;color:#666;line-height:1.6;margin-top:8px">
+        <span style="color: var(--dhl-yellow)">●</span> PM Tool v3.0
       </div>
     </div>
   </aside>
 
   <!-- MAIN -->
   <div class="flex-1 flex flex-col" style="min-width: 0; height: 100vh; overflow-y: auto;">
+    <!-- Trial Banner -->
+    <div x-show="companyStatus === 'trial' && trialDaysLeft !== null"
+      style="background:#FEF3C7;border-bottom:2px solid #F59E0B;padding:10px 28px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;text-align:center">
+      <div>
+        <span style="font-weight:700;color:#92400E">⏰ Do konce zkušební doby zbývá <span x-text="trialDaysLeft"></span> dní</span>
+        <span style="color:#78350F;margin-left:8px">— Pro pokračování bez přerušení aktivujte plán.</span>
+      </div>
+    </div>
 
     <!-- TOPBAR -->
     <div class="topbar">
@@ -290,7 +561,21 @@
         <div class="subtitle" x-text="viewSubtitle()"></div>
       </div>
       <div class="flex gap-2 items-center">
-        <template x-if="view === 'assets'">
+        <template x-if="(view === 'assets' || view === 'labor') && can('assets','read') && can('labor','read')">
+          <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:3px">
+            <button @click="view='assets'; loadItems(); $nextTick(()=>restoreColWidths())"
+              :style="view==='assets' ? 'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)' : 'background:transparent;color:#64748b'"
+              style="padding:7px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer;border-radius:7px;transition:all .2s">
+              📋 Asset List
+            </button>
+            <button @click="view='labor'; loadLabor().then(()=>$nextTick(()=>renderLaborChart()))"
+              :style="view==='labor' ? 'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)' : 'background:transparent;color:#64748b'"
+              style="padding:7px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer;border-radius:7px;transition:all .2s">
+              👥 HR náklady
+            </button>
+          </div>
+        </template>
+        <template x-if="view === 'assets' && can('assets','write')">
           <button class="btn-primary" @click="openNewItem()">
             <span>＋</span> Přidat položku
           </button>
@@ -323,28 +608,28 @@
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportRisksPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
+            <button x-show="can('risks','write')" class="btn-primary" @click="openNewRisk()"><span>＋</span> Nové riziko</button>
           </div>
         </template>
         <template x-if="view === 'issues'">
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportIssuesPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
+            <button x-show="can('issues','write')" class="btn-primary" @click="openNewIssue()"><span>＋</span> Nový issue</button>
           </div>
         </template>
         <template x-if="view === 'changes'">
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportChangesPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
+            <button x-show="can('changes','write')" class="btn-primary" @click="openNewChange()"><span>＋</span> Nová změna</button>
           </div>
         </template>
         <template x-if="view === 'assumptions'">
           <div class="flex gap-2">
             <button class="btn-ghost btn-sm" @click="exportAssumptionsPDF()"
               style="border:1px solid #ddd;font-weight:600;display:flex;align-items:center;gap:4px">⬇ Export PDF</button>
-            <button class="btn-primary" @click="openNewAssumption()"><span>＋</span> Nová assumption</button>
+            <button x-show="can('assumptions','write')" class="btn-primary" @click="openNewAssumption()"><span>＋</span> Nová assumption</button>
           </div>
         </template>
         <!-- Currency toggle (hidden when eurRate=0) -->
@@ -668,6 +953,7 @@
                 </td>
                 <td>
                   <select class="inline-select" :style="statusStyle(item.tenderStatus)"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'tenderStatus', $event.target.value || null)">
                     <option value="" :selected="!item.tenderStatus">— Status —</option>
                     <template x-for="s in TENDER_STATUSES" :key="s">
@@ -678,6 +964,7 @@
                 <td>
                   <select class="inline-select"
                     :style="item.priority ? 'background:' + item.priority.color + '20;color:' + item.priority.color : 'background:#f3f4f6;color:#9ca3af'"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'priorityId', $event.target.value ? parseInt($event.target.value) : null)">
                     <option value="" :selected="!item.priorityId">— Priorita —</option>
                     <template x-for="p in priorities" :key="p.id">
@@ -687,6 +974,7 @@
                 </td>
                 <td>
                   <select class="inline-select" style="background:#f3f4f6;color:#1a1a1a;min-width:110px"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'responsibleId', $event.target.value ? parseInt($event.target.value) : null)">
                     <option value="" :selected="!item.responsibleId">— Nepřiřazeno —</option>
                     <template x-for="p in people" :key="p.id">
@@ -696,16 +984,19 @@
                 </td>
                 <td>
                   <input type="date" class="inline-date" :class="deadlineClass(item.tenderDeadline)"
+                    :disabled="!can('assets','write')"
                     :value="isoDate(item.tenderDeadline)"
                     @change="quickPatch(item.id, 'tenderDeadline', $event.target.value || null)">
                 </td>
                 <td>
                   <input type="date" class="inline-date"
+                    :disabled="!can('assets','write')"
                     :value="isoDate(item.deliveryDate)"
                     @change="quickPatch(item.id, 'deliveryDate', $event.target.value || null)">
                 </td>
                 <td>
                   <select class="inline-select" :style="approvalStyle(item.approval)"
+                    :disabled="!can('assets','write')"
                     @change="quickPatch(item.id, 'approval', $event.target.value || null)">
                     <option value="" :selected="!item.approval">— Schválení —</option>
                     <option :selected="item.approval === 'Approved'">Approved</option>
@@ -727,7 +1018,7 @@
                   </template>
                 </td>
                 <td>
-                  <button class="btn-icon" title="Smazat" @click="deleteItem(item.id)">🗑️</button>
+                  <button x-show="can('assets','write')" class="btn-icon" title="Smazat" @click="deleteItem(item.id)">🗑️</button>
                 </td>
               </tr>
             </template>
@@ -807,7 +1098,7 @@
         <div class="chart-card lg:col-span-2">
           <div class="chart-header">
             <span>Role & náklady</span>
-            <button class="btn-primary btn-sm" @click="openLaborForm()">＋ Přidat roli</button>
+            <button x-show="can('labor','write')" class="btn-primary btn-sm" @click="openLaborForm()">＋ Přidat roli</button>
           </div>
           <div class="table-scroll" style="max-height:520px">
             <table class="data-table">
@@ -903,7 +1194,7 @@
                     :class="laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{}) ? 'text-red-600' : laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{})*(laborWarningPct/100) ? 'text-yellow-500' : 'text-green-700'"
                     x-text="fmtMoney(entry.amount)"></span>
                   <span class="text-gray-400" style="font-size:11px;flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="entry.note || ''"></span>
-                  <button class="btn-icon" style="padding:2px 5px;color:#ccc;flex-shrink:0" @click="deleteLaborEntry(entry.id)" title="Smazat">✕</button>
+                  <button x-show="can('labor','write')" class="btn-icon" style="padding:2px 5px;color:#ccc;flex-shrink:0" @click="deleteLaborEntry(entry.id)" title="Smazat">✕</button>
                 </div>
               </template>
               <p x-show="!laborFormEntries.length" class="text-xs text-gray-400 py-2">Zatím žádné záznamy.</p>
@@ -917,14 +1208,14 @@
                   <label class="form-label" style="font-size:10px" x-text="'Částka (' + currency + ')'"></label>
                   <input class="form-input" type="number" x-model="laborEntryForm.amount" min="0" step="1" style="font-size:12px;padding:4px 8px" placeholder="0">
                 </div>
-                <button class="btn-primary btn-sm" @click="addLaborEntry()" :disabled="!laborEntryForm.amount">＋</button>
+                <button x-show="can('labor','write')" class="btn-primary btn-sm" @click="addLaborEntry()" :disabled="!laborEntryForm.amount">＋</button>
               </div>
               <input class="form-input mt-1" type="text" x-model="laborEntryForm.note" style="font-size:12px;padding:4px 8px" placeholder="Faktura, výplatní páska...">
             </div>
             <!-- Akce -->
             <div style="display:flex;gap:8px;padding-top:8px;border-top:1px solid #f0f0f0">
-              <button class="btn-ghost" style="flex:1;font-size:12px" @click="openLaborForm(laborDetail.lc)">✏️ Upravit roli</button>
-              <button class="btn-danger btn-sm" style="font-size:12px" @click="deleteLabor(laborDetail.lc?.id); laborDetail = { open: false, lc: null }">🗑️ Smazat</button>
+              <button x-show="can('labor','write')" class="btn-ghost" style="flex:1;font-size:12px" @click="openLaborForm(laborDetail.lc)">✏️ Upravit roli</button>
+              <button x-show="can('labor','write')" class="btn-danger btn-sm" style="font-size:12px" @click="deleteLabor(laborDetail.lc?.id); laborDetail = { open: false, lc: null }">🗑️ Smazat</button>
             </div>
           </div>
         </div>
@@ -1012,20 +1303,20 @@
       <!-- Header toolbar -->
       <div class="flex items-center gap-3 flex-wrap">
         <!-- Tab switcher -->
-        <div style="display:flex;border:1px solid var(--dhl-border);border-radius:5px;overflow:hidden">
+        <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:4px">
           <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() })"
-            :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
-            style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
-            Dashboard
+            :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)':'background:transparent;color:#64748b'"
+            style="padding:10px 24px;font-size:14px;font-weight:700;border:none;cursor:pointer;border-radius:8px;transition:all .2s;letter-spacing:0.2px">
+            📊 Dashboard
           </button>
           <button @click="testingTab='sets'"
-            :style="testingTab==='sets'?'background:var(--dhl-dark);color:var(--dhl-yellow)':'background:white;color:#666'"
-            style="padding:6px 16px;font-size:12px;font-weight:700;border:none;cursor:pointer">
-            Test Management
+            :style="testingTab==='sets'?'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)':'background:transparent;color:#64748b'"
+            style="padding:10px 24px;font-size:14px;font-weight:700;border:none;cursor:pointer;border-radius:8px;transition:all .2s;letter-spacing:0.2px">
+            🧪 Test Management
           </button>
         </div>
 
-        <template x-if="testingTab==='sets'">
+        <template x-if="testingTab==='sets' && can('testing','write')">
           <div class="flex gap-2">
             <button class="btn-primary btn-sm" @click="openTsForm()">＋ Test Set</button>
             <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=null;csvImport.setName='';csvImport.raw='';csvImport.fileName='';csvImport.error=''">⬆ Import CSV</button>
@@ -1264,10 +1555,10 @@
                 <span style="font-size:10px;font-weight:700;color:#3b82f6" x-text="'⟳' + ts.testCases.filter(c=>c.status==='WIP').length"></span>
               </div>
               <div class="flex gap-2" @click.stop>
-                <button class="btn-ghost btn-sm" @click="openTcForm(ts.id)" title="Přidat test case">＋ Test</button>
-                <button class="btn-ghost btn-sm" @click="openTsForm(ts)" title="Upravit test set">✏️</button>
-                <button class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.fileName='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
-                <button class="btn-danger btn-sm" @click="deleteTestSet(ts.id)" title="Smazat test set">✕</button>
+                <button x-show="can('testing','write')" class="btn-ghost btn-sm" @click="openTcForm(ts.id)" title="Přidat test case">＋ Test</button>
+                <button x-show="can('testing','write')" class="btn-ghost btn-sm" @click="openTsForm(ts)" title="Upravit test set">✏️</button>
+                <button x-show="can('testing','write')" class="btn-ghost btn-sm" @click="csvImport.open=true;csvImport.setId=ts.id;csvImport.setName=ts.name;csvImport.raw='';csvImport.fileName='';csvImport.error=''" title="Import CSV do tohoto setu">⬆ CSV</button>
+                <button x-show="can('testing','write')" class="btn-danger btn-sm" @click="deleteTestSet(ts.id)" title="Smazat test set">✕</button>
               </div>
             </div>
 
@@ -1299,8 +1590,8 @@
                     </select>
 
                     <div class="flex gap-1" @click.stop>
-                      <button class="btn-ghost btn-sm" style="font-size:10px" @click="openTcForm(ts.id, tc)">✏️</button>
-                      <button class="btn-danger btn-sm" style="font-size:10px" @click="deleteTestCase(tc.id, ts.id)">✕</button>
+                      <button x-show="can('testing','write')" class="btn-ghost btn-sm" style="font-size:10px" @click="openTcForm(ts.id, tc)">✏️</button>
+                      <button x-show="can('testing','write')" class="btn-danger btn-sm" style="font-size:10px" @click="deleteTestCase(tc.id, ts.id)">✕</button>
                     </div>
                   </div>
 
@@ -1357,8 +1648,8 @@
                             </div>
                           </div>
                           <div class="flex gap-1" style="flex-shrink:0">
-                            <button class="btn-icon" style="font-size:11px;color:#888" @click="openStepEdit(step)" title="Upravit krok">✏️</button>
-                            <button class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
+                            <button x-show="can('testing','write')" class="btn-icon" style="font-size:11px;color:#888" @click="openStepEdit(step)" title="Upravit krok">✏️</button>
+                            <button x-show="can('testing','write')" class="btn-icon" style="font-size:11px;color:#ccc" @click="deleteTestStep(step.id, tc)" title="Smazat krok">✕</button>
                           </div>
                         </div>
                       </div>
@@ -1395,13 +1686,13 @@
                           <input type="date" x-model="getStepForm(tc.id).testedAt"
                             style="width:100%;padding:5px 8px;border:1px solid var(--dhl-border);border-radius:4px;font-size:12px;outline:none;box-sizing:border-box">
                         </div>
-                        <button class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
+                        <button x-show="can('testing','write')" class="btn-primary btn-sm" @click="addTestStep(tc)" style="white-space:nowrap">＋ Krok</button>
                       </div>
                     </div>
 
                     <!-- DEFECTS -->
                     <div style="font-size:11px;font-weight:700;color:var(--dhl-grey);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px">Defekty
-                      <button class="btn-ghost btn-sm" style="margin-left:8px;font-size:10px"
+                      <button x-show="can('testing','write')" class="btn-ghost btn-sm" style="margin-left:8px;font-size:10px"
                         @click="openDefectForm(tc.id)">＋ Defekt</button>
                     </div>
                     <template x-if="tc.defects.length === 0">
@@ -1422,7 +1713,7 @@
                           <option>Closed</option>
                           <option>Rejected</option>
                         </select>
-                        <button class="btn-icon" style="color:#ccc;font-size:11px" @click="deleteDefect(def.id, tc)">✕</button>
+                        <button x-show="can('testing','write')" class="btn-icon" style="color:#ccc;font-size:11px" @click="deleteDefect(def.id, tc)">✕</button>
                       </div>
                     </template>
                   </div>
@@ -1748,8 +2039,8 @@
                     <td class="text-xs" :class="r.materializationDate && new Date(r.materializationDate) <= new Date() ? 'deadline-urgent' : ''"
                       x-text="r.materializationDate ? fmtDate(r.materializationDate) : '—'"></td>
                     <td>
-                      <button class="btn-icon" @click="openEditRisk(r)" title="Editovat">✏️</button>
-                      <button class="btn-icon" @click="deleteRisk(r.id)" title="Smazat" style="color:#D40511">🗑</button>
+                      <button x-show="can('risks','write')" class="btn-icon" @click="openEditRisk(r)" title="Editovat">✏️</button>
+                      <button x-show="can('risks','write')" class="btn-icon" @click="deleteRisk(r.id)" title="Smazat" style="color:#D40511">🗑</button>
                     </td>
                   </tr>
                 </template>
@@ -1876,8 +2167,8 @@
                   <td class="text-xs" :class="iss.dueDate && new Date(iss.dueDate) < new Date() ? 'deadline-urgent' : ''" x-text="iss.dueDate ? fmtDate(iss.dueDate) : '—'"></td>
                   <td class="text-xs" x-text="iss.linkedRisk ? ('R-' + String(iss.linkedRisk.id).padStart(3,'0') + ' ' + iss.linkedRisk.title.slice(0,20)) : '—'"></td>
                   <td>
-                    <button class="btn-icon" @click="openEditIssue(iss)" title="Editovat">✏️</button>
-                    <button class="btn-icon" @click="deleteIssue(iss.id)" title="Smazat" style="color:#D40511">🗑</button>
+                    <button x-show="can('issues','write')" class="btn-icon" @click="openEditIssue(iss)" title="Editovat">✏️</button>
+                    <button x-show="can('issues','write')" class="btn-icon" @click="deleteIssue(iss.id)" title="Smazat" style="color:#D40511">🗑</button>
                   </td>
                 </tr>
               </template>
@@ -1935,8 +2226,8 @@
                   <td x-text="cr.requestedBy?.name ?? '—'"></td>
                   <td x-text="cr.approvedBy?.name ?? '—'"></td>
                   <td>
-                    <button class="btn-icon" @click="openEditChange(cr)" title="Editovat">✏️</button>
-                    <button class="btn-icon" @click="deleteChange(cr.id)" title="Smazat" style="color:#D40511">🗑</button>
+                    <button x-show="can('changes','write')" class="btn-icon" @click="openEditChange(cr)" title="Editovat">✏️</button>
+                    <button x-show="can('changes','write')" class="btn-icon" @click="deleteChange(cr.id)" title="Smazat" style="color:#D40511">🗑</button>
                   </td>
                 </tr>
               </template>
@@ -2019,8 +2310,8 @@
                         <span x-show="!a.validationDate" style="color:#aaa">—</span>
                       </td>
                       <td>
-                        <button class="btn-icon" @click="openEditAssumption(a)" title="Upravit">✏️</button>
-                        <button class="btn-icon" @click="deleteAssumption(a.id)" title="Smazat" style="color:#D40511">🗑</button>
+                        <button x-show="can('assumptions','write')" class="btn-icon" @click="openEditAssumption(a)" title="Upravit">✏️</button>
+                        <button x-show="can('assumptions','write')" class="btn-icon" @click="deleteAssumption(a.id)" title="Smazat" style="color:#D40511">🗑</button>
                       </td>
                     </tr>
                   </template>
@@ -2133,6 +2424,12 @@
         <div class="settings-tab" :class="{ active: settingsTab === 'currency' }" @click="settingsTab = 'currency'">💱 Měna / Kurz</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'branding' }" @click="settingsTab = 'branding'">🎨 Vzhled</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'log' }" @click="settingsTab = 'log'; loadAuditLog()">📋 Log změn</div>
+        <div x-show="authUser?.role === 'superadmin'" class="settings-tab" :class="{ active: settingsTab === 'companies' }" @click="settingsTab = 'companies'; loadCompanies(); loadPlans()">🏢 Firmy</div>
+        <div x-show="authUser?.role === 'superadmin'" class="settings-tab" :class="{ active: settingsTab === 'plans' }" @click="settingsTab = 'plans'; loadPlans()">💰 Plány</div>
+        <div x-show="authUser?.role === 'superadmin'" class="settings-tab" :class="{ active: settingsTab === 'invoices' }" @click="settingsTab = 'invoices'; loadInvoices()">🧾 Faktury</div>
+        <div x-show="authUser?.role === 'superadmin'" class="settings-tab" :class="{ active: settingsTab === 'saas-dashboard' }" @click="settingsTab = 'saas-dashboard'; loadSaasStats()">📈 SaaS Přehled</div>
+        <div x-show="authUser?.role === 'admin'" class="settings-tab" :class="{ active: settingsTab === 'users' }" @click="settingsTab = 'users'; loadUsers()">🔐 Uživatelé</div>
+        <div x-show="authUser?.role === 'admin'" class="settings-tab" :class="{ active: settingsTab === 'projects' || settingsTab === 'project-members' }" @click="settingsTab = 'projects'; loadProjects()">&#128193; Projekty</div>
       </div>
 
       <!-- Departments settings -->
@@ -2212,6 +2509,12 @@
             :style="auditCategory==='Assumption Log' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
             style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
             📝 Assumption Log
+          </button>
+          <button
+            @click="auditCategory='Správa uživatelů'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Správa uživatelů' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            👥 Správa uživatelů
           </button>
         </div>
 
@@ -2299,7 +2602,7 @@
           <div class="form-group">
             <label class="form-label">Název projektu</label>
             <input class="form-input" type="text" x-model="settingsForm.projectName"
-              placeholder="např. Projekt DHL Štěrboholy 2026">
+              placeholder="např. Nový projekt 2026">
           </div>
           <div class="form-group">
             <label class="form-label">Kurz EUR → CZK</label>
@@ -2577,10 +2880,588 @@
           </div>
         </div>
       </div>
+
+      <!-- Users tab — admin only -->
+      <div x-show="settingsTab === 'users'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- User list -->
+          <div class="chart-card">
+            <div class="chart-header">Uživatelé</div>
+            <div class="p-4 space-y-2">
+              <template x-if="!users.length">
+                <div class="text-gray-400 text-sm py-4 text-center">Žádní uživatelé</div>
+              </template>
+              <template x-for="u in users" :key="u.id">
+                <div class="flex items-center justify-between p-3 rounded border transition-colors"
+                  :class="userForm.id === u.id ? 'border-yellow-400 bg-yellow-50' : 'border-gray-100 hover:border-yellow-300'">
+                  <div style="min-width:0;flex:1">
+                    <div class="font-semibold text-sm flex items-center gap-2">
+                      <span x-text="u.name"></span>
+                      <span x-show="u.role === 'admin'" style="background:#1a1a1a;color:#FFCC00;font-size:9px;padding:1px 6px;border-radius:3px;font-weight:700">ADMIN</span>
+                      <span x-show="!u.active" style="background:#fee2e2;color:#dc2626;font-size:9px;padding:1px 6px;border-radius:3px;font-weight:700">NEAKTIVNÍ</span>
+                    </div>
+                    <div class="text-xs text-gray-400" x-text="u.email"></div>
+                    <div x-show="u.role !== 'admin'" class="flex flex-wrap gap-1 mt-1">
+                      <template x-for="s in SECTIONS" :key="s">
+                        <span x-show="(JSON.parse(u.permissions||'{}')[s] ?? 'none') !== 'none'"
+                          :style="(JSON.parse(u.permissions||'{}')[s]) === 'write' ? 'background:#dcfce7;color:#166534' : 'background:#e0f2fe;color:#0369a1'"
+                          style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600;text-transform:uppercase"
+                          x-text="s + ':' + (JSON.parse(u.permissions||'{}')[s])"></span>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="flex gap-1 ml-2">
+                    <button class="btn-icon" @click="editUser(u)" title="Upravit oprávnění">✏️</button>
+                    <button class="btn-icon" x-show="u.id !== authUser?.id" @click="deactivateUser(u)" :title="u.active ? 'Deaktivovat' : 'Aktivovat'">
+                      <span x-text="u.active ? '🔒' : '🔓'"></span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Add / Edit user + Permission matrix -->
+          <div class="chart-card">
+            <div class="chart-header" x-text="userForm.id ? 'Upravit uživatele' : 'Přidat uživatele'"></div>
+            <div class="p-4 space-y-3">
+              <div class="form-group" x-show="!userForm.id">
+                <label class="form-label">E-mail *</label>
+                <input class="form-input" type="text" x-model="userForm.email" placeholder="jan@firma.cz">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Jméno *</label>
+                <input class="form-input" type="text" x-model="userForm.name" placeholder="Jan Novák">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Typ účtu</label>
+                <select class="form-input" x-model="userForm.role">
+                  <option value="user">Uživatel (řízeno oprávněními)</option>
+                  <option value="admin">Administrátor (plný přístup)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" x-text="userForm.id ? 'Nové heslo (ponechat prázdné = beze změny)' : 'Heslo *'"></label>
+                <input class="form-input" type="password" x-model="userForm.password" placeholder="••••••••">
+              </div>
+
+              <!-- Permission matrix — only for non-admin -->
+              <div x-show="userForm.role !== 'admin'" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+                <div style="background:#f9fafb;padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;border-bottom:1px solid #e5e7eb">
+                  Oprávnění per sekce
+                </div>
+                <div style="padding:8px">
+                  <template x-for="s in SECTIONS" :key="s">
+                    <div class="flex items-center justify-between py-1" style="border-bottom:1px solid #f3f4f6">
+                      <span class="text-sm font-medium" x-text="SECTION_LABELS[s]" style="min-width:160px"></span>
+                      <div class="flex gap-1">
+                        <button
+                          @click="userForm.permissions[s] = 'none'"
+                          :class="userForm.permissions[s] === 'none' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'"
+                          style="font-size:11px;padding:3px 10px">Žádný</button>
+                        <button
+                          @click="userForm.permissions[s] = 'read'"
+                          :class="userForm.permissions[s] === 'read' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'"
+                          style="font-size:11px;padding:3px 10px">Read</button>
+                        <button
+                          @click="userForm.permissions[s] = 'write'"
+                          :class="userForm.permissions[s] === 'write' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'"
+                          style="font-size:11px;padding:3px 10px">Write</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <!-- Quick presets -->
+                <div style="padding:8px 8px 6px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="font-size:11px;color:#888;align-self:center">Preset:</span>
+                  <button class="btn-ghost btn-sm" style="font-size:11px" @click="SECTIONS.forEach(s => userForm.permissions[s] = 'read')">Vše read</button>
+                  <button class="btn-ghost btn-sm" style="font-size:11px" @click="SECTIONS.forEach(s => userForm.permissions[s] = 'write')">Vše write</button>
+                  <button class="btn-ghost btn-sm" style="font-size:11px" @click="SECTIONS.forEach(s => userForm.permissions[s] = 'none')">Vše žádný</button>
+                </div>
+              </div>
+              <div x-show="userForm.role === 'admin'" style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:10px 12px;font-size:12px;color:#713f12">
+                ⭐ Administrátor má plný přístup ke všem sekcím — oprávnění se nenastavují.
+              </div>
+
+              <div x-show="userForm.error" x-text="userForm.error" style="color:#dc2626;font-size:12px"></div>
+              <div class="flex gap-2">
+                <button class="btn-primary" @click="saveUser()" x-text="userForm.id ? 'Uložit změny' : '＋ Přidat uživatele'"></button>
+                <button x-show="userForm.id" class="btn-ghost" @click="resetUserForm()">Zrušit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Projects settings -->
+      <div x-show="settingsTab === 'projects'">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 class="font-bold text-base">Správa projektů</h3>
+          <button @click="resetProjectForm(); projectForm._showCreate = true"
+            style="background:var(--dhl-yellow);border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">
+            + Nový projekt
+          </button>
+        </div>
+
+        <!-- Create/Edit form -->
+        <div x-show="projectForm.id !== null || projectForm._showCreate"
+          style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:20px">
+          <h4 style="font-weight:600;margin-bottom:12px" x-text="projectForm.id ? 'Upravit projekt' : 'Nový projekt'"></h4>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input x-model="projectForm.name" placeholder="Název projektu" class="form-input" style="flex:1;min-width:180px">
+            <input x-model="projectForm.description" placeholder="Popis (volitelný)" class="form-input" style="flex:2;min-width:200px">
+            <button @click="saveProject()" style="background:var(--dhl-yellow);border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">Uložit</button>
+            <button @click="resetProjectForm(); projectForm._showCreate = false" style="background:#e5e7eb;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">Zrušit</button>
+          </div>
+          <div x-show="projectForm.error" x-text="projectForm.error" style="color:#dc2626;font-size:13px;margin-top:8px"></div>
+        </div>
+
+        <!-- Projects list -->
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#f9fafb">
+              <tr>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Název</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Popis</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Členů</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="p in projects" :key="p.id">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:500">
+                    <span x-text="p.name"></span>
+                    <span x-show="p.id === activeProjectId" style="margin-left:6px;background:var(--dhl-yellow);font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">aktivní</span>
+                  </td>
+                  <td style="padding:10px 14px;color:#666" x-text="p.description || '—'"></td>
+                  <td style="padding:10px 14px" x-text="p.users?.length ?? '?'"></td>
+                  <td style="padding:10px 14px">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <button @click="editProject(p)" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">&#9998; Upravit</button>
+                      <button @click="loadProjectMembers(p.id); settingsTab = 'project-members'" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">&#128101; Členové</button>
+                      <button x-show="p.id !== 1" @click="deleteProject(p.id)" style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">&#128465; Smazat</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Project Members settings -->
+      <div x-show="settingsTab === 'project-members'">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <button @click="settingsTab = 'projects'" style="background:#f3f4f6;border:none;border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer">&#8592; Zpět</button>
+          <h3 class="font-bold text-base">Členové projektu</h3>
+        </div>
+
+        <!-- Add member -->
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Přidat uživatele do projektu</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select x-ref="addMemberSelect" class="form-input" style="flex:1;min-width:180px">
+              <template x-for="u in users.filter(u => !projectMembers.find(m => m.userId === u.id))" :key="u.id">
+                <option :value="u.id" x-text="u.name + ' (' + u.email + ')'"></option>
+              </template>
+            </select>
+            <button @click="addProjectMember(projectMembersProjectId, parseInt($refs.addMemberSelect.value))"
+              style="background:var(--dhl-yellow);border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">
+              Přidat
+            </button>
+          </div>
+        </div>
+
+        <!-- Members list -->
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#f9fafb">
+              <tr>
+                <th style="padding:10px 14px;text-align:left">Jméno</th>
+                <th style="padding:10px 14px;text-align:left">E-mail</th>
+                <th style="padding:10px 14px;text-align:left">Role</th>
+                <th style="padding:10px 14px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="m in projectMembers" :key="m.userId">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:500" x-text="m.user.name"></td>
+                  <td style="padding:10px 14px;color:#666" x-text="m.user.email"></td>
+                  <td style="padding:10px 14px" x-text="m.user.role"></td>
+                  <td style="padding:10px 14px">
+                    <button @click="removeProjectMember(projectMembersProjectId, m.userId)"
+                      style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">
+                      Odebrat
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="projectMembers.length === 0">
+                <td colspan="4" style="padding:20px;text-align:center;color:#999;font-size:13px">Žádní členové</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Companies settings (superadmin only) -->
+      <div x-show="settingsTab === 'companies'">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 class="font-bold text-base">Správa firem</h3>
+          <button @click="resetCompanyForm(); companyForm._showCreate = true"
+            style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">
+            + Nová firma
+          </button>
+        </div>
+
+        <!-- Create/Edit form -->
+        <div x-show="companyForm.id !== null || companyForm._showCreate"
+          style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;padding:20px;margin-bottom:20px">
+          <h4 style="font-weight:600;margin-bottom:12px;color:#7c3aed" x-text="companyForm.id ? 'Upravit firmu' : 'Nová firma'"></h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Název firmy</label>
+              <input x-model="companyForm.name" placeholder="Firma ABC" class="form-input">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Slug (URL)</label>
+              <input x-model="companyForm.slug" placeholder="firma-abc" class="form-input">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Plán</label>
+              <select x-model.number="companyForm.planId" class="form-input" style="height:38px">
+                <option value="">— Bez plánu —</option>
+                <template x-for="p in plans" :key="p.id">
+                  <option :value="p.id" x-text="p.name + ' (' + p.priceMonthly + ' Kč/měs)'"></option>
+                </template>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Max projektů <span style="color:#999;font-weight:400">(prázdné = dle plánu)</span></label>
+              <input type="number" x-model.number="companyForm.maxProjectsOverride" placeholder="dle plánu" class="form-input" min="0">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Max uživatelů <span style="color:#999;font-weight:400">(prázdné = dle plánu)</span></label>
+              <input type="number" x-model.number="companyForm.maxUsersOverride" placeholder="dle plánu" class="form-input" min="0">
+            </div>
+          </div>
+          <div x-show="companyForm.id" style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Status</label>
+              <select x-model="companyForm.status" class="form-input" style="height:38px">
+                <option value="trial">Trial</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </div>
+          </div>
+          <div x-show="!companyForm.id" style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:14px;margin-bottom:10px">
+            <div style="font-size:12px;font-weight:600;color:#444;margin-bottom:8px">Účet administrátora firmy</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              <input x-model="companyForm.adminName" placeholder="Jméno admina" class="form-input">
+              <input x-model="companyForm.adminEmail" placeholder="email@firma.cz" class="form-input">
+              <input type="password" x-model="companyForm.adminPassword" placeholder="Heslo (min 6 znaků)" class="form-input">
+            </div>
+          </div>
+          <div x-show="companyForm.error" x-text="companyForm.error" style="color:#dc2626;font-size:13px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <button @click="saveCompany()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">Uložit</button>
+            <button @click="resetCompanyForm(); companyForm._showCreate = false" style="background:#e5e7eb;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">Zrušit</button>
+          </div>
+        </div>
+
+        <!-- Companies list -->
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#faf5ff">
+              <tr>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Firma</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Plán</th>
+                <th style="padding:10px 14px;text-align:center;font-weight:600">Uživatelů</th>
+                <th style="padding:10px 14px;text-align:center;font-weight:600">Projektů</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Status</th>
+                <th style="padding:10px 14px;text-align:left;font-weight:600">Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="c in companies" :key="c.id">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:600" x-text="c.name"></td>
+                  <td style="padding:10px 14px;font-size:12px" x-text="c.plan?.name || '—'"></td>
+                  <td style="padding:10px 14px;text-align:center">
+                    <span x-text="(c._count?.users ?? 0) + ' / ' + (c.maxUsersOverride ?? c.plan?.maxUsers ?? '∞')"></span>
+                  </td>
+                  <td style="padding:10px 14px;text-align:center">
+                    <span x-text="(c._count?.projects ?? 0) + ' / ' + (c.maxProjectsOverride ?? c.plan?.maxProjects ?? '∞')"></span>
+                  </td>
+                  <td style="padding:10px 14px">
+                    <span :style="c.status === 'active' ? 'background:#dcfce7;color:#16a34a' : c.status === 'trial' ? 'background:#FEF3C7;color:#92400E' : 'background:#fee2e2;color:#dc2626'"
+                      style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">
+                      <span x-text="c.status"></span>
+                    </span>
+                  </td>
+                  <td style="padding:10px 14px">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <button @click="editCompany(c)" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">✏️ Upravit</button>
+                      <button @click="viewCompanyOverview(c.id)" style="background:#ede9fe;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#7c3aed">🔍 Detail</button>
+                      <button x-show="c.id !== 1" @click="deleteCompany(c.id)" style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">🗑 Smazat</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="companies.length === 0">
+                <td colspan="6" style="padding:20px;text-align:center;color:#999;font-size:13px">Žádné firmy</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Company Detail / Overview (superadmin support view) -->
+      <div x-show="settingsTab === 'company-overview'">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+          <button @click="settingsTab = 'companies'" style="background:#f3f4f6;border:none;border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer">← Zpět</button>
+          <h3 class="font-bold text-base" x-text="companyOverview?.company?.name + ' — přehled'"></h3>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <h4 style="font-weight:600;margin-bottom:10px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px">Uživatelé</h4>
+            <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <tbody>
+                  <template x-for="u in companyOverview?.users ?? []" :key="u.id">
+                    <tr style="border-top:1px solid #e5e7eb">
+                      <td style="padding:8px 12px;font-weight:500" x-text="u.name"></td>
+                      <td style="padding:8px 12px;color:#666" x-text="u.email"></td>
+                      <td style="padding:8px 12px"><span x-text="u.role" style="font-size:11px;background:#f3f4f6;padding:1px 6px;border-radius:8px"></span></td>
+                    </tr>
+                  </template>
+                  <tr x-show="!companyOverview?.users?.length">
+                    <td colspan="3" style="padding:12px;text-align:center;color:#999">Žádní uživatelé</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h4 style="font-weight:600;margin-bottom:10px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px">Projekty</h4>
+            <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <tbody>
+                  <template x-for="p in companyOverview?.projects ?? []" :key="p.id">
+                    <tr style="border-top:1px solid #e5e7eb">
+                      <td style="padding:8px 12px;font-weight:500">📁 <span x-text="p.name"></span></td>
+                      <td style="padding:8px 12px;color:#999;font-size:11px" x-text="new Date(p.createdAt).toLocaleDateString('cs-CZ')"></td>
+                    </tr>
+                  </template>
+                  <tr x-show="!companyOverview?.projects?.length">
+                    <td colspan="2" style="padding:12px;text-align:center;color:#999">Žádné projekty</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plans management (superadmin) -->
+      <div x-show="settingsTab === 'plans'">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 class="font-bold text-base">Správa plánů</h3>
+          <button @click="resetPlanForm(); planForm._showCreate = true"
+            style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Nový plán</button>
+        </div>
+        <div x-show="planForm.id !== null || planForm._showCreate"
+          style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;padding:20px;margin-bottom:20px">
+          <h4 style="font-weight:600;margin-bottom:12px;color:#7c3aed" x-text="planForm.id ? 'Upravit plán' : 'Nový plán'"></h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div><label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Název</label>
+              <input x-model="planForm.name" class="form-input" placeholder="Start"></div>
+            <div><label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Slug</label>
+              <input x-model="planForm.slug" class="form-input" placeholder="start"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+            <div><label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Cena / měsíc (Kč)</label>
+              <input type="number" x-model.number="planForm.priceMonthly" class="form-input"></div>
+            <div><label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Max projektů</label>
+              <input type="number" x-model.number="planForm.maxProjects" class="form-input"></div>
+            <div><label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Max uživatelů</label>
+              <input type="number" x-model.number="planForm.maxUsers" class="form-input"></div>
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:3px">Popis</label>
+            <input x-model="planForm.description" class="form-input" placeholder="Popis plánu">
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:6px">Povolené sekce</label>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <template x-for="s in SECTIONS" :key="s">
+                <label style="display:flex;align-items:center;gap:4px;background:#f3f4f6;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">
+                  <input type="checkbox" :value="s" x-model="planForm.sections"> <span x-text="SECTION_LABELS[s] || s"></span>
+                </label>
+              </template>
+            </div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" x-model="planForm.isPublic">
+              <span style="font-weight:600;color:#444">Viditelný v registraci</span>
+              <span style="font-size:11px;color:#94a3b8">(veřejné plány se zobrazují novým zákazníkům)</span>
+            </label>
+          </div>
+          <div x-show="planForm.error" x-text="planForm.error" style="color:#dc2626;font-size:13px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <button @click="savePlan()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">Uložit</button>
+            <button @click="resetPlanForm(); planForm._showCreate = false" style="background:#e5e7eb;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer">Zrušit</button>
+          </div>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#faf5ff"><tr>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Plán</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Sekce</th>
+              <th style="padding:10px 14px;text-align:right;font-weight:600">Cena/měs</th>
+              <th style="padding:10px 14px;text-align:center;font-weight:600">Firem</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Akce</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="p in plans" :key="p.id">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:600"><span x-text="p.name"></span>
+                    <span x-show="p.isDefault" style="font-size:10px;background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:8px;margin-left:6px">výchozí</span>
+                    <span x-show="p.isPublic" style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px;margin-left:4px">veřejný</span>
+                    <span x-show="!p.isPublic" style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:8px;margin-left:4px">skrytý</span></td>
+                  <td style="padding:10px 14px"><div style="display:flex;flex-wrap:wrap;gap:3px">
+                    <template x-for="s in JSON.parse(p.sections || '[]')" :key="s">
+                      <span style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:8px" x-text="s"></span>
+                    </template></div></td>
+                  <td style="padding:10px 14px;text-align:right;font-weight:600" x-text="p.priceMonthly + ' Kč'"></td>
+                  <td style="padding:10px 14px;text-align:center" x-text="p._count?.companies ?? 0"></td>
+                  <td style="padding:10px 14px">
+                    <div style="display:flex;gap:6px"><button @click="editPlan(p)" style="background:#f3f4f6;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer">✏️</button>
+                    <button x-show="p.active" @click="deletePlan(p.id)" style="background:#fee2e2;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;color:#dc2626">🗑</button></div></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Invoices management (superadmin) -->
+      <div x-show="settingsTab === 'invoices'">
+        <h3 class="font-bold text-base" style="margin-bottom:20px">Faktury</h3>
+        <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead style="background:#faf5ff"><tr>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Firma</th>
+              <th style="padding:10px 14px;text-align:right;font-weight:600">Částka</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">VS</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Stav</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Splatnost</th>
+              <th style="padding:10px 14px;text-align:left;font-weight:600">Akce</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="inv in invoices" :key="inv.id">
+                <tr style="border-top:1px solid #e5e7eb">
+                  <td style="padding:10px 14px;font-weight:500" x-text="inv.company?.name || '—'"></td>
+                  <td style="padding:10px 14px;text-align:right;font-weight:600" x-text="inv.amount + ' Kč'"></td>
+                  <td style="padding:10px 14px;font-family:monospace;font-size:12px;font-weight:700" x-text="inv.variableSymbol"></td>
+                  <td style="padding:10px 14px">
+                    <span :style="inv.status === 'paid' ? 'background:#dcfce7;color:#16a34a' : inv.status === 'pending' ? 'background:#FEF3C7;color:#92400E' : 'background:#fee2e2;color:#dc2626'"
+                      style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600" x-text="inv.status"></span></td>
+                  <td style="padding:10px 14px;font-size:12px" x-text="new Date(inv.dueDate).toLocaleDateString('cs-CZ')"></td>
+                  <td style="padding:10px 14px">
+                    <button x-show="inv.status === 'pending'" @click="markInvoicePaid(inv.id)"
+                      style="background:#dcfce7;color:#16a34a;border:none;border-radius:4px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer">✓ Zaplaceno</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="invoices.length === 0"><td colspan="6" style="padding:20px;text-align:center;color:#999">Žádné faktury</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SaaS Dashboard (superadmin) -->
+      <div x-show="settingsTab === 'saas-dashboard'">
+        <h3 class="font-bold text-base" style="margin-bottom:20px">SaaS Přehled</h3>
+        <div x-show="saasStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center">
+            <div style="font-size:28px;font-weight:700" x-text="saasStats?.totalCompanies || 0"></div>
+            <div style="font-size:12px;color:#666;margin-top:4px">Firem celkem</div>
+          </div>
+          <div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center">
+            <div style="font-size:28px;font-weight:700;color:#16a34a" x-text="saasStats?.activeCompanies || 0"></div>
+            <div style="font-size:12px;color:#166534;margin-top:4px">Aktivních</div>
+          </div>
+          <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:16px;text-align:center">
+            <div style="font-size:28px;font-weight:700;color:#92400E" x-text="saasStats?.trialCompanies || 0"></div>
+            <div style="font-size:12px;color:#78350F;margin-top:4px">Trial</div>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center">
+            <div style="font-size:28px;font-weight:700" x-text="(saasStats?.monthlyRevenue || 0) + ' Kč'"></div>
+            <div style="font-size:12px;color:#666;margin-top:4px">Revenue tento měsíc</div>
+          </div>
+        </div>
+        <div x-show="saasStats" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center">
+            <div style="font-size:28px;font-weight:700" x-text="saasStats?.totalUsers || 0"></div>
+            <div style="font-size:12px;color:#666;margin-top:4px">Uživatelů</div>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:center">
+            <div style="font-size:28px;font-weight:700" x-text="saasStats?.totalProjects || 0"></div>
+            <div style="font-size:12px;color:#666;margin-top:4px">Projektů</div>
+          </div>
+        </div>
+        <!-- Recent registrations -->
+        <div x-show="saasStats?.recentRegistrations?.length">
+          <h4 style="font-weight:600;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Poslední registrace</h4>
+          <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:20px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tbody>
+                <template x-for="r in saasStats?.recentRegistrations ?? []" :key="r.id">
+                  <tr style="border-top:1px solid #e5e7eb">
+                    <td style="padding:8px 12px;font-weight:500" x-text="r.name"></td>
+                    <td style="padding:8px 12px"><span :style="r.status === 'active' ? 'background:#dcfce7;color:#16a34a' : r.status === 'trial' ? 'background:#FEF3C7;color:#92400E' : 'background:#fee2e2;color:#dc2626'"
+                      style="font-size:11px;padding:1px 6px;border-radius:8px;font-weight:600" x-text="r.status"></span></td>
+                    <td style="padding:8px 12px;color:#888;font-size:12px" x-text="r.plan?.name || '—'"></td>
+                    <td style="padding:8px 12px;color:#999;font-size:11px" x-text="new Date(r.createdAt).toLocaleDateString('cs-CZ')"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Pending invoices -->
+        <div x-show="saasStats?.pendingInvoices?.length">
+          <h4 style="font-weight:600;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Čekající platby</h4>
+          <div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tbody>
+                <template x-for="inv in saasStats?.pendingInvoices ?? []" :key="inv.id">
+                  <tr style="border-top:1px solid #e5e7eb">
+                    <td style="padding:8px 12px;font-weight:500" x-text="inv.company?.name || '—'"></td>
+                    <td style="padding:8px 12px;font-weight:600" x-text="inv.amount + ' Kč'"></td>
+                    <td style="padding:8px 12px;font-family:monospace" x-text="inv.variableSymbol"></td>
+                    <td style="padding:8px 12px"><button @click="markInvoicePaid(inv.id); loadSaasStats()"
+                      style="background:#dcfce7;color:#16a34a;border:none;border-radius:4px;padding:3px 10px;font-size:12px;font-weight:600;cursor:pointer">✓ Zaplaceno</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </div><!-- end main -->
-</div><!-- end flex -->
+</div><!-- end flex / token guard -->
 
 <!-- ============================================================ -->
 <!-- RISK MODAL -->
@@ -3061,7 +3942,7 @@
 <div class="modal-overlay" x-show="itemModal.open" @click.self="itemModal.open = false" x-transition>
   <div class="modal" @click.stop>
     <div class="modal-header">
-      <h2><span class="accent">DHL</span> / <span x-text="itemModal.id ? 'Upravit položku' : 'Nová položka'"></span></h2>
+      <h2><span class="accent" x-text="projectName || 'PM Tool'"></span> / <span x-text="itemModal.id ? 'Upravit položku' : 'Nová položka'"></span></h2>
       <button @click="itemModal.open = false" style="color:#aaa;font-size:20px;background:none;border:none;cursor:pointer">✕</button>
     </div>
     <div class="modal-body">
@@ -3381,6 +4262,30 @@
 <script>
 const API = ''
 
+// ── Auth: intercept all /api/* fetch calls to inject Bearer token ─────────────
+;(function () {
+  const _fetch = window.fetch
+  window.fetch = function (url, opts = {}) {
+    if (typeof url === 'string' && url.includes('/api/') && !url.includes('/api/auth/login')) {
+      const token = localStorage.getItem('bt-token')
+      if (token) {
+        const projectId = localStorage.getItem('bt-project-id')
+        const extraHeaders = { 'Authorization': `Bearer ${token}` }
+        if (projectId) extraHeaders['X-Project-Id'] = projectId
+        opts = { ...opts, headers: { ...extraHeaders, ...(opts.headers || {}) } }
+      }
+    }
+    return _fetch.call(this, url, opts).then(r => {
+      if (r.status === 401 && typeof url === 'string' && url.includes('/api/') && localStorage.getItem('bt-token')) {
+        // Token expired / invalid — clear and reload to show login screen
+        localStorage.removeItem('bt-token')
+        localStorage.removeItem('bt-auth-user')
+        location.reload()
+      }
+      return r
+    })
+  }
+})()
 
 // Chart instances stored OUTSIDE Alpine reactivity — Alpine's Proxy corrupts Chart.js internal state
 const _charts = {}
@@ -3479,14 +4384,14 @@ function app() {
     settingsForm: { eurRate: '25', currentUser: 'Admin', projectName: '', laborWarningPct: '80', logoWidth: '96', logoBgColor: '#FFCC00' },
 
     // Logo & branding
-    logoSrc: '/dhl-logo.svg',
+    logoSrc: '/logo.svg',
     logoWidth: 96,
     logoBgColor: '#FFCC00',
     projectName: '',
     settingsSaved: false,
-    colorPalette: 'dhl',
+    colorPalette: 'classic',
     palettes: [
-      { id: 'dhl',    name: 'Classic', accent: '#FFCC00', dark: '#1A1A1A', mid: '#2C2C2C', light: '#F4F4F4' },
+      { id: 'classic',    name: 'Classic', accent: '#FFCC00', dark: '#1A1A1A', mid: '#2C2C2C', light: '#F4F4F4' },
       { id: 'ocean',  name: 'Ocean',  accent: '#38BDF8', dark: '#0F172A', mid: '#1E293B', light: '#F0F9FF' },
       { id: 'forest', name: 'Forest', accent: '#4ADE80', dark: '#052E16', mid: '#14532D', light: '#F0FDF4' },
       { id: 'indigo', name: 'Indigo', accent: '#A78BFA', dark: '#1E1B4B', mid: '#312E81', light: '#F5F3FF' },
@@ -3497,6 +4402,18 @@ function app() {
     currency: 'CZK',
     eurRate: 25,
 
+    // Auth
+    token: localStorage.getItem('bt-token') || null,
+    authUser: JSON.parse(localStorage.getItem('bt-auth-user') || 'null'),
+    loginForm: { email: '', password: '', error: '', loading: false },
+    loginStep: 'credentials',  // 'credentials' | 'projects'
+    registerForm: { companyName: '', companySlug: '', planSlug: '', userName: '', userEmail: '', userPassword: '', captchaId: '', captchaQuestion: '', captchaAnswer: null, error: '', success: '', loading: false },
+
+    // Projects (multi-project workspace)
+    projects: JSON.parse(localStorage.getItem('bt-projects') || '[]'),
+    activeProjectId: parseInt(localStorage.getItem('bt-project-id') || '0') || null,
+    showProjectPicker: false,
+
     // Current user (for audit log)
     currentUser: 'Admin',
 
@@ -3504,6 +4421,36 @@ function app() {
     auditLog: [],
     auditFilter: '',
     auditCategory: 'Budget Tracker',
+
+    // Users (admin)
+    users: [],
+    SECTIONS: ['assets','labor','testing','risks','issues','changes','assumptions'],
+    SECTION_LABELS: { assets:'Assets / Budget', labor:'Lidé / PM náklady', testing:'Test Management', risks:'Risk Management', issues:'Issue Tracker', changes:'Change Management', assumptions:'Assumption Log' },
+    userForm: {
+      id: null, email: '', name: '', password: '', error: '', role: 'user',
+      permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+    },
+
+    // Project management (admin)
+    projectForm: { id: null, name: '', description: '', error: '' },
+    projectMembers: [],
+    projectMembersProjectId: null,
+
+    // Company management (superadmin)
+    companies: [],
+    companyOverview: null,
+    companyForm: { id: null, name: '', slug: '', planId: null, status: 'trial', maxProjectsOverride: null, maxUsersOverride: null, adminEmail: '', adminName: '', adminPassword: '', error: '', _showCreate: false },
+    // SaaS plan management
+    companyStatus: localStorage.getItem('bt-company-status') || 'active',
+    trialEndsAt: localStorage.getItem('bt-trial-ends-at') || null,
+    planSections: JSON.parse(localStorage.getItem('bt-plan-sections') || '[]'),
+    planName: localStorage.getItem('bt-plan-name') || null,
+    companyBlocked: false,
+    plans: [],
+    planForm: { id: null, name: '', slug: '', sections: [], maxProjects: 1, maxUsers: 5, priceMonthly: 0, description: '', isDefault: false, isPublic: false, error: '', _showCreate: false },
+    publicPlans: [],
+    invoices: [],
+    saasStats: null,
 
     ganttFilter: 'all',
 
@@ -3569,8 +4516,14 @@ function app() {
 
     async init() {
       // Apply cached palette immediately to avoid color flash before settings load
-      const cachedPalette = localStorage.getItem('colorPalette') || 'dhl'
+      const cachedPalette = localStorage.getItem('colorPalette') || 'classic'
       this.applyPalette(cachedPalette)
+      if (!this.token) return  // not logged in — show login screen, don't fetch
+      // If token but no project selected and multiple projects exist, show picker
+      if (!this.activeProjectId && this.projects.length > 1) {
+        this.showProjectPicker = true
+        return
+      }
       await Promise.all([this.loadItems(), this.loadPeople(), this.loadCategories(), this.loadPriorities(), this.loadLabor(), this.loadSettings()])
       await Promise.all([this.loadRisks(), this.loadIssues(), this.loadChanges(), this.loadAssumptions()])
       this.loadDashboard()
@@ -3578,10 +4531,10 @@ function app() {
     },
 
     viewTitle() {
-      return { dashboard: 'Dashboard', assets: 'Asset List', gantt: 'Gantt / Timeline', labor: 'Lidé / PM náklady', settings: 'Nastavení', testing: 'Test Management', risks: 'Risk Management', issues: 'Issue Tracker', changes: 'Change Management', assumptions: 'Assumption Log' }[this.view] ?? ''
+      return { dashboard: 'Dashboard', assets: 'Asset a HR náklady', gantt: 'Gantt / Timeline', labor: 'Asset a HR náklady', settings: 'Nastavení', testing: 'Test Management', risks: 'Risk Management', issues: 'Issue Tracker', changes: 'Change Management', assumptions: 'Assumption Log' }[this.view] ?? ''
     },
     viewSubtitle() {
-      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému', testing: 'Test sety, scénáře, kroky, defekty a statistiky', risks: 'Registr rizik, heatmapa, trend vývoje skóre', issues: 'Sledování problémů a incidentů', changes: 'Správa změnových požadavků', assumptions: 'Evidence předpokladů projektu, validace, governance' }[this.view] ?? ''
+      return { dashboard: 'Přehled nákladů — assets + lidé', assets: 'Správa a sledování položek', gantt: 'Vizualizace termínů', labor: 'Projektové role a mzdové náklady', settings: 'Konfigurace systému', testing: 'Test sety, scénáře, kroky, defekty a statistiky', risks: 'Registr rizik, heatmapa, trend vývoje skóre', issues: 'Sledování problémů a incidentů', changes: 'Správa změnových požadavků', assumptions: 'Evidence předpokladů projektu, validace, governance' }[this.view] ?? 'PM Tool'
     },
 
     async loadItems() {
@@ -3593,7 +4546,9 @@ function app() {
       if (this.filters.priorityId) params.set('priorityId', this.filters.priorityId)
       if (this.filters.capexOnly) params.set('capexNeeded', 'true')
       const r = await fetch(`${API}/api/items?` + params)
-      this.items = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.items = Array.isArray(data) ? data : []
     },
 
     handleLogoUpload(event) {
@@ -3629,7 +4584,7 @@ function app() {
       const color = this.settingsForm.logoBgColor || '#FFCC00'
       await this.apiFetch('PUT', '/api/settings/logoWidth', { value: String(width) })
       await this.apiFetch('PUT', '/api/settings/logoBgColor', { value: color })
-      if (this.logoSrc && this.logoSrc !== '/dhl-logo.svg') {
+      if (this.logoSrc && this.logoSrc !== '/logo.svg') {
         await this.apiFetch('PUT', '/api/settings/logoData', { value: this.logoSrc })
       }
       this.logoWidth = width
@@ -3639,7 +4594,7 @@ function app() {
     },
 
     async resetLogo() {
-      this.logoSrc = '/dhl-logo.svg'
+      this.logoSrc = '/logo.svg'
       this.logoWidth = 96
       this.logoBgColor = '#FFCC00'
       this.settingsForm.logoWidth = '96'
@@ -3651,27 +4606,275 @@ function app() {
 
     async loadPeople() {
       const r = await fetch(`${API}/api/people`)
-      this.people = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.people = Array.isArray(d) ? d : []
     },
 
     async loadCategories() {
       const r = await fetch(`${API}/api/categories`)
-      this.categories = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.categories = Array.isArray(d) ? d : []
     },
 
     async loadPriorities() {
       const r = await fetch(`${API}/api/priorities`)
-      this.priorities = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.priorities = Array.isArray(d) ? d : []
     },
 
-    // --- Generic fetch helper (adds X-User header on mutations) ---
-    apiFetch(method, path, body = null, extraHeaders = {}) {
+    // --- Generic fetch helper (adds Authorization + Content-Type) ---
+    async apiFetch(method, path, body = null, extraHeaders = {}) {
       const opts = {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-User': this.currentUser || 'Admin', ...extraHeaders },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+          ...extraHeaders,
+        },
       }
       if (body !== null) opts.body = JSON.stringify(body)
-      return fetch(`${API}${path}`, opts)
+      const response = await fetch(`${API}${path}`, opts)
+      if (response.status === 403) {
+        const clone = response.clone()
+        try {
+          const err = await clone.json()
+          if (err.error === 'company_blocked') { this.companyBlocked = true }
+        } catch {}
+      }
+      return response
+    },
+
+    // --- Auth methods ---
+    async login() {
+      this.loginForm.loading = true
+      this.loginForm.error = ''
+      try {
+        const r = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.loginForm.email, password: this.loginForm.password }),
+        })
+        if (!r.ok) { this.loginForm.error = 'Nesprávný email nebo heslo'; return }
+        const data = await r.json()
+        this.token = data.token
+        this.authUser = data.user
+        this.currentUser = data.user.name
+        localStorage.setItem('bt-token', data.token)
+        localStorage.setItem('bt-auth-user', JSON.stringify(data.user))
+        // Store SaaS plan data
+        this.companyStatus = data.companyStatus || 'active'
+        this.trialEndsAt = data.trialEndsAt || null
+        this.planSections = data.planSections || []
+        this.planName = data.planName || null
+        localStorage.setItem('bt-company-status', this.companyStatus)
+        localStorage.setItem('bt-trial-ends-at', this.trialEndsAt || '')
+        localStorage.setItem('bt-plan-sections', JSON.stringify(this.planSections))
+        localStorage.setItem('bt-plan-name', this.planName || '')
+        // Reset view to dashboard on login (avoid stale view from previous session)
+        this.view = 'dashboard'
+        this.settingsTab = 'people'
+        this.projects = data.projects || []
+        localStorage.setItem('bt-projects', JSON.stringify(this.projects))
+        if (this.projects.length === 1) {
+          this.activeProjectId = this.projects[0].id
+          localStorage.setItem('bt-project-id', String(this.projects[0].id))
+          await this.init()
+        } else if (this.projects.length > 1) {
+          this.loginStep = 'projects'  // show project picker in login card
+        } else {
+          // 0 projects (admin with no project assigned) — load app directly
+          await this.init()
+        }
+      } finally {
+        this.loginForm.loading = false
+      }
+    },
+
+    selectProject(id) {
+      this.activeProjectId = id
+      localStorage.setItem('bt-project-id', String(id))
+      this.showProjectPicker = false
+      this.init()
+    },
+
+    logout() {
+      this.token = null
+      this.authUser = null
+      localStorage.removeItem('bt-token')
+      localStorage.removeItem('bt-auth-user')
+      localStorage.removeItem('bt-projects')
+      localStorage.removeItem('bt-project-id')
+      this.projects = []
+      this.activeProjectId = null
+      this.loginStep = 'credentials'
+      this.companyStatus = 'active'
+      this.trialEndsAt = null
+      this.planSections = []
+      this.planName = null
+      this.companyBlocked = false
+      localStorage.removeItem('bt-company-status')
+      localStorage.removeItem('bt-trial-ends-at')
+      localStorage.removeItem('bt-plan-sections')
+      localStorage.removeItem('bt-plan-name')
+    },
+
+    get trialDaysLeft() {
+      if (!this.trialEndsAt) return null
+      const diff = new Date(this.trialEndsAt) - new Date()
+      return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+    },
+
+    async loadPublicPlans() {
+      try {
+        const r = await fetch(`${API}/api/plans/public`)
+        if (r.ok) {
+          this.publicPlans = await r.json()
+          if (this.publicPlans.length > 0 && !this.registerForm.planSlug) {
+            const def = this.publicPlans.find(p => p.isDefault) || this.publicPlans[0]
+            this.registerForm.planSlug = def.slug
+          }
+        }
+      } catch {}
+      this.loadCaptcha()
+    },
+    async loadCaptcha() {
+      try {
+        const r = await fetch(`${API}/api/auth/captcha`)
+        if (r.ok) {
+          const data = await r.json()
+          this.registerForm.captchaId = data.id
+          this.registerForm.captchaQuestion = data.question
+          this.registerForm.captchaAnswer = null
+        }
+      } catch {}
+    },
+
+    async register() {
+      this.registerForm.loading = true
+      this.registerForm.error = ''
+      this.registerForm.success = ''
+
+      // Frontend field validation
+      if (!this.registerForm.companyName || this.registerForm.companyName.length < 2) {
+        this.registerForm.error = 'Zadejte název firmy (min. 2 znaky)'
+        this.registerForm.loading = false
+        return
+      }
+      if (!this.registerForm.userName || this.registerForm.userName.length < 1) {
+        this.registerForm.error = 'Zadejte vaše jméno'
+        this.registerForm.loading = false
+        return
+      }
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!this.registerForm.userEmail || !emailRe.test(this.registerForm.userEmail)) {
+        this.registerForm.error = 'Zadejte platný e-mail (např. jan@firma.cz)'
+        this.registerForm.loading = false
+        return
+      }
+      const pw = this.registerForm.userPassword
+      if (pw.length < 6 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^a-zA-Z0-9]/.test(pw)) {
+        this.registerForm.error = 'Heslo musí mít min. 6 znaků: velké + malé písmeno, číslici a speciální znak'
+        this.registerForm.loading = false
+        return
+      }
+      if (!this.registerForm.planSlug) {
+        this.registerForm.error = 'Vyberte tarif'
+        this.registerForm.loading = false
+        return
+      }
+      if (!this.registerForm.captchaAnswer && this.registerForm.captchaAnswer !== 0) {
+        this.registerForm.error = 'Vyplňte odpověď na ověřovací otázku'
+        this.registerForm.loading = false
+        return
+      }
+
+      try {
+        const r = await fetch(`${API}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName: this.registerForm.companyName,
+            companySlug: this.registerForm.companySlug,
+            planSlug: this.registerForm.planSlug,
+            userName: this.registerForm.userName,
+            userEmail: this.registerForm.userEmail,
+            userPassword: this.registerForm.userPassword,
+            captchaId: this.registerForm.captchaId,
+            captchaAnswer: this.registerForm.captchaAnswer,
+          }),
+        })
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}))
+          // Show specific error messages in Czech
+          if (err.error === 'Company slug already taken') {
+            this.registerForm.error = 'Firma s tímto názvem již existuje. Zkuste jiný název.'
+          } else if (err.error === 'Email already registered') {
+            this.registerForm.error = 'Tento e-mail je již registrován. Přihlaste se nebo použijte jiný.'
+          } else if (err.error === 'Invalid plan') {
+            this.registerForm.error = 'Vybraný tarif není dostupný.'
+          } else if (err.details) {
+            // Parse Zod validation errors
+            const issues = err.details?.fieldErrors || {}
+            const msgs = Object.entries(issues).map(([field, errs]) => {
+              const labels = { companyName: 'Název firmy', companySlug: 'Slug', planSlug: 'Tarif', userName: 'Jméno', userEmail: 'E-mail', userPassword: 'Heslo' }
+              return (labels[field] || field) + ': ' + (Array.isArray(errs) ? errs.join(', ') : errs)
+            })
+            this.registerForm.error = msgs.length > 0 ? msgs.join(' | ') : (err.error || 'Registrace se nezdařila')
+          } else {
+            this.registerForm.error = err.error || 'Registrace se nezdařila'
+          }
+          this.loadCaptcha() // reload captcha on error
+          return
+        }
+        const data = await r.json()
+        // Individual plan — show success message, don't auto-login
+        if (data.individual) {
+          this.registerForm.success = data.message
+          return
+        }
+        this.token = data.token
+        this.authUser = data.user
+        this.currentUser = data.user.name
+        localStorage.setItem('bt-token', data.token)
+        localStorage.setItem('bt-auth-user', JSON.stringify(data.user))
+        this.projects = data.projects || []
+        localStorage.setItem('bt-projects', JSON.stringify(this.projects))
+        this.companyStatus = data.companyStatus || 'trial'
+        this.trialEndsAt = data.trialEndsAt || null
+        this.planSections = data.planSections || []
+        this.planName = data.planName || null
+        localStorage.setItem('bt-company-status', this.companyStatus)
+        localStorage.setItem('bt-trial-ends-at', this.trialEndsAt || '')
+        localStorage.setItem('bt-plan-sections', JSON.stringify(this.planSections))
+        localStorage.setItem('bt-plan-name', this.planName || '')
+        // Reset view to dashboard after registration (avoid lingering superadmin view)
+        this.view = 'dashboard'
+        this.settingsTab = 'people'
+        if (this.projects.length >= 1) {
+          this.activeProjectId = this.projects[0].id
+          localStorage.setItem('bt-project-id', String(this.projects[0].id))
+          await this.init()
+        }
+      } finally {
+        this.registerForm.loading = false
+      }
+    },
+
+    // Permission check helper
+    can(section, access = 'read') {
+      if (!this.authUser) return false
+      if (this.authUser.role === 'admin' || this.authUser.role === 'superadmin') return true
+      // Plan-level check: if planSections is set, section must be in it
+      if (this.planSections && this.planSections.length > 0 && !this.planSections.includes(section)) return false
+      let perms = {}
+      try { perms = JSON.parse(this.authUser.permissions || '{}') } catch {}
+      const level = perms[section] ?? 'none'
+      if (access === 'read')  return level === 'read' || level === 'write'
+      if (access === 'write') return level === 'write'
+      return false
     },
 
     async loadSettings() {
@@ -3691,11 +4894,11 @@ function app() {
       // Branding
       this.logoWidth = Math.min(180, Math.max(40, parseInt(s.logoWidth || '96') || 96))
       this.logoBgColor = s.logoBgColor || '#FFCC00'
-      this.logoSrc = s.logoData || '/dhl-logo.svg'
+      this.logoSrc = s.logoData || '/logo.svg'
       this.settingsForm.logoWidth = String(this.logoWidth)
       this.settingsForm.logoBgColor = this.logoBgColor
       // Palette
-      this.applyPalette(s.colorPalette || 'dhl')
+      this.applyPalette(s.colorPalette || 'classic')
     },
 
     async saveEurRate() {
@@ -3733,7 +4936,9 @@ function app() {
       const params = new URLSearchParams({ category: this.auditCategory })
       if (this.auditFilter) params.set('entity', this.auditFilter)
       const r = await fetch(`${API}/api/audit?${params}`)
-      this.auditLog = await r.json()
+      if (!r.ok) return
+      const d = await r.json()
+      this.auditLog = Array.isArray(d) ? d : []
     },
 
     async clearAuditLog() {
@@ -3743,13 +4948,222 @@ function app() {
       this.auditLog = []
     },
 
+    // --- User management (admin only) ---
+    async loadUsers() {
+      const r = await fetch(`${API}/api/users`)
+      if (!r.ok) return
+      this.users = await r.json()
+    },
+
+    editUser(u) {
+      let perms = { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+      try { perms = { ...perms, ...JSON.parse(u.permissions || '{}') } } catch {}
+      this.userForm = { id: u.id, email: u.email, name: u.name, role: u.role, password: '', error: '', permissions: perms }
+    },
+
+    resetUserForm() {
+      this.userForm = {
+        id: null, email: '', name: '', password: '', error: '', role: 'user',
+        permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+      }
+    },
+
+    async saveUser() {
+      this.userForm.error = ''
+      if (!this.userForm.name) { this.userForm.error = 'Vyplňte jméno'; return }
+      if (!this.userForm.id && !this.userForm.email) { this.userForm.error = 'Vyplňte e-mail'; return }
+      if (!this.userForm.id && !this.userForm.password) { this.userForm.error = 'Vyplňte heslo'; return }
+      // Validate password format
+      if (this.userForm.password) {
+        const pw = this.userForm.password
+        if (pw.length < 6 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^a-zA-Z0-9]/.test(pw)) {
+          this.userForm.error = 'Heslo musí mít min. 6 znaků: velké + malé písmeno, číslici a speciální znak'
+          return
+        }
+      }
+
+      const body = { name: this.userForm.name, role: this.userForm.role, permissions: this.userForm.permissions }
+      if (!this.userForm.id) body.email = this.userForm.email
+      if (this.userForm.password) body.password = this.userForm.password
+
+      const r = this.userForm.id
+        ? await this.apiFetch('PUT', `/api/users/${this.userForm.id}`, body)
+        : await this.apiFetch('POST', '/api/users', body)
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        if (err.details?.fieldErrors) {
+          const labels = { email: 'E-mail', name: 'Jméno', password: 'Heslo', role: 'Role' }
+          const msgs = Object.entries(err.details.fieldErrors).map(([f, e]) => (labels[f]||f) + ': ' + (Array.isArray(e)?e.join(', '):e))
+          this.userForm.error = msgs.join(' | ')
+        } else {
+          this.userForm.error = err.message || err.error || 'Chyba při ukládání'
+        }
+        return
+      }
+      await this.loadUsers()
+      this.resetUserForm()
+    },
+
+    async deactivateUser(u) {
+      const action = u.active ? 'deaktivovat' : 'aktivovat'
+      if (!confirm(`Opravdu chcete ${action} uživatele "${u.name}"?`)) return
+      const r = u.active
+        ? await this.apiFetch('DELETE', `/api/users/${u.id}`)
+        : await this.apiFetch('PUT', `/api/users/${u.id}`, { active: true })
+      if (r.ok) await this.loadUsers()
+    },
+
+    // --- Project management methods ---
+    async loadProjects() {
+      const r = await fetch(`${API}/api/projects`)
+      if (!r.ok) return
+      this.projects = await r.json()
+    },
+    resetProjectForm() {
+      this.projectForm = { id: null, name: '', description: '', error: '' }
+    },
+    editProject(p) {
+      this.projectForm = { id: p.id, name: p.name, description: p.description || '', error: '' }
+    },
+    async saveProject() {
+      this.projectForm.error = ''
+      const isNew = !this.projectForm.id
+      const url = isNew ? '/api/projects' : `/api/projects/${this.projectForm.id}`
+      const method = isNew ? 'POST' : 'PUT'
+      const r = await this.apiFetch(method, url, { name: this.projectForm.name, description: this.projectForm.description })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        this.projectForm.error = err.message || err.error || 'Chyba při ukládání'
+        return
+      }
+      await this.loadProjects()
+      this.resetProjectForm()
+    },
+    async deleteProject(id) {
+      if (!confirm('Smazat projekt? Tím smažete VŠECHNA jeho data!')) return
+      await this.apiFetch('DELETE', `/api/projects/${id}`)
+      await this.loadProjects()
+    },
+    async loadProjectMembers(projectId) {
+      this.projectMembersProjectId = projectId
+      const r = await fetch(`${API}/api/projects/${projectId}/users`)
+      this.projectMembers = r.ok ? await r.json() : []
+    },
+    async addProjectMember(projectId, userId) {
+      await this.apiFetch('POST', `/api/projects/${projectId}/users`, { userId })
+      await this.loadProjectMembers(projectId)
+    },
+    async removeProjectMember(projectId, userId) {
+      await this.apiFetch('DELETE', `/api/projects/${projectId}/users/${userId}`)
+      await this.loadProjectMembers(projectId)
+    },
+
+    // --- Company management methods (superadmin) ---
+    async loadCompanies() {
+      const r = await this.apiFetch('GET', '/api/companies')
+      if (r.ok) this.companies = await r.json()
+    },
+    resetCompanyForm() {
+      this.companyForm = { id: null, name: '', slug: '', planId: null, status: 'trial', maxProjectsOverride: null, maxUsersOverride: null, adminEmail: '', adminName: '', adminPassword: '', error: '', _showCreate: false }
+    },
+    editCompany(c) {
+      this.companyForm = {
+        id: c.id, name: c.name, slug: c.slug, planId: c.planId,
+        status: c.status || 'trial',
+        maxProjectsOverride: c.maxProjectsOverride ?? null,
+        maxUsersOverride: c.maxUsersOverride ?? null,
+        adminEmail: '', adminName: '', adminPassword: '', error: '', _showCreate: false,
+      }
+    },
+    async saveCompany() {
+      this.companyForm.error = ''
+      const isNew = !this.companyForm.id
+      const url = isNew ? '/api/companies' : `/api/companies/${this.companyForm.id}`
+      const method = isNew ? 'POST' : 'PUT'
+      const body = isNew
+        ? { name: this.companyForm.name, slug: this.companyForm.slug, planId: this.companyForm.planId, adminEmail: this.companyForm.adminEmail, adminName: this.companyForm.adminName, adminPassword: this.companyForm.adminPassword }
+        : {
+          name: this.companyForm.name, slug: this.companyForm.slug,
+          planId: this.companyForm.planId || undefined,
+          status: this.companyForm.status,
+          maxProjectsOverride: this.companyForm.maxProjectsOverride || null,
+          maxUsersOverride: this.companyForm.maxUsersOverride || null,
+        }
+      const r = await this.apiFetch(method, url, body)
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        this.companyForm.error = err.error || 'Chyba při ukládání'
+        return
+      }
+      await this.loadCompanies()
+      this.resetCompanyForm()
+    },
+    async deleteCompany(id) {
+      if (!confirm('Smazat firmu? Tím smažete VŠECHNA její data (uživatele, projekty, záznamy)!')) return
+      await this.apiFetch('DELETE', `/api/companies/${id}`)
+      await this.loadCompanies()
+    },
+    async viewCompanyOverview(id) {
+      const r = await this.apiFetch('GET', `/api/companies/${id}/overview`)
+      if (r.ok) {
+        this.companyOverview = await r.json()
+        this.settingsTab = 'company-overview'
+      }
+    },
+
+    // --- Plan management methods (superadmin) ---
+    async loadPlans() {
+      const r = await this.apiFetch('GET', '/api/plans')
+      if (r.ok) this.plans = await r.json()
+    },
+    resetPlanForm() {
+      this.planForm = { id: null, name: '', slug: '', sections: [], maxProjects: 1, maxUsers: 5, priceMonthly: 0, description: '', isDefault: false, isPublic: false, error: '', _showCreate: false }
+    },
+    editPlan(p) {
+      this.planForm = { id: p.id, name: p.name, slug: p.slug, sections: JSON.parse(p.sections || '[]'), maxProjects: p.maxProjects, maxUsers: p.maxUsers, priceMonthly: p.priceMonthly, description: p.description || '', isDefault: p.isDefault, isPublic: p.isPublic ?? true, error: '', _showCreate: false }
+    },
+    async savePlan() {
+      this.planForm.error = ''
+      const isNew = !this.planForm.id
+      const url = isNew ? '/api/plans' : `/api/plans/${this.planForm.id}`
+      const method = isNew ? 'POST' : 'PUT'
+      const body = { name: this.planForm.name, slug: this.planForm.slug, sections: this.planForm.sections, maxProjects: this.planForm.maxProjects, maxUsers: this.planForm.maxUsers, priceMonthly: this.planForm.priceMonthly, description: this.planForm.description, isDefault: this.planForm.isDefault, isPublic: this.planForm.isPublic }
+      const r = await this.apiFetch(method, url, body)
+      if (!r.ok) { const err = await r.json().catch(() => ({})); this.planForm.error = err.error || 'Chyba'; return }
+      await this.loadPlans()
+      this.resetPlanForm()
+    },
+    async deletePlan(id) {
+      if (!confirm('Deaktivovat plán?')) return
+      await this.apiFetch('DELETE', `/api/plans/${id}`)
+      await this.loadPlans()
+    },
+
+    // --- Invoice methods (superadmin) ---
+    async loadInvoices() {
+      const r = await this.apiFetch('GET', '/api/invoices')
+      if (r.ok) this.invoices = await r.json()
+    },
+    async markInvoicePaid(id) {
+      if (!confirm('Označit fakturu jako zaplacenou? Firma bude aktivována.')) return
+      await this.apiFetch('PATCH', `/api/invoices/${id}/pay`)
+      await this.loadInvoices()
+    },
+
+    // --- SaaS stats (superadmin) ---
+    async loadSaasStats() {
+      const r = await this.apiFetch('GET', '/api/admin/stats')
+      if (r.ok) this.saasStats = await r.json()
+    },
+
     async loadLabor() {
       const [lr, sr] = await Promise.all([
         fetch(`${API}/api/labor`),
         fetch(`${API}/api/labor-spent`),
       ])
-      this.labor = await lr.json()
-      this.laborSpent = await sr.json()
+      if (lr.ok) { const d = await lr.json(); this.labor = Array.isArray(d) ? d : [] }
+      if (sr.ok) { const d = await sr.json(); this.laborSpent = Array.isArray(d) ? d : [] }
     },
 
     async addLaborEntry() {
@@ -3787,18 +5201,19 @@ function app() {
       })
       this.laborSpentForm = { date: new Date().toISOString().slice(0, 10), amount: '', note: '' }
       const r = await fetch(`${API}/api/labor-spent`)
-      this.laborSpent = await r.json()
+      if (r.ok) { const d = await r.json(); this.laborSpent = Array.isArray(d) ? d : [] }
     },
 
     async deleteLaborSpent(id) {
       if (!confirm('Smazat tento záznam?')) return
       await this.apiFetch('DELETE', `/api/labor-spent/${id}`)
       const r = await fetch(`${API}/api/labor-spent`)
-      this.laborSpent = await r.json()
+      if (r.ok) { const d = await r.json(); this.laborSpent = Array.isArray(d) ? d : [] }
     },
 
     async loadDashboard() {
       const r = await fetch(`${API}/api/dashboard`)
+      if (!r.ok) return
       this.dash = await r.json()
       this.$nextTick(() => this.renderCharts())
     },
@@ -3833,19 +5248,27 @@ function app() {
 
     async loadRisks() {
       const r = await fetch(`${API}/api/risks`)
-      this.risks = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.risks = Array.isArray(data) ? data : []
     },
     async loadIssues() {
       const r = await fetch(`${API}/api/issues`)
-      this.issues = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.issues = Array.isArray(data) ? data : []
     },
     async loadChanges() {
       const r = await fetch(`${API}/api/changes`)
-      this.changes = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.changes = Array.isArray(data) ? data : []
     },
     async loadAssumptions() {
       const r = await fetch(`${API}/api/assumptions`)
-      this.assumptions = await r.json()
+      if (!r.ok) return
+      const data = await r.json()
+      this.assumptions = Array.isArray(data) ? data : []
     },
 
     openNewAssumption() {
@@ -3874,7 +5297,11 @@ function app() {
       const method = this.assumptionModal.id ? 'PUT' : 'POST'
       const path   = this.assumptionModal.id ? `/api/assumptions/${this.assumptionModal.id}` : '/api/assumptions'
       const res = await this.apiFetch(method, path, payload)
-      if (res && res.error) { alert('Chyba: ' + res.error); return }
+      if (!res.ok) {
+        try { const err = await res.json(); alert('Chyba: ' + (err.error || err.message || JSON.stringify(err))) }
+        catch { alert('Chyba: HTTP ' + res.status) }
+        return
+      }
       this.assumptionModal.open = false
       await this.loadAssumptions()
       await this.loadRisks()
@@ -4426,7 +5853,7 @@ function app() {
 </style></head><body>
 <div class="hdr">
   <div>
-    <div class="brand">DHL Supply Chain</div>
+    <div class="brand">PM Tool</div>
     <div class="proj">${esc(this.projectName || 'Budget Tracker')}</div>
   </div>
   <div class="meta">
@@ -4518,7 +5945,7 @@ function app() {
       return `
         <div class="hdr">
           <div>
-            <div class="brand">DHL Supply Chain</div>
+            <div class="brand">PM Tool</div>
             <div class="proj">${esc(this.projectName || 'Budget Tracker')}</div>
             ${subtitle ? `<div style="font-size:8pt;color:#888;margin-top:2px">${subtitle}</div>` : ''}
           </div>

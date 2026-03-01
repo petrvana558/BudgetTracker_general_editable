@@ -5,9 +5,10 @@ export async function logAudit(opts: {
   user: string
   category?: string
   entity: string
-  action: 'CREATE' | 'UPDATE' | 'DELETE'
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'COMMENT' | 'COMMENT_DELETE'
   entityId?: number | null
   summary: string
+  projectId?: number
 }) {
   try {
     await prisma.auditLog.create({
@@ -18,6 +19,7 @@ export async function logAudit(opts: {
         action: opts.action,
         entityId: opts.entityId ?? null,
         summary: opts.summary,
+        projectId: opts.projectId ?? 1,
       },
     })
   } catch {
@@ -31,8 +33,10 @@ export async function auditRoutes(fastify: FastifyInstance) {
     const limit = Math.min(parseInt(q.limit || '200'), 500)
     const category = q.category || undefined
     const entity = q.entity || undefined
+    const projectId = (req as any).projectId ?? 1
     return prisma.auditLog.findMany({
       where: {
+        projectId,
         ...(category ? { category } : {}),
         ...(entity ? { entity } : {}),
       },
@@ -44,8 +48,12 @@ export async function auditRoutes(fastify: FastifyInstance) {
   fastify.delete('/api/audit', async (req, reply) => {
     const q = req.query as Record<string, string>
     const category = q.category || undefined
+    const projectId = (req as any).projectId ?? 1
     await prisma.auditLog.deleteMany({
-      where: category ? { category } : undefined,
+      where: {
+        projectId,
+        ...(category ? { category } : {}),
+      },
     })
     return reply.status(204).send()
   })

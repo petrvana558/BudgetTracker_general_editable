@@ -36,14 +36,15 @@ function parseDate(s: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-function user(req: { user?: string }) {
-  return req.user || 'System'
+function user(req: any) {
+  return req.authUser?.name || 'System'
 }
 
 export async function itemRoutes(fastify: FastifyInstance) {
   fastify.get('/api/items', async (req) => {
     const query = req.query as Record<string, string>
-    const where: Record<string, unknown> = {}
+    const projectId = (req as any).projectId ?? 1
+    const where: Record<string, unknown> = { projectId }
     if (query.category) where.category = query.category
     if (query.tenderStatus) where.tenderStatus = query.tenderStatus
     if (query.responsibleId) where.responsibleId = parseInt(query.responsibleId)
@@ -63,8 +64,9 @@ export async function itemRoutes(fastify: FastifyInstance) {
 
   fastify.get('/api/items/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    const item = await prisma.budgetItem.findUnique({
-      where: { id: parseInt(id) },
+    const projectId = (req as any).projectId ?? 1
+    const item = await prisma.budgetItem.findFirst({
+      where: { id: parseInt(id), projectId },
       include: {
         responsible: true,
         priority: true,
@@ -76,10 +78,12 @@ export async function itemRoutes(fastify: FastifyInstance) {
   })
 
   fastify.post('/api/items', async (req, reply) => {
+    const projectId = (req as any).projectId!
     const data = ItemSchema.parse(req.body)
     const item = await prisma.budgetItem.create({
       data: {
         ...data,
+        projectId,
         tenderStartDate: parseDate(data.tenderStartDate),
         tenderDeadline: parseDate(data.tenderDeadline),
         orderPlaceDate: parseDate(data.orderPlaceDate),
@@ -91,15 +95,17 @@ export async function itemRoutes(fastify: FastifyInstance) {
       user: user(req),
       entity: 'Item', action: 'CREATE', entityId: item.id,
       summary: `Přidána položka: "${item.description}"${item.totalEstCost ? ' · ' + item.totalEstCost.toLocaleString('cs-CZ') + ' Kč' : ''}${item.category ? ' · ' + item.category : ''}`,
+      projectId,
     })
     return reply.status(201).send(item)
   })
 
   fastify.put('/api/items/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
+    const projectId = (req as any).projectId ?? 1
     const data = ItemSchema.partial().parse(req.body)
     const item = await prisma.budgetItem.update({
-      where: { id: parseInt(id) },
+      where: { id: parseInt(id), projectId },
       data: {
         ...data,
         tenderStartDate: data.tenderStartDate !== undefined ? parseDate(data.tenderStartDate) : undefined,
@@ -117,18 +123,21 @@ export async function itemRoutes(fastify: FastifyInstance) {
       user: user(req),
       entity: 'Item', action: 'UPDATE', entityId: item.id,
       summary: auditSummary,
+      projectId,
     })
     return item
   })
 
   fastify.delete('/api/items/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    const item = await prisma.budgetItem.findUnique({ where: { id: parseInt(id) } })
-    await prisma.budgetItem.delete({ where: { id: parseInt(id) } })
+    const projectId = (req as any).projectId ?? 1
+    const item = await prisma.budgetItem.findFirst({ where: { id: parseInt(id), projectId } })
+    await prisma.budgetItem.delete({ where: { id: parseInt(id), projectId } })
     await logAudit({
       user: user(req),
       entity: 'Item', action: 'DELETE', entityId: parseInt(id),
       summary: `Smazána položka: "${item?.description ?? 'ID ' + id}"`,
+      projectId,
     })
     return reply.status(204).send()
   })

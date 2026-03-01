@@ -9,6 +9,7 @@ datasource db {
 
 model BudgetItem {
   id                     Int       @id @default(autoincrement())
+  projectId              Int       @default(1)
   category               String?
   subcategory            String?
   description            String
@@ -49,6 +50,7 @@ model BudgetItem {
 
 model Comment {
   id        Int        @id @default(autoincrement())
+  projectId Int        @default(1)
   itemId    Int
   item      BudgetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   author    String     @default("System")
@@ -79,17 +81,25 @@ model Priority {
 
 model Category {
   id            Int    @id @default(autoincrement())
-  name          String @unique
+  projectId     Int    @default(1)
+  name          String
   subcategories String @default("[]")
+
+  @@unique([projectId, name])
 }
 
 model Settings {
-  key   String @id
-  value String
+  id        Int    @id @default(autoincrement())
+  projectId Int    @default(1)
+  key       String
+  value     String
+
+  @@unique([projectId, key])
 }
 
 model AuditLog {
   id        Int      @id @default(autoincrement())
+  projectId Int      @default(1)
   timestamp DateTime @default(now())
   user      String   @default("System")
   category  String   @default("Budget Tracker")
@@ -101,6 +111,7 @@ model AuditLog {
 
 model LaborCost {
   id         Int              @id @default(autoincrement())
+  projectId  Int              @default(1)
   role       String
   personName String?
   mdRate     Float            @default(0)
@@ -126,6 +137,7 @@ model LaborRoleEntry {
 
 model LaborSpentLog {
   id        Int      @id @default(autoincrement())
+  projectId Int      @default(1)
   date      DateTime
   amount    Float
   note      String?
@@ -136,6 +148,7 @@ model LaborSpentLog {
 
 model TestSet {
   id        Int        @id @default(autoincrement())
+  projectId Int        @default(1)
   name      String
   dateMin   DateTime?
   dateMax   DateTime?
@@ -193,6 +206,7 @@ model Defect {
 
 model Risk {
   id              Int                @id @default(autoincrement())
+  projectId       Int                @default(1)
   title           String
   description     String?
   category        String             @default("technical")
@@ -225,6 +239,7 @@ model RiskScoreHistory {
 
 model Issue {
   id                    Int            @id @default(autoincrement())
+  projectId             Int            @default(1)
   title                 String
   description           String?
   type                  String         @default("Bug")
@@ -247,6 +262,7 @@ model Issue {
 
 model ChangeRequest {
   id                    Int      @id @default(autoincrement())
+  projectId             Int      @default(1)
   title                 String
   description           String?
   changeType            String   @default("Scope")
@@ -271,7 +287,8 @@ model ChangeRequest {
 
 model Assumption {
   id                      Int       @id @default(autoincrement())
-  code                    String    @unique
+  projectId               Int       @default(1)
+  code                    String
   title                   String
   description             String?
   category                String    @default("Finance")
@@ -294,4 +311,101 @@ model Assumption {
   notes                   String?
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
+
+  @@unique([projectId, code])
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  name         String
+  passwordHash String
+  role         String        @default("user")   // "superadmin" | "admin" | "user"
+  permissions  String        @default("{}")     // JSON: {"assets":"write","testing":"read",...}
+  active       Boolean       @default(true)
+  companyId    Int?
+  company      Company?      @relation(fields: [companyId], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  projects     ProjectUser[]
+}
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+
+model Project {
+  id          Int           @id @default(autoincrement())
+  companyId   Int           @default(1)
+  company     Company       @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  users       ProjectUser[]
+}
+
+model ProjectUser {
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+}
+
+// ── Companies ─────────────────────────────────────────────────────────────────
+
+model Company {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  slug                String    @unique
+  active              Boolean   @default(true)
+  planId              Int?
+  plan                Plan?     @relation(fields: [planId], references: [id])
+  trialEndsAt         DateTime?
+  status              String    @default("trial") // trial | active | expired | blocked
+  maxProjectsOverride Int?      // superadmin can override plan limit (null = use plan default)
+  maxUsersOverride    Int?      // superadmin can override plan limit (null = use plan default)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  users               User[]
+  projects            Project[]
+  invoices            Invoice[]
+}
+
+// ── Plans ────────────────────────────────────────────────────────────────────
+
+model Plan {
+  id           Int       @id @default(autoincrement())
+  name         String    @unique
+  slug         String    @unique
+  sections     String    @default("[]")
+  maxProjects  Int       @default(1)
+  maxUsers     Int       @default(5)
+  priceMonthly Float     @default(0)
+  description  String?
+  isDefault    Boolean   @default(false)
+  isPublic     Boolean   @default(true)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  companies    Company[]
+}
+
+// ── Invoices ─────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id             Int       @id @default(autoincrement())
+  companyId      Int
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  amount         Float
+  variableSymbol String    @unique
+  status         String    @default("pending")
+  issuedAt       DateTime  @default(now())
+  dueDate        DateTime
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
