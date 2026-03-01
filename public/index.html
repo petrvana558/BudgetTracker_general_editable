@@ -533,7 +533,7 @@
     <div class="sidebar-logo" :style="'background:' + logoBgColor">
       <div class="logo-sub" style="font-size:18px;margin-bottom:2px" x-text="t('yourLogo')"></div>
       <div x-show="projectName" class="logo-date" style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:1px" x-text="projectName"></div>
-      <div class="logo-date" x-text="new Date().toLocaleDateString('cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
+      <div class="logo-date" x-text="new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'cs-CZ', {day:'2-digit',month:'long',year:'numeric'})"></div>
     </div>
 
     <!-- Project switcher -->
@@ -1380,7 +1380,7 @@
               </div>
               <template x-for="entry in laborFormEntries" :key="entry.id">
                 <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f5f5f5;font-size:12px">
-                  <span style="color:#888;min-width:70px;flex-shrink:0" x-text="new Date(entry.date).toLocaleDateString('cs-CZ',{month:'short',year:'numeric'})"></span>
+                  <span style="color:#888;min-width:70px;flex-shrink:0" x-text="new Date(entry.date).toLocaleDateString(lang === 'en' ? 'en-GB' : 'cs-CZ',{month:'short',year:'numeric'})"></span>
                   <span class="font-mono font-semibold flex-1"
                     :class="laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{}) ? 'text-red-600' : laborFormEntries.reduce((s,e)=>s+e.amount,0) > laborAmount(laborDetail.lc||{})*(laborWarningPct/100) ? 'text-yellow-500' : 'text-green-700'"
                     x-text="fmtMoney(entry.amount)"></span>
@@ -1459,10 +1459,7 @@
                  class="rounded p-2 text-sm font-bold text-center"
                  style="background:#fff3cd;color:#856404;border:1px solid #ffc107">
               <span x-text="t('totalLabel')"></span>
-              <span x-text="currency === 'EUR'
-                ? new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(laborForm.mdRate * laborForm.mdDays)
-                : new Intl.NumberFormat('cs-CZ',{style:'currency',currency:'CZK',maximumFractionDigits:0}).format(laborForm.mdRate * laborForm.mdDays)">
-              </span>
+              <span x-text="fmtMoney(laborForm.mdRate * laborForm.mdDays)"></span>
             </div>
             <div class="form-group">
               <label class="form-label" x-text="t('notesLabel')"></label>
@@ -6848,13 +6845,14 @@ function app() {
     exportPDF() {
       const currency = this.currency
       const eurRate = this.eurRate
+      const loc = this.lang === 'en' ? 'en-GB' : 'cs-CZ'
       const fmt = (v) => {
         if (v == null || v === 0) return '—'
         if (currency === 'EUR' && eurRate > 0)
-          return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / eurRate)
-        return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
+          return new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / eurRate)
+        return new Intl.NumberFormat(loc, { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
       }
-      const fmtD = (d) => d ? new Date(d).toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+      const fmtD = (d) => d ? new Date(d).toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
       const esc = (s) => (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       const hasFilter = this.filters.search || this.filters.category || this.filters.tenderStatus ||
         this.filters.responsibleId || this.filters.priorityId || this.filters.capexOnly
@@ -6940,14 +6938,15 @@ function app() {
     // shared helpers for PDF exports
     _pdfFmt() {
       const currency = this.currency, eurRate = this.eurRate
+      const loc = this.lang === 'en' ? 'en-GB' : 'cs-CZ'
       return {
         fmt: (v) => {
           if (v == null || v === 0) return '—'
           if (currency === 'EUR' && eurRate > 0)
-            return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / eurRate)
-          return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
+            return new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / eurRate)
+          return new Intl.NumberFormat(loc, { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
         },
-        fmtD: (d) => d ? new Date(d).toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—',
+        fmtD: (d) => d ? new Date(d).toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—',
         esc:  (s) => (s ?? '—').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
         currency,
       }
@@ -7528,10 +7527,11 @@ function app() {
     // --- Helpers ---
     fmtMoney(v) {
       if (v == null || v === 0) return '—'
+      const loc = this.lang === 'en' ? 'en-GB' : 'cs-CZ'
       if (this.currency === 'EUR' && this.eurRate > 0) {
-        return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / this.eurRate)
+        return new Intl.NumberFormat(loc, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v / this.eurRate)
       }
-      return new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
+      return new Intl.NumberFormat(loc, { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 }).format(v)
     },
 
     fmtDate(d) {
@@ -7541,21 +7541,14 @@ function app() {
     },
 
     fmtDateTime(d) {
-      if (!d) return ''
-      const dt = new Date(d)
+      if (!d) return '—'
       const loc = this.lang === 'en' ? 'en-GB' : 'cs-CZ'
-      return dt.toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: 'numeric' })
-        + ' ' + dt.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+      return new Date(d).toLocaleString(loc, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     },
 
     isoDate(d) {
       if (!d) return ''
       return new Date(d).toISOString().slice(0, 10)
-    },
-
-    fmtDateTime(d) {
-      if (!d) return '—'
-      return new Date(d).toLocaleString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     },
 
     deadlineClass(d) {
@@ -7642,8 +7635,8 @@ function app() {
           data: {
             labels,
             datasets: [
-              { label: 'Odhad', data: d.byCategory.slice(0, 8).map(c => c.estimated), backgroundColor: '#FFCC00cc' },
-              { label: 'Skutečnost', data: d.byCategory.slice(0, 8).map(c => c.actual),
+              { label: this.t('chartEstimated'), data: d.byCategory.slice(0, 8).map(c => c.estimated), backgroundColor: '#FFCC00cc' },
+              { label: this.t('chartActual'), data: d.byCategory.slice(0, 8).map(c => c.actual),
                 backgroundColor: d.byCategory.slice(0, 8).map(c => c.actual > c.estimated ? '#D40511cc' : '#22c55ecc') },
             ],
           },
@@ -7659,13 +7652,13 @@ function app() {
                     const cat = d.byCategory[idx]
                     const diff = (cat.actual ?? 0) - (cat.estimated ?? 0)
                     if (!diff) return ''
-                    const sign = diff > 0 ? '▲ přečerpáno' : '▼ úspora'
-                    return sign + ': ' + Math.abs(diff).toLocaleString('cs-CZ') + ' Kč'
+                    const sign = diff > 0 ? this.t('chartOverspent') : this.t('chartSavings')
+                    return sign + ': ' + this.fmtMoney(Math.abs(diff))
                   }
                 }
               }
             },
-            scales: { y: { ticks: { callback: v => v.toLocaleString('cs-CZ') + ' Kč' } } },
+            scales: { y: { ticks: { callback: v => this.fmtMoney(v) } } },
             onHover: hoverCursor,
             onClick: (evt, els) => {
               if (!els.length) return
@@ -8075,7 +8068,7 @@ function app() {
       const d = new Date(min)
       let dayIndex = 0
       while (d <= max) {
-        labels.push(d.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' }))
+        labels.push(d.toLocaleDateString(this.lang === 'en' ? 'en-GB' : 'cs-CZ', { day: '2-digit', month: '2-digit' }))
 
         // Planned: linear cumulative
         planned.push(Math.round(total * (dayIndex + 1) / availDays))
@@ -8241,11 +8234,11 @@ function app() {
 
       let html = `
         <div class="gantt-header-row">
-          <div class="gantt-header-label">Popis</div>
+          <div class="gantt-header-label">${this.t('ppGanttHeaderLabel')}</div>
           <div style="flex:1;display:flex;position:relative">
             ${months.map(m => {
               const msPct = ((m - minDate) / totalMs) * 100
-              const label = m.toLocaleDateString('cs-CZ', { month: 'short', year: '2-digit' })
+              const label = m.toLocaleDateString(this.lang === 'en' ? 'en-GB' : 'cs-CZ', { month: 'short', year: '2-digit' })
               const mWidth = (1 / months.length) * 100
               return `<div class="gantt-month" style="width:${mWidth}%">${label}</div>`
             }).join('')}
@@ -8255,8 +8248,8 @@ function app() {
       `
 
       // Today marker overlay
-      html += `<div style="position:absolute;left:calc(220px + ${Math.max(0, Math.min(100, todayPct ?? 0))}%);top:0;bottom:0;width:2px;background:#D40511;z-index:20;opacity:0.7" title="Dnes">
-        <div style="background:#D40511;color:white;font-size:9px;padding:1px 3px;white-space:nowrap;position:absolute;top:0;transform:translateX(-50%)">Dnes</div>
+      html += `<div style="position:absolute;left:calc(220px + ${Math.max(0, Math.min(100, todayPct ?? 0))}%);top:0;bottom:0;width:2px;background:#D40511;z-index:20;opacity:0.7" title="${this.t('ppGanttToday')}">
+        <div style="background:#D40511;color:white;font-size:9px;padding:1px 3px;white-space:nowrap;position:absolute;top:0;transform:translateX(-50%)">${this.t('ppGanttToday')}</div>
       </div>`
 
       for (const item of filtered) {

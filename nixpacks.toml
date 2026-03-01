@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci"]
+cacheDirectories = ["node_modules", ".npm"]
+
+[phases.build]
+cmds = ["npx prisma generate"]
+
+[start]
+cmd = "node start.mjs"

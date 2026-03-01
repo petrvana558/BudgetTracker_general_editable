@@ -1000,6 +1000,7 @@ const T = {
 
     // Gantt
     ppGanttToday: 'Dnes',
+    ppGanttHeaderLabel: 'Popis',
     ppGanttZoomMonth: 'Měsíce',
     ppGanttZoomWeek: 'Týdny',
     ppGanttCritPath: 'Kritická cesta',
@@ -2071,6 +2072,7 @@ const T = {
 
     // Gantt
     ppGanttToday: 'Today',
+    ppGanttHeaderLabel: 'Description',
     ppGanttZoomMonth: 'Months',
     ppGanttZoomWeek: 'Weeks',
     ppGanttCritPath: 'Critical Path',
