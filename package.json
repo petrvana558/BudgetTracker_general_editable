@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node start.mjs",
     "dev": "node start.mjs",
+    "postinstall": "prisma generate",
     "db:push": "node node_modules/prisma/build/index.js db push",
     "db:generate": "prisma generate"
   },
