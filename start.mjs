@@ -57,7 +57,14 @@ if (dbFile && !existsSync(dbFile)) {
 
 // ── Always sync schema (idempotent — adds missing tables, keeps existing data) ─
 console.log('⚙  Syncing database schema…')
-execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate', '--accept-data-loss'], { stdio: 'inherit' })
+try {
+  execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate', '--accept-data-loss'], { stdio: 'inherit' })
+} catch {
+  // Schema conflict (e.g. legacy Settings table without id column) — force reset once
+  console.log('⚠  Schema conflict detected — resetting database…')
+  execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate', '--force-reset'], { stdio: 'inherit' })
+  console.log('✓ Database reset complete — seed will restore data')
+}
 console.log('✓ Schema up to date')
 
 // ── Seed default admin + default project (idempotent) ────────────────────────
