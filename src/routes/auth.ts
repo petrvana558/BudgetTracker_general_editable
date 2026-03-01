@@ -104,8 +104,39 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // GET /api/auth/me
-  fastify.get('/api/auth/me', async (req) => req.authUser)
+  // GET /api/auth/me — returns fresh user + company data from DB
+  fastify.get('/api/auth/me', async (req) => {
+    if (!req.authUser) return req.authUser
+    const user = await prisma.user.findUnique({
+      where: { id: req.authUser.id },
+      select: { id: true, email: true, name: true, role: true, permissions: true, companyId: true },
+    })
+    if (!user) return req.authUser
+
+    const company = user.companyId
+      ? await prisma.company.findUnique({
+          where: { id: user.companyId },
+          select: { name: true, status: true, trialEndsAt: true, plan: { select: { name: true, sections: true } } },
+        })
+      : null
+
+    let planSections: string[] = []
+    if (company?.plan) {
+      try { planSections = JSON.parse(company.plan.sections) } catch {}
+    }
+    if (user.role === 'superadmin') {
+      planSections = ['assets', 'labor', 'testing', 'risks', 'issues', 'changes', 'assumptions']
+    }
+
+    return {
+      ...user,
+      companyName: company?.name ?? null,
+      companyStatus: company?.status ?? 'active',
+      trialEndsAt: company?.trialEndsAt?.toISOString() ?? null,
+      planSections,
+      planName: company?.plan?.name ?? null,
+    }
+  })
 
   // GET /api/users — admin (own company) or superadmin (all)
   fastify.get('/api/users', { preHandler: requireRole('admin') }, async (req) => {

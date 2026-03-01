@@ -5,7 +5,7 @@ export async function logAudit(opts: {
   user: string
   category?: string
   entity: string
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'COMMENT' | 'COMMENT_DELETE'
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'COMMENT' | 'COMMENT_DELETE' | 'ARCHIVE' | 'RESTORE' | 'BASELINE' | 'MOVE'
   entityId?: number | null
   summary: string
   projectId?: number

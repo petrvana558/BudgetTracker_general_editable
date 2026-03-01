@@ -5,13 +5,14 @@ import { laborAmount } from './labor'
 export async function dashboardRoutes(fastify: FastifyInstance) {
   fastify.get('/api/dashboard', async (req) => {
     const projectId = (req as any).projectId ?? 1
-    const [items, laborCosts, risks, issues, changes, assumptions] = await Promise.all([
+    const [items, laborCosts, risks, issues, changes, assumptions, tasks] = await Promise.all([
       prisma.budgetItem.findMany({ where: { projectId }, include: { responsible: true, priority: true } }),
       prisma.laborCost.findMany({ where: { projectId } }),
       prisma.risk.findMany({ where: { projectId } }),
       prisma.issue.findMany({ where: { projectId } }),
       prisma.changeRequest.findMany({ where: { projectId } }),
       prisma.assumption.findMany({ where: { projectId } }),
+      prisma.task.findMany({ where: { projectId, archived: false } }),
     ])
 
     // ── Financials ──────────────────────────────────────────────
@@ -131,6 +132,72 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       .slice(0, 5)
       .map(a => ({ id: a.id, code: a.code, title: a.title, exposureScore: a.exposureScore, status: a.status, category: a.category }))
 
+    // ── Project Plan KPIs ─────────────────────────────────────
+    const plannedTasks = tasks.filter(t => t.plannedStart && t.plannedEnd)
+    const totalEstCostPP = tasks.reduce((s, t) => s + (t.estimatedCost ?? 0), 0)
+    let ppStart: Date | null = null
+    let ppEnd: Date | null = null
+    for (const t of plannedTasks) {
+      if (!ppStart || t.plannedStart! < ppStart) ppStart = t.plannedStart
+      if (!ppEnd || t.plannedEnd! > ppEnd) ppEnd = t.plannedEnd
+    }
+    const ppDurationDays = ppStart && ppEnd ? Math.round((ppEnd.getTime() - ppStart.getTime()) / 86400000) + 1 : 0
+    const ppTotalTasks = tasks.length
+    const ppDoneTasks = tasks.filter(t => t.status === 'done').length
+    const ppLinkedRiskIds = new Set(tasks.filter(t => t.linkedRiskId).map(t => t.linkedRiskId!))
+    const ppLinkedAssumptionIds = new Set(tasks.filter(t => t.linkedAssumptionId).map(t => t.linkedAssumptionId!))
+
+    // Progress: sum(progress * estimatedCost) / sum(estimatedCost) — weighted by cost
+    const totalPlannedWork = tasks.reduce((s, t) => s + (t.estimatedCost ?? 0), 0)
+    const totalActualWork  = tasks.reduce((s, t) => s + ((t.progress ?? 0) / 100) * (t.estimatedCost ?? 0), 0)
+    const ppProgressPct = totalPlannedWork > 0
+      ? Math.round((totalActualWork / totalPlannedWork) * 100)
+      : (ppTotalTasks > 0 ? Math.round(tasks.reduce((s, t) => s + (t.progress ?? 0), 0) / ppTotalTasks) : 0)
+
+    // Overdue tasks: have plannedEnd in the past AND not done
+    const ppOverdueTasks = tasks.filter(t => t.plannedEnd && t.plannedEnd < now && t.status !== 'done').length
+    // Critical path tasks
+    const ppCriticalTasks = tasks.filter(t => t.isCriticalPath).length
+    // Unscheduled tasks: no plannedStart or no plannedEnd
+    const ppUnscheduledTasks = tasks.filter(t => !t.plannedStart || !t.plannedEnd).length
+
+    // Schedule variance: (actual/planned finish - baseline finish) per done task
+    // Positive = behind schedule (took longer), Negative = ahead
+    let ppScheduleVarianceDays: number | null = null
+    const tasksWithBaseline = tasks.filter(t => t.baselineEnd && t.plannedEnd)
+    if (tasksWithBaseline.length > 0) {
+      let totalVar = 0
+      for (const t of tasksWithBaseline) {
+        // actual finish = plannedEnd (or updatedAt if done), baseline = baselineEnd
+        const actualFinish = t.status === 'done' ? (t.updatedAt ?? t.plannedEnd!) : t.plannedEnd!
+        totalVar += Math.round((actualFinish.getTime() - t.baselineEnd!.getTime()) / 86400000)
+      }
+      ppScheduleVarianceDays = totalVar
+    }
+
+    // Planned completion % — time-based: how far into the schedule are we
+    let ppPlannedTimePct: number | null = null
+    if (ppStart && ppEnd) {
+      const elapsed = now.getTime() - ppStart.getTime()
+      const total = ppEnd.getTime() - ppStart.getTime()
+      if (total > 0) {
+        ppPlannedTimePct = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)))
+      }
+    }
+    // Work-based: how many tasks should be done by today (plannedEnd <= today)
+    const ppShouldBeDone = plannedTasks.filter(t => t.plannedEnd! <= now).length
+    const ppShouldBeDonePct = ppTotalTasks > 0 ? Math.round((ppShouldBeDone / ppTotalTasks) * 100) : 0
+
+    // On Track / At Risk indicator
+    // cpDelayed = any critical path task is overdue
+    const ppCPDelayed = tasks.some(t => t.isCriticalPath && t.plannedEnd && t.plannedEnd < now && t.status !== 'done')
+    let ppHealthStatus: 'on_track' | 'at_risk' | 'critical' = 'on_track'
+    if (ppCPDelayed || (ppScheduleVarianceDays !== null && ppScheduleVarianceDays > 5)) {
+      ppHealthStatus = 'critical'
+    } else if (ppOverdueTasks > 0 || (ppScheduleVarianceDays !== null && ppScheduleVarianceDays > 0)) {
+      ppHealthStatus = 'at_risk'
+    }
+
     return {
       summary: {
         // Budget = sum of item estimates (auto-computed)
@@ -157,6 +224,25 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         validatedPct,
         expiringSoon,
         overdueAssumptions,
+        // Project Plan KPIs
+        ppTotalTasks,
+        ppDoneTasks,
+        ppProgressPct,
+        ppEstCost: totalEstCostPP,
+        ppStart: ppStart?.toISOString() ?? null,
+        ppEnd: ppEnd?.toISOString() ?? null,
+        ppDurationDays,
+        ppLinkedRisks: ppLinkedRiskIds.size,
+        ppLinkedAssumptions: ppLinkedAssumptionIds.size,
+        ppOverdueTasks,
+        ppCriticalTasks,
+        ppUnscheduledTasks,
+        ppScheduleVarianceDays,
+        ppPlannedTimePct,
+        ppShouldBeDone,
+        ppShouldBeDonePct,
+        ppHealthStatus,
+        ppCPDelayed,
       },
       byCategory,
       byPriority,

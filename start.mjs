@@ -83,20 +83,20 @@ try {
   // Seed default plans
   const startPlan = await prisma.plan.upsert({
     where: { slug: 'start' },
-    update: { maxProjects: 1, maxUsers: 5, isPublic: true },
+    update: { maxProjects: 1, maxUsers: 5, isPublic: true, sections: JSON.stringify(['assets','labor','projectplan']) },
     create: {
       name: 'Start', slug: 'start',
-      sections: JSON.stringify(['assets','labor']),
+      sections: JSON.stringify(['assets','labor','projectplan']),
       maxProjects: 1, maxUsers: 5, priceMonthly: 990,
       description: 'Základní plán pro malé týmy', isDefault: true, isPublic: true,
     },
   })
   const advancedPlan = await prisma.plan.upsert({
     where: { slug: 'advanced' },
-    update: { maxProjects: 3, maxUsers: 15, isPublic: true },
+    update: { maxProjects: 3, maxUsers: 15, isPublic: true, sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions','projectplan']) },
     create: {
       name: 'Advanced', slug: 'advanced',
-      sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions']),
+      sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions','projectplan']),
       maxProjects: 3, maxUsers: 15, priceMonthly: 2990,
       description: 'Kompletní sada pro projektové řízení', isPublic: true,
     },
@@ -139,6 +139,24 @@ try {
     create: { projectId: 1, userId: admin.id },
   })
   console.log('✓ Admin assigned to default project')
+
+  // Seed default Kanban columns for all projects
+  const allProjects = await prisma.project.findMany({ select: { id: true } })
+  const defaultColumns = [
+    { name: 'To Do', color: '#6B7280', sortOrder: 0 },
+    { name: 'In Progress', color: '#3B82F6', sortOrder: 1 },
+    { name: 'Done', color: '#22C55E', sortOrder: 2 },
+  ]
+  for (const p of allProjects) {
+    for (const col of defaultColumns) {
+      await prisma.kanbanColumn.upsert({
+        where: { projectId_name: { projectId: p.id, name: col.name } },
+        update: {},
+        create: { projectId: p.id, ...col },
+      })
+    }
+  }
+  console.log(`✓ Default Kanban columns ready for ${allProjects.length} project(s)`)
 
   // Seed superadmin (no company — global support account)
   const superHash = await bcrypt.hash('Super1!admin', 10)
