@@ -69,6 +69,7 @@ model Person {
   requestedCRs     ChangeRequest[] @relation("CRRequestedBy")
   approvedCRs      ChangeRequest[] @relation("CRApprovedBy")
   ownedAssumptions Assumption[]    @relation("AssumptionOwner")
+  ownedTasks       Task[]          @relation("TaskOwner")
 }
 
 model Priority {
@@ -330,19 +331,23 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   projects     ProjectUser[]
+  archivedTasks Task[]       @relation("ArchivedTasks")
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 model Project {
-  id          Int           @id @default(autoincrement())
-  companyId   Int           @default(1)
-  company     Company       @relation(fields: [companyId], references: [id])
-  name        String
-  description String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  users       ProjectUser[]
+  id            Int             @id @default(autoincrement())
+  companyId     Int             @default(1)
+  company       Company         @relation(fields: [companyId], references: [id])
+  name          String
+  description   String?
+  mode          String          @default("hybrid") // kanban | planned | hybrid
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  users         ProjectUser[]
+  tasks         Task[]
+  kanbanColumns KanbanColumn[]
 }
 
 model ProjectUser {
@@ -408,4 +413,85 @@ model Invoice {
   notes          String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// ── Project Plan + Kanban ────────────────────────────────────────────────────
+
+model Task {
+  id              Int            @id @default(autoincrement())
+  projectId       Int
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentId        Int?
+  parent          Task?          @relation("TaskChildren", fields: [parentId], references: [id])
+  children        Task[]         @relation("TaskChildren")
+
+  name            String
+  description     String?
+  type            String         @default("task")        // phase | workstream | task
+  ownerId         Int?
+  owner           Person?        @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  status          String         @default("not_started")  // not_started | in_progress | done | blocked
+  progress        Int            @default(0)
+  isMilestone     Boolean        @default(false)
+  sortOrder       Int            @default(0)
+
+  // Kanban (NOT NULL — every task must belong to a column)
+  kanbanColumnId  Int
+  kanbanColumn    KanbanColumn   @relation(fields: [kanbanColumnId], references: [id])
+  kanbanOrder     Int            @default(0)
+
+  // Planning (nullable)
+  plannedStart    DateTime?
+  plannedEnd      DateTime?
+  baselineStart   DateTime?
+  baselineEnd     DateTime?
+
+  // Advanced (nullable)
+  constraintType  String?
+  constraintDate  DateTime?
+  estimatedCost   Float?
+  isCriticalPath  Boolean        @default(false)
+  floatDays       Int?
+
+  // Links
+  linkedRiskId       Int?
+  linkedAssumptionId Int?
+
+  // Soft delete
+  archived       Boolean   @default(false)
+  archivedAt     DateTime?
+  archivedById   Int?
+  archivedByUser User?     @relation("ArchivedTasks", fields: [archivedById], references: [id])
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Dependencies
+  incomingDeps   TaskDependency[] @relation("DepSuccessor")
+  outgoingDeps   TaskDependency[] @relation("DepPredecessor")
+}
+
+model KanbanColumn {
+  id        Int     @id @default(autoincrement())
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  color     String  @default("#6B7280")
+  sortOrder Int     @default(0)
+  wipLimit  Int?
+  tasks     Task[]
+
+  @@unique([projectId, name])
+}
+
+model TaskDependency {
+  id            Int    @id @default(autoincrement())
+  predecessorId Int
+  predecessor   Task   @relation("DepPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successorId   Int
+  successor     Task   @relation("DepSuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+  type          String @default("FS")  // FS | FF | SS | SF
+  lagDays       Int    @default(0)
+
+  @@unique([predecessorId, successorId])
 }

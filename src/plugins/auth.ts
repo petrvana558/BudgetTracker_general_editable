@@ -19,6 +19,7 @@ function urlToSection(url: string): string | null {
   if (url.startsWith('/api/issues')) return 'issues'
   if (url.startsWith('/api/changes')) return 'changes'
   if (url.startsWith('/api/assumptions')) return 'assumptions'
+  if (url.startsWith('/api/tasks') || url.startsWith('/api/kanban-columns') || url.startsWith('/api/task-dependencies')) return 'projectplan'
   return null
 }
 

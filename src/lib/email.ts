@@ -69,6 +69,20 @@ export async function sendPaymentConfirmedEmail(to: string, companyName: string)
   `)
 }
 
+export async function sendSupportEmail(userEmail: string, projectName: string, subject: string, message: string) {
+  const supportTo = process.env.SUPPORT_EMAIL || 'petrvana@email.cz'
+  const fullSubject = `PM Tool - Projekt - ${projectName} - ${subject}`
+  await sendEmail(supportTo, fullSubject, `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+      <h2>${subject}</h2>
+      <p style="white-space:pre-wrap;line-height:1.6">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+      <p style="color:#888;font-size:13px"><strong>Projekt:</strong> ${projectName}</p>
+      <p style="color:#888;font-size:13px"><strong>Odesílatel:</strong> <a href="mailto:${userEmail}">${userEmail}</a></p>
+    </div>
+  `)
+}
+
 export async function sendTrialExpiringEmail(to: string, companyName: string, daysLeft: number) {
   await sendEmail(to, `Zkusebni doba vyprsi za ${daysLeft} dni — PM Tool`, `
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
