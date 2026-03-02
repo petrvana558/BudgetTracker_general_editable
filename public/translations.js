@@ -1070,6 +1070,118 @@ const T = {
     dashPPHealth: 'Stav projektu',
     dashPPHealthSub: 'celkový zdravotní stav',
     dashPPWeightedProgress: 'vážený dle nákladů',
+
+    // === WORK BOARD ===
+    navWorkBoard: 'Work Board',
+    titleWorkBoard: 'Work Board',
+    sectionLabelWorkboard: 'Work Board',
+
+    // Work Board types
+    wbTypeEpic: 'Epic',
+    wbTypeStory: 'Story',
+    wbTypeTask: 'Úkol',
+    wbTypeBug: 'Bug',
+
+    // Work Board statuses
+    wbStatusBacklog: 'Backlog',
+    wbStatusTodo: 'To Do',
+    wbStatusInProgress: 'Probíhá',
+    wbStatusReview: 'Review',
+    wbStatusDone: 'Hotovo',
+
+    // Work Board priorities
+    wbPriorityLow: 'Nízká',
+    wbPriorityMedium: 'Střední',
+    wbPriorityHigh: 'Vysoká',
+    wbPriorityCritical: 'Kritická',
+
+    // Work Board UI
+    wbAddCard: '+ Karta',
+    wbQuickAddPlaceholder: 'Název položky...',
+    wbManageColumns: 'Správa sloupců',
+    wbColumnName: 'Název sloupce',
+    wbColumnColor: 'Barva',
+    wbWipLimit: 'WIP limit',
+    wbAddColumn: '+ Přidat sloupec',
+    wbSaveColumns: 'Uložit',
+    wbNoItems: 'Žádné položky',
+    wbNewItem: '+ Nová položka',
+    wbFilter: 'Filtr',
+    wbAllTypes: 'Všechny typy',
+    wbAllAssignees: 'Všichni',
+    wbAllStatuses: 'Všechny statusy',
+    wbAllPriorities: 'Všechny priority',
+    wbBacklog: 'Backlog',
+    wbBoard: 'Board',
+
+    // Work Item modal
+    wbModalNew: 'Nová položka',
+    wbModalEdit: 'Upravit položku',
+    wbModalTitle: 'Název *',
+    wbModalTitlePlaceholder: 'Zadejte název položky',
+    wbModalDescription: 'Popis',
+    wbModalDescPlaceholder: 'Volitelný popis...',
+    wbModalType: 'Typ',
+    wbModalParent: 'Nadřazený (Epic)',
+    wbModalParentNone: '— Žádný —',
+    wbModalAssignee: 'Přiřazeno',
+    wbModalStatus: 'Status',
+    wbModalPriority: 'Priorita',
+    wbModalPriorityNone: '— Bez priority —',
+    wbModalStoryPoints: 'Story points',
+    wbModalSave: 'Uložit',
+    wbModalDelete: 'Smazat',
+    wbModalDeleteConfirm: 'Opravdu smazat tuto položku?',
+
+    // PM Task linking
+    wbLinkedPmTasks: 'Propojené PM úkoly',
+    wbLinkPmTask: '+ Propojit PM úkol',
+    wbSelectPmTask: '— Vyberte PM úkol —',
+    wbUnlink: 'Odpojit',
+    wbNoLinkedTasks: 'Žádné propojené úkoly',
+    wbViewInPlanner: 'Zobrazit v plánu',
+
+    // Activity log
+    wbActivityLog: 'Historie aktivit',
+    wbNoActivity: 'Žádná aktivita',
+    wbLogCreated: 'Vytvořeno',
+    wbLogUpdated: 'Aktualizováno',
+    wbLogMoved: 'Přesunuto',
+    wbLogLinked: 'Propojeno',
+    wbLogEmailTrigger: 'Email upozornění',
+
+    // Workflow settings
+    wbWorkflowSettings: 'Workflow nastavení',
+    wbWorkflowSteps: 'Kroky workflow',
+    wbStepName: 'Název kroku',
+    wbEmailNotify: 'E-mail upozornění',
+    wbEmailNotifyHelp: 'Odeslat e-mail na přiřazenou osobu při vstupu do tohoto kroku',
+    wbAddStep: '+ Přidat krok',
+    wbSyncSteps: 'Synchronizovat s kolonkami',
+    wbSyncStepsHelp: 'Vytvoří workflow kroky z aktuálních Work Board kolonek',
+    wbDeleteStep: 'Smazat krok',
+    wbSaveSteps: 'Uložit',
+
+    // Settings tab
+    tabWorkflow: 'Workflow',
+
+    // Email settings
+    emailSettingsTitle: 'E-mailové notifikace',
+    emailResendApiKey: 'Resend API klíč',
+    emailResendApiKeyPlaceholder: 're_xxxxxxxxxxxx',
+    emailResendApiKeyHelp: 'Získáte na resend.com — bez klíče se e-maily pouze logují do konzole',
+    emailFromAddress: 'Odesílatel (From)',
+    emailNotifyAssignment: 'Notifikace při přiřazení úkolu',
+    emailNotifyAssignmentHelp: 'Odeslat e-mail přiřazené osobě, když jí bude přiřazen Work Board úkol',
+    emailSaveSettings: 'Uložit nastavení',
+    emailSettingsSaved: 'E-mailové nastavení uloženo',
+    emailStatusReady: 'Resend API klíč nastaven — e-maily budou odesílány',
+    emailStatusMissing: 'Resend API klíč není nastaven — e-maily se pouze logují',
+
+    // Children
+    wbChildren: 'Podpoložky',
+    wbNoChildren: 'Žádné podpoložky',
+    wbStoryPointsShort: 'SP',
   },
 
   en: {
@@ -2142,5 +2254,117 @@ const T = {
     dashPPHealth: 'Project Health',
     dashPPHealthSub: 'overall health status',
     dashPPWeightedProgress: 'cost-weighted',
+
+    // === WORK BOARD ===
+    navWorkBoard: 'Work Board',
+    titleWorkBoard: 'Work Board',
+    sectionLabelWorkboard: 'Work Board',
+
+    // Work Board types
+    wbTypeEpic: 'Epic',
+    wbTypeStory: 'Story',
+    wbTypeTask: 'Task',
+    wbTypeBug: 'Bug',
+
+    // Work Board statuses
+    wbStatusBacklog: 'Backlog',
+    wbStatusTodo: 'To Do',
+    wbStatusInProgress: 'In Progress',
+    wbStatusReview: 'Review',
+    wbStatusDone: 'Done',
+
+    // Work Board priorities
+    wbPriorityLow: 'Low',
+    wbPriorityMedium: 'Medium',
+    wbPriorityHigh: 'High',
+    wbPriorityCritical: 'Critical',
+
+    // Work Board UI
+    wbAddCard: '+ Card',
+    wbQuickAddPlaceholder: 'Item title...',
+    wbManageColumns: 'Manage columns',
+    wbColumnName: 'Column name',
+    wbColumnColor: 'Color',
+    wbWipLimit: 'WIP limit',
+    wbAddColumn: '+ Add column',
+    wbSaveColumns: 'Save',
+    wbNoItems: 'No items',
+    wbNewItem: '+ New item',
+    wbFilter: 'Filter',
+    wbAllTypes: 'All types',
+    wbAllAssignees: 'All assignees',
+    wbAllStatuses: 'All statuses',
+    wbAllPriorities: 'All priorities',
+    wbBacklog: 'Backlog',
+    wbBoard: 'Board',
+
+    // Work Item modal
+    wbModalNew: 'New item',
+    wbModalEdit: 'Edit item',
+    wbModalTitle: 'Title *',
+    wbModalTitlePlaceholder: 'Enter item title',
+    wbModalDescription: 'Description',
+    wbModalDescPlaceholder: 'Optional description...',
+    wbModalType: 'Type',
+    wbModalParent: 'Parent (Epic)',
+    wbModalParentNone: '— None —',
+    wbModalAssignee: 'Assignee',
+    wbModalStatus: 'Status',
+    wbModalPriority: 'Priority',
+    wbModalPriorityNone: '— No priority —',
+    wbModalStoryPoints: 'Story points',
+    wbModalSave: 'Save',
+    wbModalDelete: 'Delete',
+    wbModalDeleteConfirm: 'Are you sure you want to delete this item?',
+
+    // PM Task linking
+    wbLinkedPmTasks: 'Linked PM Tasks',
+    wbLinkPmTask: '+ Link PM Task',
+    wbSelectPmTask: '— Select PM Task —',
+    wbUnlink: 'Unlink',
+    wbNoLinkedTasks: 'No linked tasks',
+    wbViewInPlanner: 'View in Planner',
+
+    // Activity log
+    wbActivityLog: 'Activity Log',
+    wbNoActivity: 'No activity',
+    wbLogCreated: 'Created',
+    wbLogUpdated: 'Updated',
+    wbLogMoved: 'Moved',
+    wbLogLinked: 'Linked',
+    wbLogEmailTrigger: 'Email notification',
+
+    // Workflow settings
+    wbWorkflowSettings: 'Workflow Settings',
+    wbWorkflowSteps: 'Workflow Steps',
+    wbStepName: 'Step name',
+    wbEmailNotify: 'Email notification',
+    wbEmailNotifyHelp: 'Send email to assignee when item enters this step',
+    wbAddStep: '+ Add step',
+    wbSyncSteps: 'Sync with columns',
+    wbSyncStepsHelp: 'Create workflow steps from current Work Board columns',
+    wbDeleteStep: 'Delete step',
+    wbSaveSteps: 'Save',
+
+    // Settings tab
+    tabWorkflow: 'Workflow',
+
+    // Email settings
+    emailSettingsTitle: 'Email Notifications',
+    emailResendApiKey: 'Resend API Key',
+    emailResendApiKeyPlaceholder: 're_xxxxxxxxxxxx',
+    emailResendApiKeyHelp: 'Get it at resend.com — without a key, emails are only logged to console',
+    emailFromAddress: 'Sender (From)',
+    emailNotifyAssignment: 'Notify on task assignment',
+    emailNotifyAssignmentHelp: 'Send email to assignee when a Work Board item is assigned to them',
+    emailSaveSettings: 'Save settings',
+    emailSettingsSaved: 'Email settings saved',
+    emailStatusReady: 'Resend API key configured — emails will be sent',
+    emailStatusMissing: 'Resend API key not set — emails are only logged',
+
+    // Children
+    wbChildren: 'Sub-items',
+    wbNoChildren: 'No sub-items',
+    wbStoryPointsShort: 'SP',
   }
 }

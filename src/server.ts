@@ -28,6 +28,9 @@ import { supportRoutes } from './routes/support'
 import { tasksRoutes } from './routes/tasks'
 import { kanbanColumnsRoutes } from './routes/kanban-columns'
 import { taskDependenciesRoutes } from './routes/task-dependencies'
+import { workItemsRoutes } from './routes/work-items'
+import { workColumnsRoutes } from './routes/work-columns'
+import { workflowStepsRoutes } from './routes/workflow-steps'
 import { startTrialChecker } from './lib/trial-checker'
 
 const PORT = parseInt(process.env.PORT ?? '3003')
@@ -58,6 +61,9 @@ async function main() {
   await fastify.register(tasksRoutes)
   await fastify.register(kanbanColumnsRoutes)
   await fastify.register(taskDependenciesRoutes)
+  await fastify.register(workItemsRoutes)
+  await fastify.register(workColumnsRoutes)
+  await fastify.register(workflowStepsRoutes)
   await fastify.register(itemRoutes)
   await fastify.register(peopleRoutes)
   await fastify.register(categoryRoutes)

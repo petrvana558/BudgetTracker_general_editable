@@ -83,20 +83,20 @@ try {
   // Seed default plans
   const startPlan = await prisma.plan.upsert({
     where: { slug: 'start' },
-    update: { maxProjects: 1, maxUsers: 5, isPublic: true, sections: JSON.stringify(['assets','labor','projectplan']) },
+    update: { maxProjects: 1, maxUsers: 5, isPublic: true, sections: JSON.stringify(['assets','labor','projectplan','workboard']) },
     create: {
       name: 'Start', slug: 'start',
-      sections: JSON.stringify(['assets','labor','projectplan']),
+      sections: JSON.stringify(['assets','labor','projectplan','workboard']),
       maxProjects: 1, maxUsers: 5, priceMonthly: 990,
       description: 'Základní plán pro malé týmy', isDefault: true, isPublic: true,
     },
   })
   const advancedPlan = await prisma.plan.upsert({
     where: { slug: 'advanced' },
-    update: { maxProjects: 3, maxUsers: 15, isPublic: true, sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions','projectplan']) },
+    update: { maxProjects: 3, maxUsers: 15, isPublic: true, sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions','projectplan','workboard']) },
     create: {
       name: 'Advanced', slug: 'advanced',
-      sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions','projectplan']),
+      sections: JSON.stringify(['assets','labor','testing','risks','issues','changes','assumptions','projectplan','workboard']),
       maxProjects: 3, maxUsers: 15, priceMonthly: 2990,
       description: 'Kompletní sada pro projektové řízení', isPublic: true,
     },
@@ -157,6 +157,25 @@ try {
     }
   }
   console.log(`✓ Default Kanban columns ready for ${allProjects.length} project(s)`)
+
+  // Seed default Work Board columns for all projects
+  const defaultWorkColumns = [
+    { name: 'Backlog', color: '#6B7280', sortOrder: 0 },
+    { name: 'To Do', color: '#3B82F6', sortOrder: 1 },
+    { name: 'In Progress', color: '#F59E0B', sortOrder: 2 },
+    { name: 'Review', color: '#8B5CF6', sortOrder: 3 },
+    { name: 'Done', color: '#22C55E', sortOrder: 4 },
+  ]
+  for (const p of allProjects) {
+    for (const col of defaultWorkColumns) {
+      await prisma.workColumn.upsert({
+        where: { projectId_name: { projectId: p.id, name: col.name } },
+        update: {},
+        create: { projectId: p.id, ...col },
+      })
+    }
+  }
+  console.log(`✓ Default Work Board columns ready for ${allProjects.length} project(s)`)
 
   // Seed superadmin (no company — global support account)
   const superHash = await bcrypt.hash('Super1!admin', 10)
