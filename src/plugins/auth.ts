@@ -20,6 +20,7 @@ function urlToSection(url: string): string | null {
   if (url.startsWith('/api/changes')) return 'changes'
   if (url.startsWith('/api/assumptions')) return 'assumptions'
   if (url.startsWith('/api/tasks') || url.startsWith('/api/kanban-columns') || url.startsWith('/api/task-dependencies')) return 'projectplan'
+  if (url.startsWith('/api/work-items') || url.startsWith('/api/work-columns') || url.startsWith('/api/work-item-logs') || url.startsWith('/api/workflow-steps')) return 'workboard'
   return null
 }
 

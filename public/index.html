@@ -308,6 +308,24 @@
     .kb-card .kb-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888; }
     .kb-card .kb-card-meta .kb-owner { background: var(--dhl-yellow); color: #1a1a1a; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
     .kb-card .kb-card-progress { margin-top: 6px; }
+    /* Work Board epic/bug card styles */
+    .kb-card.wb-epic { border-left: 3px solid #3B82F6; background: #F0F7FF; }
+    .kb-card.wb-bug { border-left: 3px solid #EF4444; }
+    /* Work Board epic group header */
+    .wb-epic-group { margin-bottom: 12px; }
+    .wb-epic-group-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; margin-bottom: 6px; cursor: pointer; user-select: none; }
+    .wb-epic-group-header:hover { background: #DBEAFE; }
+    .wb-epic-group-header .epic-arrow { transition: transform .15s; font-size: 10px; color: #3B82F6; }
+    .wb-epic-group-header .epic-arrow.collapsed { transform: rotate(-90deg); }
+    .wb-epic-group-header .epic-title { font-size: 12px; font-weight: 700; color: #1E40AF; }
+    .wb-epic-group-header .epic-count { font-size: 10px; color: #60A5FA; font-weight: 600; }
+    /* Pill toggle switch (shared) */
+    .pill-toggle { position: relative; display: inline-flex; align-items: center; background: #E5E7EB; border-radius: 20px; padding: 3px; height: 30px; }
+    .pill-toggle .pill-knob { position: absolute; top: 3px; height: 24px; width: calc(50% - 3px); border-radius: 12px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.15); transition: left .2s ease; pointer-events: none; }
+    .pill-toggle .pill-knob.pos-0 { left: 3px; }
+    .pill-toggle .pill-knob.pos-1 { left: 50%; }
+    .pill-toggle .pill-opt { position: relative; z-index: 1; width: 50%; padding: 0 14px; text-align: center; font-size: 11px; font-weight: 600; color: #6B7280; transition: color .2s; cursor: pointer; line-height: 24px; white-space: nowrap; border: none; background: none; box-sizing: border-box; }
+    .pill-toggle .pill-opt.active { color: #111827; }
     .kb-quick-add { padding: 8px; }
     .kb-quick-add input { width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; outline: none; }
     .kb-quick-add input:focus { border-color: var(--dhl-yellow); }
@@ -576,7 +594,10 @@
       <span class="nav-icon">📝</span> <span x-text="t('navAssumptions')"></span>
     </div>
 
-    <div class="nav-section" x-show="can('assets','read') || can('labor','read')" x-text="t('sectionImpl')"></div>
+    <div class="nav-section" x-show="can('assets','read') || can('labor','read') || can('workboard','read')" x-text="t('sectionImpl')"></div>
+    <div x-show="can('workboard','read')" class="nav-item" :class="{ active: view === 'workboard' }" @click="view = 'workboard'; wbTab = 'board'; loadWorkItems(); loadWorkColumns()">
+      <span class="nav-icon">🗂️</span> <span x-text="t('navWorkBoard')"></span>
+    </div>
     <div x-show="can('assets','read') || can('labor','read')" class="nav-item" :class="{ active: view === 'assets' || view === 'labor' }" @click="view = 'assets'; assetsSubTab = can('assets','read') ? 'items' : 'labor'; if(assetsSubTab==='items'){loadItems();$nextTick(()=>restoreColWidths())}else{loadLabor().then(()=>$nextTick(()=>renderLaborChart()))}">
       <span class="nav-icon">📋</span> <span x-text="t('navAssets')"></span>
     </div>
@@ -676,17 +697,10 @@
       </div>
       <div class="flex gap-2 items-center">
         <template x-if="(view === 'assets' || view === 'labor') && can('assets','read') && can('labor','read')">
-          <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:3px">
-            <button @click="view='assets'; loadItems(); $nextTick(()=>restoreColWidths())"
-              :style="view==='assets' ? 'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)' : 'background:transparent;color:#64748b'"
-              style="padding:7px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer;border-radius:7px;transition:all .2s">
-              <span x-text="t('assetListBtn')"></span>
-            </button>
-            <button @click="view='labor'; loadLabor().then(()=>$nextTick(()=>renderLaborChart()))"
-              :style="view==='labor' ? 'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)' : 'background:transparent;color:#64748b'"
-              style="padding:7px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer;border-radius:7px;transition:all .2s">
-              <span x-text="t('hrCostsBtn')"></span>
-            </button>
+          <div class="pill-toggle" style="min-width:180px">
+            <div class="pill-knob" :class="view==='assets' ? 'pos-0' : 'pos-1'"></div>
+            <span class="pill-opt" :class="{ active: view==='assets' }" @click="view='assets'; loadItems(); $nextTick(()=>restoreColWidths())" x-text="t('assetListBtn')"></span>
+            <span class="pill-opt" :class="{ active: view==='labor' }" @click="view='labor'; loadLabor().then(()=>$nextTick(()=>renderLaborChart()))" x-text="t('hrCostsBtn')"></span>
           </div>
         </template>
         <template x-if="view === 'assets' && can('assets','write')">
@@ -1491,17 +1505,10 @@
       <!-- Header toolbar -->
       <div class="flex items-center gap-3 flex-wrap">
         <!-- Tab switcher -->
-        <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:4px">
-          <button @click="testingTab='stats'; loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() })"
-            :style="testingTab==='stats'?'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)':'background:transparent;color:#64748b'"
-            style="padding:10px 24px;font-size:14px;font-weight:700;border:none;cursor:pointer;border-radius:8px;transition:all .2s;letter-spacing:0.2px">
-            <span x-text="t('testDashboard')"></span>
-          </button>
-          <button @click="testingTab='sets'"
-            :style="testingTab==='sets'?'background:var(--dhl-dark);color:var(--dhl-yellow);box-shadow:0 2px 6px rgba(0,0,0,0.15)':'background:transparent;color:#64748b'"
-            style="padding:10px 24px;font-size:14px;font-weight:700;border:none;cursor:pointer;border-radius:8px;transition:all .2s;letter-spacing:0.2px">
-            <span x-text="t('testMgmtTab')"></span>
-          </button>
+        <div class="pill-toggle" style="min-width:200px">
+          <div class="pill-knob" :class="testingTab==='stats' ? 'pos-0' : 'pos-1'"></div>
+          <span class="pill-opt" :class="{ active: testingTab==='stats' }" @click="testingTab='stats'; loadTestStats(); $nextTick(() => { testSets.forEach(ts => { if (ts.dateMin && ts.dateMax) renderWaterfall(ts) }); renderSetPieCharts() })" x-text="t('testDashboard')"></span>
+          <span class="pill-opt" :class="{ active: testingTab==='sets' }" @click="testingTab='sets'" x-text="t('testMgmtTab')"></span>
         </div>
 
         <template x-if="testingTab==='sets' && can('testing','write')">
@@ -2429,9 +2436,12 @@
     <!-- ============================================================ -->
     <div x-show="view === 'assumptions'" class="p-6 space-y-4">
       <!-- Tabs -->
-      <div class="flex gap-2 border-b border-gray-200 pb-1 mb-2">
-        <button @click="assumptionTab='list'"   :class="assumptionTab==='list'   ? 'tab-active' : 'tab'" class="tab" x-text="t('assumptionListTab')"></button>
-        <button @click="assumptionTab='dashboard'" :class="assumptionTab==='dashboard' ? 'tab-active' : 'tab'" class="tab" x-text="t('testDashboard')"></button>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <div class="pill-toggle" style="min-width:180px">
+          <div class="pill-knob" :class="assumptionTab==='list' ? 'pos-0' : 'pos-1'"></div>
+          <span class="pill-opt" :class="{ active: assumptionTab==='list' }" @click="assumptionTab='list'" x-text="t('assumptionListTab')"></span>
+          <span class="pill-opt" :class="{ active: assumptionTab==='dashboard' }" @click="assumptionTab='dashboard'" x-text="t('testDashboard')"></span>
+        </div>
       </div>
 
       <!-- LIST TAB -->
@@ -2607,8 +2617,11 @@
 
       <!-- Toolbar -->
       <div class="pp-toolbar">
-        <button class="btn-sm" :class="{ active: ppTab === 'table' }" @click="ppTab = 'table'" x-text="t('ppTableView')"></button>
-        <button class="btn-sm" :class="{ active: ppTab === 'gantt' }" @click="ppTab = 'gantt'; $nextTick(() => renderPPGantt())" x-text="t('ppGanttView')"></button>
+        <div class="pill-toggle" style="min-width:140px">
+          <div class="pill-knob" :class="ppTab==='table' ? 'pos-0' : 'pos-1'"></div>
+          <span class="pill-opt" :class="{ active: ppTab==='table' }" @click="ppTab='table'" x-text="t('ppTableView')"></span>
+          <span class="pill-opt" :class="{ active: ppTab==='gantt' }" @click="ppTab='gantt'; $nextTick(() => renderPPGantt())" x-text="t('ppGanttView')"></span>
+        </div>
         <span style="width:1px;height:20px;background:#ddd;margin:0 4px"></span>
         <button x-show="can('projectplan','write')" class="btn-sm" @click="openNewTask('phase')" x-text="t('ppNewPhase')"></button>
         <button x-show="can('projectplan','write')" class="btn-sm" @click="openNewTask('task')" x-text="t('ppNewTask')"></button>
@@ -2941,6 +2954,373 @@
       </div>
     </div>
 
+    <!-- WORK BOARD VIEW -->
+    <!-- ============================================================ -->
+    <div x-show="view === 'workboard'" style="padding:16px;overflow:hidden;height:calc(100vh - 60px);display:flex;flex-direction:column">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-shrink:0;flex-wrap:wrap">
+        <h2 class="text-xl font-bold" x-text="t('titleWorkBoard')"></h2>
+        <div class="pill-toggle" style="min-width:140px">
+          <div class="pill-knob" :class="wbTab==='board' ? 'pos-0' : 'pos-1'"></div>
+          <span class="pill-opt" :class="{ active: wbTab==='board' }" @click="wbTab='board'" x-text="t('wbBoard')"></span>
+          <span class="pill-opt" :class="{ active: wbTab==='backlog' }" @click="wbTab='backlog'" x-text="t('wbBacklog')"></span>
+        </div>
+        <button x-show="can('workboard','write')" class="btn-sm" style="padding:5px 12px;font-size:12px;border-radius:4px;cursor:pointer;border:1px solid #ddd;background:#fff;font-weight:600" @click="openNewWorkItem()" x-text="t('wbNewItem')"></button>
+        <button x-show="authUser?.role === 'admin' || authUser?.role === 'superadmin'" class="btn-sm" style="padding:5px 12px;font-size:12px;border-radius:4px;cursor:pointer;border:1px solid #ddd;background:#fff;font-weight:600" @click="openWbColumnModal()" x-text="t('wbManageColumns')"></button>
+        <!-- Filters -->
+        <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+          <select x-model="wbFilters.type" @change="loadWorkItems()" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px">
+            <option value="" x-text="t('wbAllTypes')"></option>
+            <option value="epic" x-text="t('wbTypeEpic')"></option>
+            <option value="story" x-text="t('wbTypeStory')"></option>
+            <option value="task" x-text="t('wbTypeTask')"></option>
+            <option value="bug" x-text="t('wbTypeBug')"></option>
+          </select>
+          <select x-model="wbFilters.assigneeId" @change="loadWorkItems()" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px">
+            <option value="" x-text="t('wbAllAssignees')"></option>
+            <template x-for="p in people" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+          </select>
+          <select x-model="wbFilters.priority" @change="loadWorkItems()" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px">
+            <option value="" x-text="t('wbAllPriorities')"></option>
+            <option value="low" x-text="t('wbPriorityLow')"></option>
+            <option value="medium" x-text="t('wbPriorityMedium')"></option>
+            <option value="high" x-text="t('wbPriorityHigh')"></option>
+            <option value="critical" x-text="t('wbPriorityCritical')"></option>
+          </select>
+        </div>
+      </div>
+
+      <!-- BOARD TAB -->
+      <div x-show="wbTab === 'board'" class="kb-board" style="flex:1">
+        <template x-for="col in workColumns" :key="col.id">
+          <div class="kb-col"
+            @dragover.prevent="$el.querySelector('.kb-col-body').classList.add('drag-over')"
+            @dragleave="$el.querySelector('.kb-col-body').classList.remove('drag-over')"
+            @drop.prevent="dropWorkItem($event, col.id); $el.querySelector('.kb-col-body').classList.remove('drag-over')">
+            <div class="kb-col-header" :style="'border-bottom-color:'+col.color">
+              <span x-text="col.name"></span>
+              <span class="kb-count" x-text="'('+wbColItems(col.id).length+')'"></span>
+              <span x-show="col.wipLimit && wbColItems(col.id).length > col.wipLimit" class="kb-wip-warn">WIP!</span>
+            </div>
+            <div class="kb-col-body">
+              <!-- Epic groups -->
+              <template x-for="group in wbColGrouped(col.id).groups" :key="'g'+(group.epic?.id||Math.random())">
+                <div class="wb-epic-group">
+                  <div class="wb-epic-group-header" @click="expandedWorkItems[group.epic?.id] = !expandedWorkItems[group.epic?.id]"
+                    x-show="group.epic">
+                    <span class="epic-arrow" :class="{ collapsed: !expandedWorkItems[group.epic?.id] }">&#9660;</span>
+                    <span class="epic-title" x-text="group.epic?.title"></span>
+                    <span class="epic-count" x-text="'(' + group.items.length + ')'"></span>
+                    <span x-show="group.epic?.priority" style="font-size:8px;padding:1px 4px;border-radius:3px;font-weight:600;margin-left:auto"
+                      :style="wbPriorityStyle(group.epic?.priority)"
+                      x-text="t('wbPriority'+(group.epic?.priority||'').charAt(0).toUpperCase()+(group.epic?.priority||'').slice(1))"></span>
+                  </div>
+                  <!-- Epic card itself (if epic is in this column) -->
+                  <template x-if="group.epic?.columnId === col.id">
+                    <div class="kb-card wb-epic" draggable="true"
+                      @dragstart="$event.dataTransfer.setData('text/plain', group.epic.id)"
+                      @click="openEditWorkItem(group.epic)">
+                      <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+                        <span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;text-transform:uppercase;background:#DBEAFE;color:#1E40AF"
+                          x-text="t('wbTypeEpic')"></span>
+                        <span x-show="group.epic.priority" style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600"
+                          :style="wbPriorityStyle(group.epic.priority)"
+                          x-text="t('wbPriority'+group.epic.priority.charAt(0).toUpperCase()+group.epic.priority.slice(1))"></span>
+                      </div>
+                      <div class="kb-card-title" x-text="group.epic.title"></div>
+                      <div class="kb-card-meta">
+                        <span x-show="group.epic.assignee" class="kb-owner" x-text="(group.epic.assignee?.name||'').charAt(0).toUpperCase()"></span>
+                        <span style="font-size:10px;color:#3B82F6;font-weight:600" x-text="group.items.length + ' ' + t('wbChildren')"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Child items (collapsible) -->
+                  <template x-if="expandedWorkItems[group.epic?.id] !== false">
+                    <div>
+                      <template x-for="item in group.items" :key="item.id">
+                        <div class="kb-card" :class="{ 'wb-bug': item.type==='bug' }" style="margin-left:12px;border-left:2px solid #BFDBFE"
+                          draggable="true"
+                          @dragstart="$event.dataTransfer.setData('text/plain', item.id)"
+                          @click="openEditWorkItem(item)">
+                          <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+                            <span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;text-transform:uppercase"
+                              :style="item.type==='story'?'background:#D1FAE5;color:#065F46':item.type==='bug'?'background:#FEE2E2;color:#991B1B':'background:#F3F4F6;color:#374151'"
+                              x-text="t('wbType'+item.type.charAt(0).toUpperCase()+item.type.slice(1))"></span>
+                            <span x-show="item.priority" style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600"
+                              :style="wbPriorityStyle(item.priority)"
+                              x-text="t('wbPriority'+item.priority.charAt(0).toUpperCase()+item.priority.slice(1))"></span>
+                          </div>
+                          <div class="kb-card-title" x-text="item.title"></div>
+                          <div class="kb-card-meta">
+                            <span x-show="item.assignee" class="kb-owner" x-text="(item.assignee?.name||'').charAt(0).toUpperCase()"></span>
+                            <span x-show="item.storyPoints" style="font-size:10px;background:#E5E7EB;padding:1px 5px;border-radius:3px;font-weight:600" x-text="item.storyPoints + ' SP'"></span>
+                            <span x-show="item.pmLinks && item.pmLinks.length" style="font-size:10px;color:#6366F1">🔗</span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <!-- Orphan items (no epic parent) -->
+              <template x-for="item in wbColGrouped(col.id).orphans" :key="item.id">
+                <div class="kb-card" :class="{ 'wb-bug': item.type==='bug' }"
+                  draggable="true"
+                  @dragstart="$event.dataTransfer.setData('text/plain', item.id)"
+                  @click="openEditWorkItem(item)">
+                  <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+                    <span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700;text-transform:uppercase"
+                      :style="item.type==='story'?'background:#D1FAE5;color:#065F46':item.type==='bug'?'background:#FEE2E2;color:#991B1B':'background:#F3F4F6;color:#374151'"
+                      x-text="t('wbType'+item.type.charAt(0).toUpperCase()+item.type.slice(1))"></span>
+                    <span x-show="item.priority" style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600"
+                      :style="wbPriorityStyle(item.priority)"
+                      x-text="t('wbPriority'+item.priority.charAt(0).toUpperCase()+item.priority.slice(1))"></span>
+                  </div>
+                  <div class="kb-card-title" x-text="item.title"></div>
+                  <div class="kb-card-meta">
+                    <span x-show="item.assignee" class="kb-owner" x-text="(item.assignee?.name||'').charAt(0).toUpperCase()"></span>
+                    <span x-show="item.storyPoints" style="font-size:10px;background:#E5E7EB;padding:1px 5px;border-radius:3px;font-weight:600" x-text="item.storyPoints + ' SP'"></span>
+                    <span x-show="item.pmLinks && item.pmLinks.length" style="font-size:10px;color:#6366F1">🔗</span>
+                  </div>
+                </div>
+              </template>
+              <div x-show="wbColItems(col.id).length === 0" style="text-align:center;padding:16px;font-size:12px;color:#aaa" x-text="t('wbNoItems')"></div>
+            </div>
+            <!-- Quick add -->
+            <div class="kb-quick-add" x-show="can('workboard','write')">
+              <div x-show="!wbQuickAdd[col.id]" style="text-align:center">
+                <button style="font-size:12px;color:#888;cursor:pointer;background:none;border:none" @click="wbQuickAdd[col.id] = true" x-text="t('wbAddCard')"></button>
+              </div>
+              <div x-show="wbQuickAdd[col.id]">
+                <input :placeholder="t('wbQuickAddPlaceholder')" @keydown.enter="quickAddWorkItem(col.id, $event.target); $event.target.value=''" @keydown.escape="wbQuickAdd[col.id] = false">
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- BACKLOG TAB -->
+      <div x-show="wbTab === 'backlog'" style="flex:1;overflow:auto">
+        <div class="chart-card" style="margin-top:8px">
+          <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between">
+            <span x-text="t('wbBacklog') + ' (' + wbBacklogItems().length + ')'"></span>
+          </div>
+          <div style="padding:0">
+            <table class="data-table" style="width:100%">
+              <thead>
+                <tr>
+                  <th style="width:40px"></th>
+                  <th x-text="t('wbModalTitle')"></th>
+                  <th style="width:80px" x-text="t('wbModalType')"></th>
+                  <th style="width:80px" x-text="t('wbModalPriority')"></th>
+                  <th style="width:80px" x-text="t('wbModalAssignee')"></th>
+                  <th style="width:60px" x-text="t('wbStoryPointsShort')"></th>
+                  <th style="width:100px" x-text="t('wbModalStatus')"></th>
+                  <th style="width:60px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="item in wbBacklogItems()" :key="item.id">
+                  <tr @click="openEditWorkItem(item)" style="cursor:pointer">
+                    <td style="text-align:center">
+                      <span style="font-size:10px;padding:2px 6px;border-radius:3px;font-weight:700"
+                        :style="item.type==='epic'?'background:#DBEAFE;color:#1E40AF':item.type==='story'?'background:#D1FAE5;color:#065F46':item.type==='bug'?'background:#FEE2E2;color:#991B1B':'background:#F3F4F6;color:#374151'"
+                        x-text="item.type.charAt(0).toUpperCase()"></span>
+                    </td>
+                    <td>
+                      <div style="font-weight:600;font-size:13px" x-text="item.title"></div>
+                      <div x-show="item.parent" style="font-size:11px;color:#888" x-text="'↳ ' + (item.parent?.title || '')"></div>
+                    </td>
+                    <td x-text="t('wbType'+item.type.charAt(0).toUpperCase()+item.type.slice(1))"></td>
+                    <td>
+                      <span x-show="item.priority" style="font-size:11px;padding:2px 6px;border-radius:3px;font-weight:600"
+                        :style="wbPriorityStyle(item.priority)"
+                        x-text="t('wbPriority'+item.priority.charAt(0).toUpperCase()+item.priority.slice(1))"></span>
+                    </td>
+                    <td x-text="item.assignee?.name || '—'"></td>
+                    <td x-text="item.storyPoints ?? '—'"></td>
+                    <td>
+                      <select class="inline-select" @change="updateWorkItemStatus(item.id, $event.target.value)" @click.stop :value="item.status" style="font-size:11px;padding:2px 4px">
+                        <option value="backlog" x-text="t('wbStatusBacklog')"></option>
+                        <option value="todo" x-text="t('wbStatusTodo')"></option>
+                        <option value="in_progress" x-text="t('wbStatusInProgress')"></option>
+                        <option value="review" x-text="t('wbStatusReview')"></option>
+                        <option value="done" x-text="t('wbStatusDone')"></option>
+                      </select>
+                    </td>
+                    <td>
+                      <button x-show="can('workboard','write')" @click.stop="deleteWorkItem(item.id)" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:14px">&times;</button>
+                    </td>
+                  </tr>
+                </template>
+                <template x-if="wbBacklogItems().length === 0">
+                  <tr><td colspan="8" style="text-align:center;padding:24px;color:#aaa" x-text="t('wbNoItems')"></td></tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORK ITEM MODAL -->
+    <!-- ============================================================ -->
+    <div x-show="wbModal.open" class="modal-overlay" @click.self="wbModal.open=false" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000">
+      <div style="background:#fff;border-radius:10px;width:720px;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
+        <h3 class="text-lg font-bold mb-4" x-text="wbModal.id ? t('wbModalEdit') : t('wbModalNew')"></h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- LEFT -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div>
+              <label class="detail-field-label" x-text="t('wbModalTitle')"></label>
+              <input x-model="wbForm.title" :placeholder="t('wbModalTitlePlaceholder')" class="w-full" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+            </div>
+            <div>
+              <label class="detail-field-label" x-text="t('wbModalDescription')"></label>
+              <textarea x-model="wbForm.description" :placeholder="t('wbModalDescPlaceholder')" rows="3" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;resize:vertical"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label class="detail-field-label" x-text="t('wbModalType')"></label>
+                <select x-model="wbForm.type" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+                  <option value="epic" x-text="t('wbTypeEpic')"></option>
+                  <option value="story" x-text="t('wbTypeStory')"></option>
+                  <option value="task" x-text="t('wbTypeTask')"></option>
+                  <option value="bug" x-text="t('wbTypeBug')"></option>
+                </select>
+              </div>
+              <div>
+                <label class="detail-field-label" x-text="t('wbModalParent')"></label>
+                <select x-model="wbForm.parentId" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+                  <option :value="null" x-text="t('wbModalParentNone')"></option>
+                  <template x-for="wi in workItems.filter(w => w.type==='epic' && w.id !== wbModal.id)" :key="wi.id">
+                    <option :value="wi.id" x-text="wi.title"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label class="detail-field-label" x-text="t('wbModalAssignee')"></label>
+                <select x-model="wbForm.assigneeId" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+                  <option value="">—</option>
+                  <template x-for="p in people" :key="p.id"><option :value="p.id" x-text="p.name"></option></template>
+                </select>
+              </div>
+              <div>
+                <label class="detail-field-label" x-text="t('wbModalStoryPoints')"></label>
+                <input type="number" min="0" x-model.number="wbForm.storyPoints" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+              </div>
+            </div>
+          </div>
+          <!-- RIGHT -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label class="detail-field-label" x-text="t('wbModalStatus')"></label>
+                <select x-model="wbForm.status" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+                  <option value="backlog" x-text="t('wbStatusBacklog')"></option>
+                  <option value="todo" x-text="t('wbStatusTodo')"></option>
+                  <option value="in_progress" x-text="t('wbStatusInProgress')"></option>
+                  <option value="review" x-text="t('wbStatusReview')"></option>
+                  <option value="done" x-text="t('wbStatusDone')"></option>
+                </select>
+              </div>
+              <div>
+                <label class="detail-field-label" x-text="t('wbModalPriority')"></label>
+                <select x-model="wbForm.priority" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+                  <option value="" x-text="t('wbModalPriorityNone')"></option>
+                  <option value="low" x-text="t('wbPriorityLow')"></option>
+                  <option value="medium" x-text="t('wbPriorityMedium')"></option>
+                  <option value="high" x-text="t('wbPriorityHigh')"></option>
+                  <option value="critical" x-text="t('wbPriorityCritical')"></option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Linked PM Tasks -->
+            <div x-show="wbModal.id" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-top:4px">
+              <div class="detail-field-label" x-text="t('wbLinkedPmTasks')"></div>
+              <template x-for="link in (workItems.find(w=>w.id===wbModal.id)?.pmLinks || [])" :key="link.id">
+                <div style="display:flex;align-items:center;gap:6px;margin:4px 0;font-size:12px">
+                  <span style="color:#6366F1">🔗</span>
+                  <span x-text="link.pmTask?.name || '#'+link.pmTaskId" style="flex:1"></span>
+                  <button @click="view='projectplan'; ppTab='table'; loadTasks(); wbModal.open=false" style="font-size:10px;color:#6366F1;background:none;border:none;cursor:pointer" x-text="t('wbViewInPlanner')"></button>
+                  <button x-show="can('workboard','write')" @click="unlinkPmTask(wbModal.id, link.id)" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:11px" x-text="t('wbUnlink')"></button>
+                </div>
+              </template>
+              <div x-show="!(workItems.find(w=>w.id===wbModal.id)?.pmLinks || []).length" style="font-size:11px;color:#aaa;margin:4px 0" x-text="t('wbNoLinkedTasks')"></div>
+              <div x-show="can('workboard','write') && can('projectplan','read')" style="display:flex;gap:6px;margin-top:6px">
+                <select x-model="wbLinkPmTaskId" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px">
+                  <option value="" x-text="t('wbSelectPmTask')"></option>
+                  <template x-for="t in tasks.filter(t=>!t.archived)" :key="t.id"><option :value="t.id" x-text="t.name"></option></template>
+                </select>
+                <button @click="linkPmTask(wbModal.id)" class="btn-sm" x-text="t('wbLinkPmTask')"></button>
+              </div>
+            </div>
+
+            <!-- Children -->
+            <div x-show="wbModal.id && (workItems.find(w=>w.id===wbModal.id)?.children || []).length > 0" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-top:4px">
+              <div class="detail-field-label" x-text="t('wbChildren')"></div>
+              <template x-for="ch in (workItems.find(w=>w.id===wbModal.id)?.children || [])" :key="ch.id">
+                <div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:12px;cursor:pointer" @click="openEditWorkItem(workItems.find(w=>w.id===ch.id) || ch)">
+                  <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700"
+                    :style="ch.type==='bug'?'background:#FEE2E2;color:#991B1B':'background:#F3F4F6;color:#374151'"
+                    x-text="ch.type.charAt(0).toUpperCase()"></span>
+                  <span x-text="ch.title" style="flex:1"></span>
+                  <span x-show="ch.storyPoints" style="font-size:10px;color:#888" x-text="ch.storyPoints + ' SP'"></span>
+                </div>
+              </template>
+            </div>
+
+            <!-- Activity Log -->
+            <div x-show="wbModal.id" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-top:4px;max-height:200px;overflow-y:auto">
+              <div class="detail-field-label" x-text="t('wbActivityLog')"></div>
+              <template x-for="log in wbItemLogs" :key="log.id">
+                <div style="display:flex;gap:6px;margin:3px 0;font-size:11px;color:#666">
+                  <span style="color:#aaa;min-width:110px" x-text="fmtDateTime(log.createdAt)"></span>
+                  <span style="font-weight:600" x-text="log.user"></span>
+                  <span x-text="log.summary"></span>
+                </div>
+              </template>
+              <div x-show="wbItemLogs.length === 0" style="font-size:11px;color:#aaa" x-text="t('wbNoActivity')"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="margin-top:20px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <button x-show="wbModal.id && can('workboard','write')" @click="deleteWorkItem(wbModal.id)" style="padding:6px 14px;background:#fee2e2;color:#991b1b;border:none;border-radius:4px;font-size:12px;cursor:pointer" x-text="t('wbModalDelete')"></button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button @click="wbModal.open=false" style="padding:6px 16px;border:1px solid #ddd;border-radius:4px;font-size:13px;cursor:pointer" x-text="t('cancel')"></button>
+            <button x-show="can('workboard','write')" @click="saveWorkItem()" style="padding:6px 16px;background:var(--dhl-yellow);border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer" x-text="t('wbModalSave')"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORK COLUMN MANAGEMENT MODAL -->
+    <div x-show="wbColumnModal.open" class="modal-overlay" @click.self="wbColumnModal.open=false" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000">
+      <div style="background:#fff;border-radius:10px;width:500px;max-height:80vh;overflow-y:auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.2)">
+        <h3 class="text-lg font-bold mb-4" x-text="t('wbManageColumns')"></h3>
+        <template x-for="(col, idx) in wbColumnForm" :key="idx">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <input type="text" x-model="col.name" :placeholder="t('wbColumnName')" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+            <input type="color" x-model="col.color" style="width:32px;height:32px;border:none;cursor:pointer;border-radius:4px">
+            <input type="number" x-model.number="col.wipLimit" :placeholder="t('wbWipLimit')" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:12px" min="0">
+            <button @click="wbColumnForm.splice(idx,1)" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:16px">&times;</button>
+          </div>
+        </template>
+        <button @click="wbColumnForm.push({id:null,name:'',color:'#6B7280',wipLimit:null,sortOrder:wbColumnForm.length})" class="btn-sm" style="margin-top:4px" x-text="t('wbAddColumn')"></button>
+        <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+          <button @click="wbColumnModal.open=false" style="padding:6px 16px;border:1px solid #ddd;border-radius:4px;font-size:13px;cursor:pointer" x-text="t('cancel')"></button>
+          <button @click="saveWbColumns()" style="padding:6px 16px;background:var(--dhl-yellow);border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer" x-text="t('wbSaveColumns')"></button>
+        </div>
+      </div>
+    </div>
+
     <!-- SETTINGS VIEW -->
     <!-- ============================================================ -->
     <div x-show="view === 'settings'" class="p-6">
@@ -2959,8 +3339,90 @@
         <div x-show="authUser?.role === 'superadmin'" class="settings-tab" :class="{ active: settingsTab === 'saas-dashboard' }" @click="settingsTab = 'saas-dashboard'; loadSaasStats()" x-text="t('tabSaas')">&nbsp;</div>
         <div x-show="authUser?.role === 'admin'" class="settings-tab" :class="{ active: settingsTab === 'users' }" @click="settingsTab = 'users'; loadUsers()" x-text="t('tabUsers')">&nbsp;</div>
         <div x-show="authUser?.role === 'admin'" class="settings-tab" :class="{ active: settingsTab === 'projects' || settingsTab === 'project-members' }" @click="settingsTab = 'projects'; loadProjects()" x-text="t('tabProjects')"></div>
+        <div x-show="can('workboard','read') && (authUser?.role === 'admin' || authUser?.role === 'superadmin')" class="settings-tab" :class="{ active: settingsTab === 'workflow' }" @click="settingsTab = 'workflow'; loadWorkflowSteps(); loadEmailSettings()" x-text="t('tabWorkflow')">&nbsp;</div>
         <div class="settings-tab" :class="{ active: settingsTab === 'language' }" @click="settingsTab = 'language'" x-text="t('tabLanguage')"></div>
       </div>
+
+      <!-- Workflow settings -->
+      <div x-show="settingsTab === 'workflow'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="chart-card">
+            <div class="chart-header" x-text="t('wbWorkflowSteps')"></div>
+            <div class="p-4 space-y-2">
+              <template x-if="!wbWorkflowForm.length">
+                <div class="text-gray-400 text-sm py-4 text-center" x-text="t('wbNoItems')"></div>
+              </template>
+              <template x-for="(step, idx) in wbWorkflowForm" :key="idx">
+                <div style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:4px">
+                  <span style="color:#aaa;font-size:12px;min-width:24px;text-align:center" x-text="idx + 1"></span>
+                  <input type="text" x-model="step.name" :placeholder="t('wbStepName')" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+                  <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;white-space:nowrap">
+                    <input type="checkbox" x-model="step.notifyEmail">
+                    <span>✉</span>
+                  </label>
+                  <button @click="wbWorkflowForm.splice(idx,1)" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:16px">&times;</button>
+                </div>
+              </template>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button @click="wbWorkflowForm.push({id:null,name:'',sortOrder:wbWorkflowForm.length,notifyEmail:false})" class="btn-sm" x-text="t('wbAddStep')"></button>
+                <button @click="syncWorkflowSteps()" class="btn-ghost btn-sm" x-text="t('wbSyncSteps')" :title="t('wbSyncStepsHelp')"></button>
+              </div>
+              <div style="margin-top:12px;display:flex;justify-content:flex-end">
+                <button @click="saveWorkflowSteps()" class="btn-primary" x-text="t('wbSaveSteps')"></button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header" x-text="t('emailSettingsTitle')"></div>
+            <div class="p-4 space-y-3">
+              <!-- Resend API Key -->
+              <div>
+                <label class="detail-field-label" x-text="t('emailResendApiKey')"></label>
+                <div style="display:flex;gap:6px">
+                  <input type="password" x-model="emailSettings.resendApiKey" :placeholder="t('emailResendApiKeyPlaceholder')"
+                    style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:12px;font-family:monospace">
+                  <button @click="$el.previousElementSibling.type = $el.previousElementSibling.type === 'password' ? 'text' : 'password'"
+                    style="padding:4px 10px;border:1px solid #ddd;border-radius:4px;font-size:12px;cursor:pointer;background:#fff">👁</button>
+                </div>
+                <p style="margin:4px 0 0;font-size:11px;color:#888" x-text="t('emailResendApiKeyHelp')"></p>
+              </div>
+              <!-- From address -->
+              <div>
+                <label class="detail-field-label" x-text="t('emailFromAddress')"></label>
+                <input type="text" x-model="emailSettings.emailFrom" placeholder="PM Tool <noreply@pmtool.cz>"
+                  style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:12px">
+              </div>
+              <!-- Notify on assignment -->
+              <div style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #e5e7eb;border-radius:6px;margin-top:8px">
+                <input type="checkbox" x-model="emailSettings.notifyAssignment" style="width:16px;height:16px">
+                <div>
+                  <div style="font-size:13px;font-weight:600" x-text="t('emailNotifyAssignment')"></div>
+                  <div style="font-size:11px;color:#888" x-text="t('emailNotifyAssignmentHelp')"></div>
+                </div>
+              </div>
+              <!-- Info boxes -->
+              <div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:12px;font-size:12px;color:#666;margin-top:8px">
+                <p style="margin:0 0 8px;font-weight:600" x-text="t('wbEmailNotify')"></p>
+                <p style="margin:0" x-text="t('wbEmailNotifyHelp')"></p>
+              </div>
+              <div style="background:#FFFBEB;border:1px solid #FDE047;border-radius:8px;padding:12px;font-size:12px;color:#713F12">
+                <p style="margin:0" x-text="t('wbSyncStepsHelp')"></p>
+              </div>
+              <!-- Status indicator -->
+              <div style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:6px;margin-top:8px"
+                :style="emailSettings.resendApiKey ? 'background:#D1FAE5;border:1px solid #6EE7B7' : 'background:#FEE2E2;border:1px solid #FCA5A5'">
+                <span style="font-size:16px" x-text="emailSettings.resendApiKey ? '✅' : '⚠️'"></span>
+                <span style="font-size:12px;font-weight:600" x-text="emailSettings.resendApiKey ? t('emailStatusReady') : t('emailStatusMissing')"></span>
+              </div>
+              <!-- Save button -->
+              <div style="display:flex;justify-content:flex-end;margin-top:8px">
+                <button @click="saveEmailSettings()" class="btn-primary" x-text="t('emailSaveSettings')"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       <!-- Language settings -->
       <div x-show="settingsTab === 'language'" class="max-w-sm">
@@ -3091,6 +3553,12 @@
             📌 Kanban
           </button>
           <button
+            @click="auditCategory='Work Board'; auditFilter=''; loadAuditLog()"
+            :style="auditCategory==='Work Board' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
+            style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
+            🗂️ Work Board
+          </button>
+          <button
             @click="auditCategory='Správa uživatelů'; auditFilter=''; loadAuditLog()"
             :style="auditCategory==='Správa uživatelů' ? 'background:var(--dhl-dark);color:var(--dhl-yellow)' : 'background:white;color:#666;border:1px solid #ddd'"
             style="padding:7px 18px;font-size:12px;font-weight:700;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px">
@@ -3144,6 +3612,14 @@
                 <option value="">All</option>
                 <option value="Task">Task (Move)</option>
                 <option value="KanbanColumn">Column</option>
+              </select>
+              <!-- Entity filter — Work Board -->
+              <select x-show="auditCategory==='Work Board'" x-model="auditFilter" @change="loadAuditLog()" class="border border-gray-200 rounded px-2 py-1 text-xs">
+                <option value="">All</option>
+                <option value="WorkItem">Work Item</option>
+                <option value="WorkColumn">Column</option>
+                <option value="PmTaskWorkItemLink">Link</option>
+                <option value="WorkflowStep">Workflow Step</option>
               </select>
               <button class="btn-ghost btn-sm" @click="loadAuditLog()" :title="t('refreshLog')"
                 style="font-size:15px;padding:4px 8px;line-height:1">↻</button>
@@ -5017,11 +5493,11 @@ function app() {
 
     // Users (admin)
     users: [],
-    SECTIONS: ['assets','labor','testing','risks','issues','changes','assumptions','projectplan'],
-    SECTION_LABELS: { assets:'Assets / Budget', labor:'Lidé / PM náklady', testing:'Test Management', risks:'Risk Management', issues:'Issue Tracker', changes:'Change Management', assumptions:'Assumption Log', projectplan:'Project Plan' },
+    SECTIONS: ['assets','labor','testing','risks','issues','changes','assumptions','projectplan','workboard'],
+    SECTION_LABELS: { assets:'Assets / Budget', labor:'Lidé / PM náklady', testing:'Test Management', risks:'Risk Management', issues:'Issue Tracker', changes:'Change Management', assumptions:'Assumption Log', projectplan:'Project Plan', workboard:'Work Board' },
     userForm: {
       id: null, email: '', name: '', password: '', error: '', role: 'user',
-      permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none', projectplan:'none' }
+      permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none', projectplan:'none', workboard:'none' }
     },
 
     // Project management (admin)
@@ -5094,6 +5570,26 @@ function app() {
     kanbanQuickAdd: {},
     ganttZoom: 'month',
     ppWorkDays: false,
+
+    // ── Work Board ──────────────────────────────────────────────────────────
+    workItems: [],
+    workColumns: [],
+    wbTab: 'board',           // 'board' | 'backlog'
+    wbFilters: { type: '', assigneeId: '', status: '', priority: '', search: '' },
+    wbModal: { open: false, id: null },
+    wbForm: { title: '', description: '', type: 'task', parentId: null, assigneeId: '', status: 'backlog', priority: '', storyPoints: null, columnId: null },
+    wbColumnModal: { open: false },
+    wbColumnForm: [],
+    wbQuickAdd: {},
+    wbItemLogs: [],
+    wbLinkPmTaskId: '',
+    expandedWorkItems: {},
+    // Workflow settings
+    workflowSteps: [],
+    wbWorkflowForm: [],
+
+    // Email notification settings
+    emailSettings: { resendApiKey: '', emailFrom: '', notifyAssignment: false },
 
     // ── Testing ───────────────────────────────────────────────────────────────
     testSets: [],
@@ -5606,7 +6102,7 @@ function app() {
     },
 
     editUser(u) {
-      let perms = { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+      let perms = { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none', projectplan:'none', workboard:'none' }
       try { perms = { ...perms, ...JSON.parse(u.permissions || '{}') } } catch {}
       this.userForm = { id: u.id, email: u.email, name: u.name, role: u.role, password: '', error: '', permissions: perms }
     },
@@ -5614,7 +6110,7 @@ function app() {
     resetUserForm() {
       this.userForm = {
         id: null, email: '', name: '', password: '', error: '', role: 'user',
-        permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none' }
+        permissions: { assets:'none', labor:'none', testing:'none', risks:'none', issues:'none', changes:'none', assumptions:'none', projectplan:'none', workboard:'none' }
       }
     },
 
@@ -6184,6 +6680,284 @@ function app() {
       this.kanbanColumnModal.open = false
       await this.loadKanbanColumns()
       await this.loadTasks()
+    },
+
+    // ── Work Board ─────────────────────────────────────────────
+    async loadWorkItems() {
+      const params = new URLSearchParams()
+      if (this.wbFilters.type) params.set('type', this.wbFilters.type)
+      if (this.wbFilters.assigneeId) params.set('assigneeId', this.wbFilters.assigneeId)
+      if (this.wbFilters.priority) params.set('priority', this.wbFilters.priority)
+      if (this.wbFilters.search) params.set('search', this.wbFilters.search)
+      const r = await this.apiFetch('GET', `/api/work-items?${params}`)
+      if (r.ok) this.workItems = await r.json()
+    },
+
+    async loadWorkColumns() {
+      const r = await this.apiFetch('GET', '/api/work-columns')
+      if (r.ok) this.workColumns = await r.json()
+    },
+
+    wbPriorityStyle(p) {
+      const map = { critical: 'background:#DC2626;color:#fff', high: 'background:#F59E0B;color:#fff', medium: 'background:#3B82F6;color:#fff', low: 'background:#D1FAE5;color:#065F46' }
+      return map[p] || 'background:#E5E7EB;color:#666'
+    },
+
+    wbColItems(colId) {
+      return this.workItems.filter(i => i.columnId === colId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+    },
+
+    wbColGrouped(colId) {
+      const items = this.wbColItems(colId)
+      const epicMap = {}
+      const orphans = []
+      for (const item of items) {
+        if (item.type === 'epic') {
+          if (!epicMap[item.id]) epicMap[item.id] = { epic: item, items: [] }
+          else epicMap[item.id].epic = item
+        } else if (item.parentId) {
+          if (!epicMap[item.parentId]) epicMap[item.parentId] = { epic: null, items: [] }
+          epicMap[item.parentId].items.push(item)
+        } else {
+          orphans.push(item)
+        }
+      }
+      // Also group items whose epic is NOT in this column (show group header from all epics)
+      const allEpics = this.workItems.filter(i => i.type === 'epic')
+      for (const key of Object.keys(epicMap)) {
+        if (!epicMap[key].epic) {
+          const ep = allEpics.find(e => e.id === parseInt(key))
+          if (ep) epicMap[key].epic = ep
+        }
+      }
+      const groups = Object.values(epicMap).filter(g => g.epic || g.items.length)
+      return { groups, orphans }
+    },
+
+    wbBacklogItems() {
+      let items = this.workItems
+      if (this.wbFilters.type) items = items.filter(i => i.type === this.wbFilters.type)
+      if (this.wbFilters.assigneeId) items = items.filter(i => i.assigneeId === parseInt(this.wbFilters.assigneeId))
+      if (this.wbFilters.priority) items = items.filter(i => i.priority === this.wbFilters.priority)
+      return items.sort((a, b) => a.sortOrder - b.sortOrder)
+    },
+
+    openNewWorkItem() {
+      this.wbForm = { title: '', description: '', type: 'task', parentId: null, assigneeId: '', status: 'backlog', priority: '', storyPoints: null, columnId: null }
+      this.wbModal = { open: true, id: null }
+      this.wbItemLogs = []
+    },
+
+    async openEditWorkItem(item) {
+      this.wbForm = {
+        title: item.title,
+        description: item.description || '',
+        type: item.type,
+        parentId: item.parentId || null,
+        assigneeId: item.assigneeId || '',
+        status: item.status,
+        priority: item.priority || '',
+        storyPoints: item.storyPoints,
+        columnId: item.columnId,
+      }
+      this.wbModal = { open: true, id: item.id }
+      // Load activity log
+      const r = await this.apiFetch('GET', `/api/work-items/${item.id}/log`)
+      if (r.ok) this.wbItemLogs = await r.json()
+      else this.wbItemLogs = []
+      // Load tasks if needed for linking
+      if (this.tasks.length === 0 && this.can('projectplan', 'read')) {
+        await this.loadTasks()
+      }
+    },
+
+    async saveWorkItem() {
+      if (!this.wbForm.title?.trim()) return alert(this.t('alertEnterName'))
+      const body = {
+        title: this.wbForm.title,
+        description: this.wbForm.description || null,
+        type: this.wbForm.type,
+        parentId: this.wbForm.parentId ? parseInt(this.wbForm.parentId) : null,
+        assigneeId: this.wbForm.assigneeId ? parseInt(this.wbForm.assigneeId) : null,
+        status: this.wbForm.status,
+        priority: this.wbForm.priority || null,
+        storyPoints: this.wbForm.storyPoints != null && this.wbForm.storyPoints !== '' ? parseInt(this.wbForm.storyPoints) : null,
+        columnId: this.wbForm.columnId ? parseInt(this.wbForm.columnId) : null,
+      }
+      let res
+      if (this.wbModal.id) {
+        res = await this.apiFetch('PUT', `/api/work-items/${this.wbModal.id}`, body)
+      } else {
+        res = await this.apiFetch('POST', '/api/work-items', body)
+      }
+      if (res.ok) {
+        this.wbModal.open = false
+        await this.loadWorkItems()
+      }
+    },
+
+    async deleteWorkItem(id) {
+      if (!confirm(this.t('wbModalDeleteConfirm'))) return
+      await this.apiFetch('DELETE', `/api/work-items/${id}`)
+      this.wbModal.open = false
+      await this.loadWorkItems()
+    },
+
+    async updateWorkItemStatus(id, status) {
+      // Find matching column by status name mapping
+      const statusColMap = { backlog: 'backlog', todo: 'to do', in_progress: 'in progress', review: 'review', done: 'done' }
+      const target = statusColMap[status] || status
+      const col = this.workColumns.find(c => c.name.toLowerCase().includes(target))
+      if (col) {
+        await this.apiFetch('PATCH', `/api/work-items/${id}/move`, { columnId: col.id, sortOrder: 0, status })
+      } else {
+        await this.apiFetch('PUT', `/api/work-items/${id}`, { status })
+      }
+      await this.loadWorkItems()
+    },
+
+    async dropWorkItem(ev, colId) {
+      const itemId = parseInt(ev.dataTransfer.getData('text/plain'))
+      if (!itemId) return
+      // Determine status from column name
+      const col = this.workColumns.find(c => c.id === colId)
+      let status
+      if (col) {
+        const lname = col.name.toLowerCase()
+        if (lname.includes('backlog')) status = 'backlog'
+        else if (lname.includes('done')) status = 'done'
+        else if (lname.includes('review')) status = 'review'
+        else if (lname.includes('progress')) status = 'in_progress'
+        else status = 'todo'
+      }
+      await this.apiFetch('PATCH', `/api/work-items/${itemId}/move`, { columnId: colId, sortOrder: 0, status })
+      await this.loadWorkItems()
+    },
+
+    async quickAddWorkItem(colId, inputEl) {
+      const title = inputEl.value?.trim()
+      if (!title) return
+      // Determine status from column name
+      const col = this.workColumns.find(c => c.id === colId)
+      let status = 'todo'
+      if (col) {
+        const lname = col.name.toLowerCase()
+        if (lname.includes('backlog')) status = 'backlog'
+        else if (lname.includes('done')) status = 'done'
+        else if (lname.includes('review')) status = 'review'
+        else if (lname.includes('progress')) status = 'in_progress'
+      }
+      const res = await this.apiFetch('POST', '/api/work-items', { title, type: 'task', columnId: colId, status })
+      if (res.ok) {
+        inputEl.value = ''
+        this.wbQuickAdd[colId] = false
+        await this.loadWorkItems()
+      }
+    },
+
+    // Work Board column management
+    openWbColumnModal() {
+      this.wbColumnForm = this.workColumns.map(c => ({ id: c.id, name: c.name, color: c.color, wipLimit: c.wipLimit || 0, sortOrder: c.sortOrder }))
+      this.wbColumnModal.open = true
+    },
+
+    async saveWbColumns() {
+      const existing = new Set(this.workColumns.map(c => c.id))
+      const formIds = new Set(this.wbColumnForm.filter(c => c.id).map(c => c.id))
+      for (const c of this.workColumns) {
+        if (!formIds.has(c.id)) {
+          await this.apiFetch('DELETE', `/api/work-columns/${c.id}`)
+        }
+      }
+      for (let i = 0; i < this.wbColumnForm.length; i++) {
+        const c = this.wbColumnForm[i]
+        c.sortOrder = i
+        if (c.id) {
+          await this.apiFetch('PUT', `/api/work-columns/${c.id}`, { name: c.name, color: c.color, wipLimit: c.wipLimit || null, sortOrder: c.sortOrder })
+        } else {
+          if (c.name?.trim()) {
+            await this.apiFetch('POST', '/api/work-columns', { name: c.name, color: c.color, wipLimit: c.wipLimit || null })
+          }
+        }
+      }
+      this.wbColumnModal.open = false
+      await this.loadWorkColumns()
+      await this.loadWorkItems()
+    },
+
+    // PM Task linking
+    async linkPmTask(workItemId) {
+      if (!this.wbLinkPmTaskId) return
+      const res = await this.apiFetch('POST', `/api/work-items/${workItemId}/link`, { pmTaskId: parseInt(this.wbLinkPmTaskId) })
+      if (res.ok) {
+        this.wbLinkPmTaskId = ''
+        await this.loadWorkItems()
+        // Refresh logs
+        const lr = await this.apiFetch('GET', `/api/work-items/${workItemId}/log`)
+        if (lr.ok) this.wbItemLogs = await lr.json()
+      }
+    },
+
+    async unlinkPmTask(workItemId, linkId) {
+      await this.apiFetch('DELETE', `/api/work-items/${workItemId}/link/${linkId}`)
+      await this.loadWorkItems()
+    },
+
+    // Workflow steps
+    async loadWorkflowSteps() {
+      const r = await this.apiFetch('GET', '/api/workflow-steps')
+      if (r.ok) {
+        this.workflowSteps = await r.json()
+        this.wbWorkflowForm = this.workflowSteps.map(s => ({ id: s.id, name: s.name, sortOrder: s.sortOrder, notifyEmail: s.notifyEmail }))
+      }
+    },
+
+    async saveWorkflowSteps() {
+      const existingIds = new Set(this.workflowSteps.map(s => s.id))
+      const formIds = new Set(this.wbWorkflowForm.filter(s => s.id).map(s => s.id))
+      for (const s of this.workflowSteps) {
+        if (!formIds.has(s.id)) {
+          await this.apiFetch('DELETE', `/api/workflow-steps/${s.id}`)
+        }
+      }
+      for (let i = 0; i < this.wbWorkflowForm.length; i++) {
+        const s = this.wbWorkflowForm[i]
+        s.sortOrder = i
+        if (s.id) {
+          await this.apiFetch('PUT', `/api/workflow-steps/${s.id}`, { name: s.name, notifyEmail: s.notifyEmail })
+        } else {
+          if (s.name?.trim()) {
+            await this.apiFetch('POST', '/api/workflow-steps', { name: s.name, notifyEmail: s.notifyEmail })
+          }
+        }
+      }
+      await this.loadWorkflowSteps()
+    },
+
+    async syncWorkflowSteps() {
+      await this.apiFetch('POST', '/api/workflow-steps/sync')
+      await this.loadWorkflowSteps()
+    },
+
+    // ── Email notification settings ──────────────────────────────
+    async loadEmailSettings() {
+      const r = await this.apiFetch('GET', '/api/settings')
+      if (!r.ok) return
+      const s = await r.json()
+      this.emailSettings = {
+        resendApiKey: s.resend_api_key || '',
+        emailFrom: s.email_from || '',
+        notifyAssignment: s.wb_notify_assignment === 'true',
+      }
+    },
+
+    async saveEmailSettings() {
+      await this.apiFetch('PUT', '/api/settings/resend_api_key', { value: this.emailSettings.resendApiKey })
+      await this.apiFetch('PUT', '/api/settings/email_from', { value: this.emailSettings.emailFrom })
+      await this.apiFetch('PUT', '/api/settings/wb_notify_assignment', { value: this.emailSettings.notifyAssignment ? 'true' : 'false' })
+      // Also set env vars in-memory via a dedicated endpoint if needed, but for now the backend reads from Settings
+      alert(this.t('emailSettingsSaved'))
     },
 
     // ── Gantt Chart ──────────────────────────────────────────────
